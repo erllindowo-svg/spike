@@ -262,6 +262,52 @@ Explicada a diferença: `git push` copia os commits da branch local para o GitHu
 
 > Preencha esta seção você mesmo.
 
+### 2026-10-13 / Push da branch e quando fazer merge
+
+**Resumo técnico**
+
+Commitadas as mudanças da revisão e feito o push de `feat/judit-client` para o GitHub; PR não aberto. Discutido que "produto inacabado" é diferente de "fatia inacabada": a `main` pode receber fatias pequenas, testadas e isoladas. O `.env.example` ficou fora do commit.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Pull request #1
+
+**Resumo técnico**
+
+Aberto o PR #1 (`feat/judit-client` → `main`), com descrição, limitações conhecidas (nenhuma chamada real feita, lacuna da allowlist) e verificações. O merge fica com você, no GitHub. Depois dele, a fase 2 (banco) começa numa branch nova a partir da `main` atualizada.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Onde está cada versão do código
+
+**Resumo técnico**
+
+Conferido com `git fetch`, `git status` e `gh pr view`: a `main` do GitHub continua no protótipo (`2af39e6`); a branch `feat/judit-client` no GitHub tem os dois commits do client; o PR #1 está aberto e sem conflitos. Localmente, `.env.example` e o diário têm mudanças não commitadas.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Fase 2a: persistência de empresas e monitoramentos
+
+**Resumo técnico**
+
+Na branch `feat/persistence`: índice único parcial impede dois monitoramentos ativos do mesmo identificador (migration `0001`). `ensureCompany`, `createTracking` e listagens validam no servidor. Testes usam PostgreSQL real em processo (PGlite). 80 testes passando. Telas ainda não usam o banco; migration não aplicada.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que a regra "um monitoramento ativo por identificador" fica num índice do banco, e não numa consulta antes do `INSERT`?
+- Por que o índice é "parcial" (`WHERE status IS DISTINCT FROM 'deleted'`) e não um UNIQUE simples?
+- Por que `createTracking` valida a entrada de novo, se o formulário já valida?
+
 ---
 
 ## Perguntas e respostas
@@ -461,3 +507,21 @@ Autenticação de usuários e autorização por dono dos dados; persistência (b
 **Este código foi escrito com ajuda de IA. Como o entrevistador sabe que você o entende?**
 
 Não há atalho: a resposta é conseguir explicar as decisões acima, apontar onde cada uma está no código e dizer o que mudaria. Um bom sinal é saber explicar os _limites_ (o que a allowlist não cobre, por que o mock não prova a API real) e não só o que funciona.
+
+### Fase 2a: persistência
+
+**Por que a regra "um monitoramento ativo por identificador" fica num índice do banco, e não numa consulta antes do `INSERT`?**
+
+Porque duas requisições ao mesmo tempo podem fazer a consulta juntas, as duas veem "não existe" e as duas inserem. O índice único é verificado pelo próprio PostgreSQL no momento da inserção, então só uma passa. O teste "lets the database decide between two simultaneous requests" mostra isso; com o índice removido, as duas passaram.
+
+**Por que o índice é "parcial" (`WHERE status IS DISTINCT FROM 'deleted'`) e não um UNIQUE simples?**
+
+Um UNIQUE simples impediria monitorar de novo um CNPJ cujo monitoramento antigo foi excluído, ou obrigaria a apagar o histórico. O índice parcial só considera as linhas não excluídas. `IS DISTINCT FROM` é usado em vez de `<>` porque `NULL <> 'deleted'` resulta em `NULL` (nem verdadeiro nem falso), e a linha com status nulo, a que ainda não foi enviada à JUDIT, ficaria fora da regra.
+
+**Por que `createTracking` valida a entrada de novo, se o formulário já valida?**
+
+O formulário roda no navegador, e qualquer pessoa pode enviar uma requisição direto ao servidor sem passar por ele. A validação do formulário serve para dar retorno rápido a quem usa; a do servidor é a que protege os dados.
+
+**Por que `ensureCompany` não fica numa transação junto com a criação do monitoramento?**
+
+Porque não há estado inconsistente a evitar: se o monitoramento for recusado como duplicado, a empresa criada continua sendo um registro válido. Uma transação acrescentaria complexidade sem proteger nada.

@@ -34,8 +34,10 @@ Toda a interface usa **dados fictícios em memória**:
   monitoramento, marcar alertas como lidos, simular eventos). Recarregar a
   página restaura os dados iniciais.
 
-Ainda **não** implementado: chamadas à JUDIT, uso da API key, persistência no
-PostgreSQL, recebimento real de webhooks e autenticação. Toda ação que
+Ainda **não** implementado: chamadas à JUDIT pela interface, persistência
+ligada às telas, recebimento real de webhooks e autenticação. As funções de
+persistência de empresas e monitoramentos já existem (ver "Banco de dados"),
+mas nenhuma tela as usa ainda. Toda ação que
 dependeria dessas integrações informa que ocorreu apenas em modo de
 demonstração.
 
@@ -146,7 +148,9 @@ src/
   situação cadastral opcionais.
 - **trackings** — monitoramentos; `judit_tracking_id` único (nulo até a JUDIT
   confirmar), tipo de pesquisa (`cnpj` | `cnj`), identificador, status bruto
-  retornado pela JUDIT e recorrência em dias.
+  retornado pela JUDIT e recorrência em dias. O índice único parcial
+  `trackings_active_search_key_unique` permite no máximo um monitoramento não
+  excluído (`status` diferente de `deleted`) por identificador.
 - **webhook_events** — `callback_id` único para impedir processamento
   duplicado, tipo/referência do evento, payload original em JSONB e status de
   processamento (`pending`, `processing`, `processed`, `failed`, `ignored`).
@@ -154,6 +158,19 @@ src/
   `read_at` nulo indica não lido.
 
 Campos vindos da API são opcionais sempre que a JUDIT pode não fornecê-los.
+
+Funções de persistência (somente servidor):
+
+- `src/features/companies/db.ts` — `listCompanies`, `getCompanyByCnpj` e
+  `ensureCompany` (cria a empresa uma única vez por CNPJ).
+- `src/features/trackings/db.ts` — `listTrackings` e `createTracking`, que
+  valida a entrada no servidor e devolve `duplicate` quando o índice único
+  recusa a inserção. Só registra localmente: não cria nada na JUDIT.
+
+Os testes dessas funções rodam contra um PostgreSQL real dentro do processo
+([PGlite](https://pglite.dev), dependência só de desenvolvimento), com as
+migrations de `drizzle/` aplicadas (`src/db/test-db.ts`). Não precisam de
+`DATABASE_URL`.
 
 ## Deploy
 

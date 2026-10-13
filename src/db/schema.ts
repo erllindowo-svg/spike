@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -65,6 +66,14 @@ export const trackings = pgTable(
   (table) => [
     index("trackings_company_id_idx").on(table.companyId),
     index("trackings_search_idx").on(table.searchType, table.searchKey),
+    // No máximo um monitoramento não excluído por identificador. A regra fica
+    // no banco, e não só no código, porque duas requisições simultâneas
+    // passariam juntas por uma consulta prévia. "deleted" é o status
+    // documentado pela JUDIT para monitoramento excluído; linhas excluídas
+    // continuam no banco como histórico.
+    uniqueIndex("trackings_active_search_key_unique")
+      .on(table.searchType, table.searchKey)
+      .where(sql`${table.status} IS DISTINCT FROM 'deleted'`),
     check(
       "trackings_recurrence_days_positive",
       sql`${table.recurrenceDays} IS NULL OR ${table.recurrenceDays} > 0`,
