@@ -2,11 +2,16 @@ import "server-only";
 
 import { z } from "zod";
 
-// Variáveis lidas sob demanda: o build não depende de credenciais e cada
-// módulo só exige o que realmente usa. Os valores nunca entram nas mensagens.
+// Variables are read on demand: the build does not depend on credentials and
+// each module only requires what it actually uses. Values never go into
+// error messages.
 const serverEnvSchema = z.object({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   JUDIT_API_KEY: z.string().trim().min(1),
+  // Kill switch for real JUDIT calls. Optional on purpose: absent means
+  // "disabled", and src/lib/judit/guard.ts only accepts the exact value
+  // "enabled".
+  JUDIT_LIVE_CALLS: z.string().trim().optional(),
 });
 
 type ServerEnv = z.infer<typeof serverEnvSchema>;
