@@ -6,7 +6,16 @@ import { z } from "zod";
 // each module only requires what it actually uses. Values never go into
 // error messages.
 const serverEnvSchema = z.object({
-  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  // MongoDB connection string (Atlas gives the mongodb+srv:// form). Checked
+  // as a prefix, not as a URL: the mongodb:// form may list several hosts,
+  // which a URL parser rejects.
+  MONGODB_URI: z
+    .string()
+    .trim()
+    .regex(/^mongodb(\+srv)?:\/\//),
+  // Database name inside the cluster. Explicit default so data never lands
+  // silently in the driver's fallback database ("test").
+  MONGODB_DB: z.string().trim().min(1).default("raio_x"),
   JUDIT_API_KEY: z.string().trim().min(1),
   // Kill switch for real JUDIT calls. Optional on purpose: absent means
   // "disabled", and src/lib/judit/guard.ts only accepts the exact value

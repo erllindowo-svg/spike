@@ -1,4 +1,4 @@
-import type { Company } from "@/db/schema";
+import type { Company } from "@/db/models";
 
 export type { Company };
 

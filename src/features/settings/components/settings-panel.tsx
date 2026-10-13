@@ -38,7 +38,7 @@ const integrations = [
     icon: DatabaseIcon,
     title: "Banco de dados",
     description:
-      "Schema e migrations prontos (PostgreSQL + Drizzle), mas a interface ainda usa apenas dados em memória.",
+      "Persistência no MongoDB pronta para empresas e monitoramentos, mas a interface ainda usa apenas dados em memória.",
   },
 ];
 

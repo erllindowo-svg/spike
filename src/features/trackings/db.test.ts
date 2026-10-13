@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import {
   afterAll,
   beforeAll,
@@ -8,8 +7,10 @@ import {
   it,
   vi,
 } from "vitest";
+import { Collection } from "mongodb";
 
-import { companies, trackings } from "@/db/schema";
+import { activeFor, collections } from "@/db/collections";
+import { isDuplicateKeyError } from "@/db/errors";
 import { createTestDb } from "@/db/test-db";
 import {
   ensureCompany,
@@ -19,22 +20,25 @@ import {
 
 import { createTracking, listTrackings } from "./db";
 
-// The app's getDb() is replaced by an in-process PostgreSQL (PGlite) with the
-// real migrations applied. vi.hoisted makes `testDb` available to the mock
-// factory, which Vitest moves to the top of the file.
+// The app's getDb() is replaced by a temporary real MongoDB server
+// (mongodb-memory-server) with the app's indexes. vi.hoisted makes `testDb`
+// available to the mock factory, which Vitest moves to the top of the file.
 const testDb = vi.hoisted(() => ({
   current: undefined as Awaited<ReturnType<typeof createTestDb>> | undefined,
 }));
-vi.mock("@/db", () => ({ getDb: () => testDb.current!.db }));
+vi.mock("@/db", () => ({ getDb: async () => testDb.current!.db }));
 
 // Fictitious identifiers with valid check digits.
 const CNPJ = "A1B2C3D4E5F668";
 const OTHER_CNPJ = "11222333000181";
 const CNJ = "00012340320268260100";
 
+const trackingsCollection = () => collections(testDb.current!.db).trackings;
+
 beforeAll(async () => {
+  // The first run downloads the mongod binary; later runs use the cache.
   testDb.current = await createTestDb();
-});
+}, 120_000);
 
 beforeEach(async () => {
   await testDb.current!.reset();
@@ -50,17 +54,20 @@ describe("ensureCompany", () => {
     const second = await ensureCompany(CNPJ.toLowerCase());
 
     expect(second.id).toBe(first.id);
-    expect(first.cnpj).toBe(CNPJ);
+    expect(first).toMatchObject({
+      cnpj: CNPJ,
+      legalName: null,
+      registrationStatus: null,
+    });
     expect(await listCompanies()).toHaveLength(1);
   });
 
   it("does not duplicate when called concurrently", async () => {
-    const [a, b] = await Promise.all([
-      ensureCompany(CNPJ),
-      ensureCompany(CNPJ),
-    ]);
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => ensureCompany(CNPJ)),
+    );
 
-    expect(a.id).toBe(b.id);
+    expect(new Set(results.map((c) => c.id)).size).toBe(1);
     expect(await listCompanies()).toHaveLength(1);
   });
 
@@ -89,6 +96,9 @@ describe("createTracking", () => {
       juditTrackingId: null,
       status: null,
     });
+    // The index helper field stays inside the database.
+    expect(result.tracking).not.toHaveProperty("active");
+    expect(await listTrackings()).toEqual([result.tracking]);
   });
 
   it("stores a CNJ tracking without a company", async () => {
@@ -154,24 +164,21 @@ describe("createTracking", () => {
     expect(await listTrackings()).toHaveLength(1);
   });
 
-  it("lets the database decide between two simultaneous requests", async () => {
-    const results = await Promise.all([
-      createTracking({
-        searchType: "cnpj",
-        searchKey: CNPJ,
-        recurrenceDays: 7,
-      }),
-      createTracking({
-        searchType: "cnpj",
-        searchKey: CNPJ,
-        recurrenceDays: 7,
-      }),
-    ]);
+  it("lets the database decide between simultaneous requests", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        createTracking({
+          searchType: "cnpj",
+          searchKey: CNPJ,
+          recurrenceDays: 7,
+        }),
+      ),
+    );
 
     expect(results.filter((r) => r.ok)).toHaveLength(1);
-    expect(results.filter((r) => !r.ok)).toEqual([
-      { ok: false, reason: "duplicate" },
-    ]);
+    expect(results.filter((r) => !r.ok)).toEqual(
+      Array.from({ length: 4 }, () => ({ ok: false, reason: "duplicate" })),
+    );
   });
 
   it("allows the same identifier again once the old tracking is deleted", async () => {
@@ -181,10 +188,11 @@ describe("createTracking", () => {
       recurrenceDays: 7,
     });
     if (!first.ok) throw new Error("setup failed");
-    await testDb
-      .current!.db.update(trackings)
-      .set({ status: "deleted" })
-      .where(eq(trackings.id, first.tracking.id));
+    // Whoever changes the status must keep `active` in sync (activeFor).
+    await trackingsCollection().updateOne(
+      { _id: first.tracking.id },
+      { $set: { status: "deleted", active: activeFor("deleted") } },
+    );
 
     const second = await createTracking({
       searchType: "cnpj",
@@ -209,12 +217,29 @@ describe("createTracking", () => {
     });
 
     expect(a.ok && b.ok).toBe(true);
-    expect(await testDb.current!.db.select().from(companies)).toHaveLength(2);
+    expect(await listCompanies()).toHaveLength(2);
+  });
+
+  it("allows many trackings not yet sent to JUDIT (null juditTrackingId)", async () => {
+    await createTracking({
+      searchType: "cnpj",
+      searchKey: CNPJ,
+      recurrenceDays: 7,
+    });
+    const b = await createTracking({
+      searchType: "cnj",
+      searchKey: CNJ,
+      recurrenceDays: 7,
+    });
+
+    expect(b.ok).toBe(true);
   });
 
   it("propagates database failures other than the duplicate rule", async () => {
-    // Takes the whole table away to simulate a broken database.
-    await testDb.current!.db.execute("DROP TABLE trackings CASCADE");
+    // Simulates the database dropping the connection during the insert.
+    const spy = vi
+      .spyOn(Collection.prototype, "insertOne")
+      .mockRejectedValueOnce(new Error("connection lost"));
     try {
       await expect(
         createTracking({
@@ -222,11 +247,34 @@ describe("createTracking", () => {
           searchKey: CNJ,
           recurrenceDays: 7,
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow("connection lost");
     } finally {
-      // Recreate a clean database for any test that runs after this one.
-      await testDb.current!.close();
-      testDb.current = await createTestDb();
+      spy.mockRestore();
     }
+  });
+});
+
+describe("isDuplicateKeyError", () => {
+  it("tells apart violations of different unique indexes", async () => {
+    const { companies } = collections(testDb.current!.db);
+    const doc = {
+      cnpj: CNPJ,
+      legalName: null,
+      registrationStatus: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await companies.insertOne({ _id: "a", ...doc });
+    const error = await companies
+      .insertOne({ _id: "b", ...doc })
+      .catch((e: unknown) => e);
+
+    expect(isDuplicateKeyError(error, "companies_cnpj_unique")).toBe(true);
+    expect(
+      isDuplicateKeyError(error, "trackings_active_search_key_unique"),
+    ).toBe(false);
+    expect(
+      isDuplicateKeyError(new Error("E11000"), "companies_cnpj_unique"),
+    ).toBe(false);
   });
 });

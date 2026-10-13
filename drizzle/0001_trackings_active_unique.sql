@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX "trackings_active_search_key_unique" ON "trackings" USING btree ("search_type","search_key") WHERE "trackings"."status" IS DISTINCT FROM 'deleted';

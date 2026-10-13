@@ -308,6 +308,21 @@ Na branch `feat/persistence`: índice único parcial impede dois monitoramentos 
 - Por que o índice é "parcial" (`WHERE status IS DISTINCT FROM 'deleted'`) e não um UNIQUE simples?
 - Por que `createTracking` valida a entrada de novo, se o formulário já valida?
 
+### 2026-10-13 / Troca do PostgreSQL pelo MongoDB
+
+**Resumo técnico**
+
+Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migrations e PGlite removidos; tipos agora em `src/db/models.ts`. Índices em `ensureIndexes`, chamado na conexão. A regra anti-duplicata virou índice parcial sobre o campo `active`. Testes usam `mongod` real temporário. 78 testes passando.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que o documento de monitoramento precisa de um campo `active`, se o `status` já diz se ele foi excluído?
+- O que o PostgreSQL garantia sozinho que, no MongoDB, passou a depender do nosso código?
+
 ---
 
 ## Perguntas e respostas
@@ -510,6 +525,8 @@ Não há atalho: a resposta é conseguir explicar as decisões acima, apontar on
 
 ### Fase 2a: persistência
 
+As respostas desta seção foram escritas para a versão em PostgreSQL. A ideia de cada uma continua valendo no MongoDB; a mecânica mudou (ver "Troca para o MongoDB").
+
 **Por que a regra "um monitoramento ativo por identificador" fica num índice do banco, e não numa consulta antes do `INSERT`?**
 
 Porque duas requisições ao mesmo tempo podem fazer a consulta juntas, as duas veem "não existe" e as duas inserem. O índice único é verificado pelo próprio PostgreSQL no momento da inserção, então só uma passa. O teste "lets the database decide between two simultaneous requests" mostra isso; com o índice removido, as duas passaram.
@@ -525,3 +542,21 @@ O formulário roda no navegador, e qualquer pessoa pode enviar uma requisição 
 **Por que `ensureCompany` não fica numa transação junto com a criação do monitoramento?**
 
 Porque não há estado inconsistente a evitar: se o monitoramento for recusado como duplicado, a empresa criada continua sendo um registro válido. Uma transação acrescentaria complexidade sem proteger nada.
+
+### Troca para o MongoDB
+
+**Por que o documento de monitoramento precisa de um campo `active`, se o `status` já diz se ele foi excluído?**
+
+Porque o índice único parcial do MongoDB só aceita filtros simples (igualdade, `$exists: true`, `$gt`, `$type`...), e não "diferente de" (`$ne`). Não dá para escrever "único entre os que têm status diferente de `deleted`". O campo `active` transforma a regra numa igualdade (`active: true`). O custo é ter de manter os dois campos coerentes, papel da função `activeFor`.
+
+**O que o PostgreSQL garantia sozinho que, no MongoDB, passou a depender do nosso código?**
+
+Três coisas: chaves estrangeiras (um `companyId` precisava existir em `companies`), tipos e restrições das colunas (`CHECK recurrence_days > 0`, `NOT NULL`) e o esquema fixo das tabelas. No MongoDB, quem garante isso é a validação Zod no servidor e as funções de persistência. A unicidade continua sendo garantida pelo banco, via índices únicos.
+
+**Por que usar UUID em texto como `_id`, em vez do `ObjectId` padrão do MongoDB?**
+
+Para que o identificador seja uma string comum em toda a aplicação: nas URLs, nos tipos e nos dados de demonstração. Assim não é preciso converter `ObjectId` em cada fronteira. A desvantagem é perder a data de criação embutida no `ObjectId`, que aqui já existe em `createdAt`.
+
+**Se o MongoDB não tem migrations, como um índice novo chega ao banco do Atlas?**
+
+`ensureIndexes` roda na primeira conexão de cada instância do servidor, e `createIndex` não faz nada se o índice já existe igual. Um índice novo é criado na próxima vez que a aplicação subir. Mudar as opções de um índice que já existe exige removê-lo antes, e isso ainda não está automatizado.

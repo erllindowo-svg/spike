@@ -1,10 +1,10 @@
-import type { WebhookEvent } from "@/db/schema";
+import type { WebhookEvent, WebhookProcessingStatus } from "@/db/models";
 
-export type WebhookProcessingStatus = WebhookEvent["processingStatus"];
+export type { WebhookProcessingStatus };
 
 export type WebhookEventView = WebhookEvent & {
-  // Reentregas com o mesmo callback_id descartadas pela restrição UNIQUE.
-  // Ainda não existe coluna para isso; candidato ao schema.
+  // Reentregas com o mesmo callback_id descartadas pelo índice único.
+  // Ainda não existe campo para isso; candidato ao modelo.
   duplicateDeliveries: number;
   alertIds: string[];
 };
