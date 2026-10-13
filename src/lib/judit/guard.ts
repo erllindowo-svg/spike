@@ -6,12 +6,15 @@ import { getServerEnv } from "@/lib/env";
 
 import { JuditGuardError, JuditLiveCallsDisabledError } from "./errors";
 
-// Cost and safety guard. The JUDIT key has limited credits, so every call goes
-// through two server-side checks before reaching the network:
+// Cost and safety guard. The JUDIT key has limited credits, so calls go
+// through server-side checks before reaching the network:
 //
-// 1. Kill switch: JUDIT_LIVE_CALLS must be exactly "enabled".
+// 1. Kill switch: JUDIT_LIVE_CALLS must be exactly "enabled". Every call.
 // 2. Allowlist: searches by document, name or CNJ only run for keys listed
-//    below.
+//    below. Calls by id (GET /requests/{id}, PATCH/DELETE /tracking/{id}) and
+//    account-wide lists (GET /requests, /responses, /tracking) carry no search
+//    key, so only the kill switch applies to them: they can read or change
+//    work created outside this app with the same key.
 //
 // This only protects calls made by this app. The same key used in Postman,
 // curl or another app bypasses all of it.

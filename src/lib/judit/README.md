@@ -86,6 +86,14 @@ Fonte: <https://docs.judit.io/introduction/authentication>.
 3. **Padrões seguros.** `on_demand` e `with_attachments` nunca são `true` por
    padrão (aplicado nas funções de serviço, fases 1 a 3).
 
+**A allowlist não cobre chamadas sem documento.** Consultas por ID
+(`getRequest`, `getTracking`, `pauseTracking`, `deleteTracking`...) e listagens
+da conta inteira (`listRequests`, `listResponses`, `listTrackings`) passam só
+pelo kill switch. Elas podem ler ou alterar trabalho criado fora deste app com a
+mesma chave. Correção prevista: quando houver banco, registrar os IDs criados
+pelo app e só permitir esses. Até lá, essas rotas só são chamadas por decisão
+explícita.
+
 **Limite da guarda:** ela protege apenas as chamadas feitas por esta
 aplicação. A mesma chave usada no Postman, no curl ou em outro sistema passa
 por fora dela e consome créditos normalmente.

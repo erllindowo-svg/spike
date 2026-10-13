@@ -193,6 +193,75 @@ Commit da branch `feat/judit-client` com o client JUDIT, os serviços lawsuits, 
 
 > Preencha esta seção você mesmo.
 
+### 2026-10-13 / Retomada: leitura do relatório da sessão anterior
+
+**Resumo técnico**
+
+Relido o relatório da sessão anterior (commit `5423aa5`, fases 0–3 do client JUDIT, 61 testes, nenhuma chamada real feita). Confirmado que a allowlist ainda só contém o CNPJ fictício e a branch não foi enviada ao remoto. Pendências manuais apresentadas para decidir o próximo passo.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / CNJs de teste, chamada real adiada e revisão do commit
+
+**Resumo técnico**
+
+Não usaremos CNJs reais buscados na web: envolvem dados de terceiros e geram cobrança. A documentação oferece o CNPJ fictício `A1B2C3D4/E5F6-68` e uma chave de sandbox via comercial@judit.io. Chamada real adiada. Proposto roteiro de revisão do commit `5423aa5`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que um processo trabalhista de uma padaria pode expor dados de uma pessoa física, mesmo que a busca seja pelo CNPJ da empresa?
+
+### 2026-10-13 / Revisão 1/6: `guard.ts`
+
+**Resumo técnico**
+
+Revisado `guard.ts`: kill switch em toda chamada e allowlist só com o CNPJ fictício. Achado: a allowlist não cobre chamadas por ID nem listagens da conta (`listRequests`, `listTrackings`, `deleteTracking`), que passam só pelo kill switch. O comentário do arquivo promete mais do que entrega. Decisão pendente: opções A, B ou C.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Com `JUDIT_LIVE_CALLS=Enabled` (com "E" maiúsculo), o que acontece, e por que isso é desejável?
+- Por que a allowlist não consegue proteger uma chamada como `getTracking(id)`?
+
+### 2026-10-13 / Como acessar um commit
+
+**Resumo técnico**
+
+Explicado que o commit `5423aa5` é o estado atual da branch `feat/judit-client`: os arquivos já estão na pasta e podem ser abertos no editor. `git log`, `git show` e `git show <hash> -- <arquivo>` mostram o histórico e o que cada commit mudou.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Encerramento da revisão do commit `5423aa5`
+
+**Resumo técnico**
+
+Revisão encerrada pela opção A: o comentário de `guard.ts` e o README agora dizem que a allowlist não cobre chamadas por ID nem listagens da conta. A correção definitiva fica para quando houver banco. Adicionadas ao Q/A 14 perguntas de entrevista sobre o repositório, com respostas.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Push e pull request
+
+**Resumo técnico**
+
+Explicada a diferença: `git push` copia os commits da branch local para o GitHub; o pull request é um pedido, feito no GitHub, para juntar essa branch à `main`, com espaço para revisão e discussão. O push vem antes do PR. Confirmado que `JUDIT_LIVE_CALLS=` já está no `.env.example`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
 ---
 
 ## Perguntas e respostas
@@ -316,3 +385,79 @@ A allowlist é verificada na criação do monitoramento. Se o PATCH aceitasse um
 **Um monitoramento parado gasta créditos?**
 
 A documentação não diz se a pausa interrompe a cobrança, só que interrompe as execuções. Como a cobrança está ligada às execuções (requisições), a hipótese razoável é que não gaste, mas isso ainda precisa ser confirmado com a JUDIT.
+
+### Dados de teste
+
+**Por que um processo trabalhista de uma padaria pode expor dados de uma pessoa física, mesmo que a busca seja pelo CNPJ da empresa?**
+
+Porque o processo tem mais de uma parte. A padaria é ré, mas o autor costuma ser um ex-funcionário, com nome, às vezes CPF, salário e motivo da demissão. Buscar pelo CNPJ traz o processo inteiro, inclusive os dados dessa pessoa, que não autorizou nada. O fato de o processo ser público não torna o uso desses dados livre de regras: a LGPD continua valendo.
+
+### Revisão do `guard.ts`
+
+**Com `JUDIT_LIVE_CALLS=Enabled` (com "E" maiúsculo), o que acontece, e por que isso é desejável?**
+
+As chamadas continuam bloqueadas, porque a comparação exige exatamente `"enabled"`. É desejável que um interruptor de custo falhe para o lado fechado: qualquer valor errado ou digitado com pressa mantém tudo desligado, em vez de liberar gastos por engano.
+
+**Por que a allowlist não consegue proteger uma chamada como `getTracking(id)`?**
+
+Porque a chamada não carrega documento nenhum, só um ID gerado pela JUDIT. O guard não tem como saber a qual documento aquele ID pertence. Para isso seria preciso registrar no banco os IDs criados pelo app (a opção C).
+
+### Perguntas de entrevista sobre este repositório
+
+Perguntas que um entrevistador faria usando o repositório para avaliar quem o escreveu. Tente responder em voz alta antes de ler a resposta.
+
+**Desenhe o caminho de uma chamada, do `POST /api/dev/judit/lawsuits/count` até a JUDIT e de volta.**
+
+A rota (`src/app/api/dev/judit/lawsuits/count/route.ts`) devolve 404 se não estiver em desenvolvimento com o kill switch ligado. Depois valida o corpo com Zod (`readInput`) e chama `countLawsuits` em `lawsuits.ts`, que passa o documento pela allowlist e chama `juditRequest`. O client verifica o kill switch, lê a chave, faz o `fetch` com timeout e valida a resposta. Qualquer erro vira JSON com status próprio em `errorResponse` (`dev-route.ts`).
+
+**Por que existe um único `juditRequest` em vez de cada serviço chamar `fetch`?**
+
+Para que URL base, header de autenticação, timeout, tratamento de erro e proteção da chave existam num lugar só. Corrigir um bug ali corrige todos os serviços, e os testes do client cobrem o comportamento comum uma única vez.
+
+**Como o sistema diferencia "a JUDIT caiu" de "o processo não existe"?**
+
+Pelos tipos de erro. Falha de rede e timeout viram `JuditNetworkError` e `JuditTimeoutError`. Status HTTP fora de 2xx vira `JuditHttpError`. Um HTTP 200 com `application_error` no corpo vira `JuditApplicationError`, com código como `LAWSUIT_NOT_FOUND`. A rota traduz isso em 502/504 (falha da JUDIT) ou 422 (a chamada funcionou, mas o resultado de negócio é um erro).
+
+**Por que a sua rota devolve 502 quando a JUDIT devolve 401?**
+
+O 401 é um problema entre o nosso servidor e a JUDIT (a nossa chave), não do cliente que chamou a rota. Repassar 401 faria o cliente achar que _ele_ precisa se autenticar. O 502 (Bad Gateway) diz que o serviço de trás falhou.
+
+**Por que não há retry automático? Retry não deixaria o sistema mais robusto?**
+
+Para leituras, deixaria. Mas `POST /requests` e `POST /tracking` criam trabalho cobrado. Se o timeout acontecer depois de a JUDIT ter recebido a chamada, repetir cria uma segunda requisição e pode cobrar duas vezes. A documentação não oferece chave de idempotência para esses endpoints. Por isso o padrão seguro é devolver o erro e deixar uma pessoa, ou uma política explícita futura, decidir.
+
+**O que acontece se a JUDIT adicionar um campo novo na resposta amanhã? E se remover um?**
+
+Campo novo: nada quebra, porque os schemas de resposta são tolerantes (aceitam campos extras). Campo removido: se for obrigatório no schema, a validação falha e vira `JuditUnexpectedResponseError`, com a lista dos campos problemáticos. É uma falha visível e diagnosticável, em vez de um `undefined` silencioso mais adiante.
+
+**Como você garante que a chave da API não vaza?**
+
+A chave está só em variável de servidor (sem `NEXT_PUBLIC_`). Os módulos usam `import "server-only"`, que quebra o build se forem importados no navegador. Erros guardam só a mensagem da causa, nunca as opções do `fetch`. O corpo de erro passa por `redact` antes de ser guardado. E o `.env*` fica fora do Git.
+
+**A allowlist protege o quê, exatamente? E o que ela não protege?**
+
+Protege contra buscar documentos não autorizados por este app. Não protege contra quem chama (não é autenticação), nem chamadas por ID ou listagens da conta (que não levam documento), nem uso da mesma chave fora do app. Por isso as rotas de dev só existem em desenvolvimento.
+
+**Por que as rotas de dev devolvem 404, e não 403, quando estão desligadas?**
+
+Um 403 confirma que a rota existe e só está bloqueada. O 404 não revela nada a quem está sondando URLs. Em produção, para quem está de fora, a rota simplesmente não existe.
+
+**Qual a diferença entre o fluxo de `lawsuits` e o de `requests`?**
+
+`lawsuits` é síncrono: a resposta vem no corpo da própria chamada, lida do datalake. `requests` é assíncrono: o `POST` devolve só um `request_id` com `status: "pending"`. O resultado precisa ser buscado depois em `GET /responses`, e só `completed` indica que o conjunto está final.
+
+**Como você testou a integração sem nunca chamar a JUDIT?**
+
+Com Vitest e `fetch` simulado: cada teste define o que o "servidor" responde (sucesso, 404, 429, 200 com `application_error`, JSON inválido, timeout) e verifica o erro ou o resultado. As fixtures foram montadas a partir dos exemplos da documentação. A limitação, assumida, é que os testes provam o comportamento do nosso código contra a _documentação_, não contra a API real. As 31 contradições do README mostram por que isso ainda precisa ser confirmado ao vivo.
+
+**Um teste encontrou um bug real. Qual foi?**
+
+Em `POST /lawsuits`, um 404 com `has_lawsuits: false` significa "nada encontrado" e deve virar lista vazia. A primeira versão aceitava _qualquer_ 404 como lista vazia, inclusive um 404 de erro. A correção (`acceptErrorBody`) só aceita o corpo exato documentado; o resto continua sendo erro.
+
+**Se este app fosse para produção amanhã, o que falta?**
+
+Autenticação de usuários e autorização por dono dos dados; persistência (banco) dos IDs criados pelo app; webhook para não depender de consulta manual de status; limite de uso por usuário; monitoramento e logs sem dados sensíveis; e confirmar contra a API real as contradições documentadas.
+
+**Este código foi escrito com ajuda de IA. Como o entrevistador sabe que você o entende?**
+
+Não há atalho: a resposta é conseguir explicar as decisões acima, apontar onde cada uma está no código e dizer o que mudaria. Um bom sinal é saber explicar os _limites_ (o que a allowlist não cobre, por que o mock não prova a API real) e não só o que funciona.
