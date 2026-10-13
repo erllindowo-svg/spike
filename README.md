@@ -24,22 +24,36 @@ CNPJ (incluindo o formato alfanumérico) e de número CNJ, ESLint e Prettier.
 | `/webhooks`        | Diagnóstico de callbacks: envelope, processamento, payload e simulação        |
 | `/configuracoes`   | Situação das integrações e restauração dos dados de demonstração              |
 
-Toda a interface usa **dados fictícios em memória**:
+### Fonte de dados: `DATA_SOURCE`
 
-- `src/lib/mock-data.ts` concentra as coleções tipadas (empresas, processos,
-  monitoramentos, alertas, eventos de webhook e atividade).
-- `src/lib/data.ts` expõe funções de consulta usadas pelas páginas; é o ponto
-  a ser trocado por consultas ao banco/JUDIT.
-- `src/lib/demo-store.tsx` mantém o estado mutável da sessão (criar
-  monitoramento, marcar alertas como lidos, simular eventos). Recarregar a
-  página restaura os dados iniciais.
+A variável `DATA_SOURCE` escolhe de onde o app inteiro lê os dados:
 
-Ainda **não** implementado: chamadas à JUDIT pela interface, persistência
-ligada às telas, recebimento real de webhooks e autenticação. As funções de
-persistência de empresas e monitoramentos já existem (ver "Banco de dados"),
-mas nenhuma tela as usa ainda. Toda ação que
-dependeria dessas integrações informa que ocorreu apenas em modo de
-demonstração.
+- **`demo` (padrão):** dados fictícios em memória (`src/lib/mock-data.ts`).
+  Recarregar a página restaura os dados iniciais. Páginas pré-renderizadas no
+  build.
+- **`db`:** MongoDB. Empresas e monitoramentos são lidos do banco, e criar um
+  monitoramento grava nele (Server Action). Processos, alertas, webhooks e
+  atividade ainda não são persistidos e aparecem vazios. Pausar, simular
+  webhook e restaurar ficam ocultos.
+
+Onde isso acontece:
+
+- `src/lib/data.ts` é o único ponto que decide a origem. No modo `db`, chama
+  `connection()` antes de consultar o banco, para que a consulta aconteça na
+  requisição, e não no build.
+- `src/lib/demo-store.tsx` mantém o estado da interface no navegador nos dois
+  modos; no modo `db`, criar monitoramento chama
+  `src/features/trackings/actions.ts`.
+- O cabeçalho mostra qual modo está ativo.
+- Use o mesmo `DATA_SOURCE` no build e na execução: no modo `demo` as páginas
+  são geradas no build com os dados fictícios.
+
+**Atenção:** ainda não há autenticação. No modo `db`, qualquer pessoa que
+alcance a aplicação pode gravar monitoramentos (a Server Action é uma
+requisição POST comum). Não exponha a aplicação publicamente nesse modo.
+
+Ainda **não** implementado: chamadas à JUDIT pela interface, persistência de
+processos, alertas e webhooks, recebimento real de webhooks e autenticação.
 
 ### Pontos levantados pela interface para o backend
 
@@ -74,6 +88,7 @@ pnpm dev                     # http://localhost:3000
 | ------------------ | ----------------------------------------------------------------------- |
 | `MONGODB_URI`      | String de conexão do MongoDB (`mongodb+srv://...` no Atlas).            |
 | `MONGODB_DB`       | Nome do banco dentro do cluster. Opcional; padrão `raio_x`.             |
+| `DATA_SOURCE`      | `demo` (padrão) ou `db`. Ver "Fonte de dados".                          |
 | `JUDIT_API_KEY`    | Chave da API da JUDIT. Usada apenas no servidor.                        |
 | `JUDIT_LIVE_CALLS` | `enabled` libera chamadas reais à JUDIT; qualquer outro valor bloqueia. |
 

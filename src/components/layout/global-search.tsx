@@ -16,7 +16,7 @@ export function GlobalSearch() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  const { companies, lawsuits } = useDemoStore();
+  const { companies, lawsuits, dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
 
   useEffect(() => {
@@ -36,9 +36,9 @@ export function GlobalSearch() {
 
   function notFound(kind: "cnpj" | "cnj", key: string) {
     toast.info(
-      kind === "cnpj"
-        ? "CNPJ não encontrado nos dados de demonstração"
-        : "Processo não encontrado nos dados de demonstração",
+      `${kind === "cnpj" ? "CNPJ" : "Processo"} não encontrado ${
+        dataSource === "db" ? "no banco de dados" : "nos dados de demonstração"
+      }`,
       {
         description:
           "A consulta real à JUDIT será habilitada na etapa de integração.",

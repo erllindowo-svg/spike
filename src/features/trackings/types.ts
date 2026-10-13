@@ -4,7 +4,8 @@ export type { Tracking, TrackingSearchType };
 
 export type NewTrackingInput = Pick<Tracking, "searchType" | "searchKey"> & {
   companyId?: string | null;
-  recurrenceDays?: number | null;
+  // Obrigatória e sem padrão: define com que frequência o monitoramento roda.
+  recurrenceDays: number;
 };
 
 export const searchTypeLabels: Record<TrackingSearchType, string> = {

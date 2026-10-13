@@ -16,6 +16,9 @@ const serverEnvSchema = z.object({
   // Database name inside the cluster. Explicit default so data never lands
   // silently in the driver's fallback database ("test").
   MONGODB_DB: z.string().trim().min(1).default("raio_x"),
+  // Where the app reads and writes its data: "demo" (fictitious data in
+  // memory, the default) or "db" (MongoDB). See src/lib/data.ts.
+  DATA_SOURCE: z.enum(["demo", "db"]).default("demo"),
   JUDIT_API_KEY: z.string().trim().min(1),
   // Kill switch for real JUDIT calls. Optional on purpose: absent means
   // "disabled", and src/lib/judit/guard.ts only accepts the exact value

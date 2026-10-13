@@ -323,6 +323,21 @@ Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migra
 - Por que o documento de monitoramento precisa de um campo `active`, se o `status` já diz se ele foi excluído?
 - O que o PostgreSQL garantia sozinho que, no MongoDB, passou a depender do nosso código?
 
+### 2026-10-13 / Fase 2b: `DATA_SOURCE` escolhe demo ou MongoDB
+
+**Resumo técnico**
+
+`DATA_SOURCE=demo|db` escolhe a origem dos dados do app inteiro em `src/lib/data.ts`. No modo `db`, as páginas leem o MongoDB na requisição (`connection()` + `Suspense`), e criar monitoramento grava via Server Action. Testado por HTTP contra um MongoDB temporário. 83 testes; build ok nos dois modos.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que `data.ts` chama `connection()` antes de consultar o MongoDB no modo `db`?
+- A Server Action só é usada pelo formulário. Por que ela confere o `DATA_SOURCE` mesmo assim?
+
 ---
 
 ## Perguntas e respostas
@@ -560,3 +575,21 @@ Para que o identificador seja uma string comum em toda a aplicação: nas URLs, 
 **Se o MongoDB não tem migrations, como um índice novo chega ao banco do Atlas?**
 
 `ensureIndexes` roda na primeira conexão de cada instância do servidor, e `createIndex` não faz nada se o índice já existe igual. Um índice novo é criado na próxima vez que a aplicação subir. Mudar as opções de um índice que já existe exige removê-lo antes, e isso ainda não está automatizado.
+
+### Fase 2b: fonte de dados
+
+**Por que `data.ts` chama `connection()` antes de consultar o MongoDB no modo `db`?**
+
+Com `cacheComponents`, o Next tenta pré-renderizar as páginas no build. Sem `connection()`, ele consultaria o MongoDB durante o build e congelaria o resultado na página, mostrando dados velhos para sempre. `connection()` diz "pare aqui e só continue quando houver uma requisição de verdade". O build em modo `db` foi testado com um endereço de banco inalcançável e passou, o que mostra que ele não tenta consultar o banco.
+
+**A Server Action só é usada pelo formulário. Por que ela confere o `DATA_SOURCE` mesmo assim?**
+
+Porque uma Server Action é, por baixo, um POST comum, e qualquer pessoa pode enviá-lo sem passar pelo formulário. Isso foi demonstrado no teste manual com `curl`. A interface esconder o botão não protege nada; quem protege é a verificação dentro da função que roda no servidor.
+
+**Por que a página mostra um esqueleto de carregamento só no modo `db`?**
+
+No modo `demo`, os dados ficam prontos na hora e a página inteira é gerada no build. No modo `db`, o layout espera o MongoDB responder; enquanto isso, o `<Suspense>` mostra o esqueleto. A parte estática (a "casca") é enviada antes, e os dados chegam depois na mesma resposta (streaming).
+
+**Por que o `refresh()` é chamado depois de criar o monitoramento?**
+
+Ao monitorar um CNPJ novo, o servidor também cria a empresa. A lista de empresas do navegador veio do servidor quando a página carregou e não sabe disso. `refresh()` pede ao navegador que busque de novo os dados do servidor, sem recarregar a página.

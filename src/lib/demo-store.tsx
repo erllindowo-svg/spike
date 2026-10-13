@@ -19,12 +19,19 @@ import {
   type NewTrackingInput,
   type Tracking,
 } from "@/features/trackings/types";
+import { createTrackingAction } from "@/features/trackings/actions";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
-import type { DemoState } from "./data";
+import type { DataSource, DemoState } from "./data";
 
-// Estado em memória da demonstração. Nada aqui é persistido nem enviado à JUDIT;
-// recarregar a página restaura os dados iniciais.
+// Estado da interface no navegador. O nome vem da demonstração, mas o store
+// atende aos dois modos de DATA_SOURCE (ver src/lib/data.ts):
+//
+// - "demo": tudo fica em memória; recarregar a página restaura os dados
+//   iniciais. Nada é persistido nem enviado à JUDIT.
+// - "db": o estado inicial vem do MongoDB e criar um monitoramento grava no
+//   banco por uma Server Action. Ações que dependem da JUDIT ou de dados ainda
+//   não persistidos (pausar, simular webhook, restaurar) ficam indisponíveis.
 
 export type SimulationScenario =
   | "lawsuit_movement"
@@ -123,6 +130,35 @@ function newId(): string {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 }
 
+const trackingErrorMessages = {
+  duplicate: "Já existe um monitoramento ativo para este identificador.",
+  invalid_input: "Os dados do monitoramento são inválidos.",
+  unavailable: "Gravação no banco indisponível no modo de demonstração.",
+  error: "Não foi possível salvar no banco. Tente novamente em instantes.",
+} as const;
+
+function trackingActivity(
+  tracking: Tracking,
+  company: Company | null,
+  title: string,
+): ActivityItem {
+  const identifier =
+    tracking.searchType === "cnpj"
+      ? `CNPJ ${formatCnpj(tracking.searchKey)}`
+      : `CNJ ${formatCnj(tracking.searchKey)}`;
+  return {
+    id: newId(),
+    kind: "tracking_created",
+    title,
+    description: company?.legalName
+      ? `${identifier} · ${company.legalName}`
+      : identifier,
+    occurredAt: tracking.createdAt,
+    companyId: tracking.companyId,
+    href: "/monitoramentos",
+  };
+}
+
 export type AddTrackingResult =
   { ok: true; tracking: Tracking } | { ok: false; error: string };
 
@@ -131,10 +167,11 @@ export type SimulationResult =
   | { ok: false; error: string };
 
 type DemoStore = DemoState & {
+  dataSource: DataSource;
   companies: Company[];
   lawsuits: Lawsuit[];
   getCompany: (id: string | null) => Company | null;
-  addTracking: (input: NewTrackingInput) => AddTrackingResult;
+  addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
   markAlertRead: (id: string) => void;
   markAllAlertsRead: () => void;
@@ -147,11 +184,13 @@ const DemoStoreContext = createContext<DemoStore | null>(null);
 const PROCESSING_DELAY_MS = 1500;
 
 export function DemoStoreProvider({
+  dataSource,
   initialState,
   companies,
   lawsuits,
   children,
 }: {
+  dataSource: DataSource;
   initialState: DemoState;
   companies: Company[];
   lawsuits: Lawsuit[];
@@ -169,7 +208,29 @@ export function DemoStoreProvider({
   );
 
   const addTracking = useCallback(
-    (input: NewTrackingInput): AddTrackingResult => {
+    async (input: NewTrackingInput): Promise<AddTrackingResult> => {
+      if (dataSource === "db") {
+        // A regra de duplicidade e a validação ficam no servidor (banco).
+        const result = await createTrackingAction({
+          searchType: input.searchType,
+          searchKey: input.searchKey,
+          recurrenceDays: input.recurrenceDays,
+        });
+        if (!result.ok) {
+          return { ok: false, error: trackingErrorMessages[result.reason] };
+        }
+        dispatch({
+          type: "addTracking",
+          tracking: result.tracking,
+          activity: trackingActivity(
+            result.tracking,
+            getCompany(result.tracking.companyId),
+            "Monitoramento salvo no banco",
+          ),
+        });
+        return { ok: true, tracking: result.tracking };
+      }
+
       const duplicate = state.trackings.find(
         (t) =>
           t.searchType === input.searchType &&
@@ -192,42 +253,36 @@ export function DemoStoreProvider({
         searchType: input.searchType,
         searchKey: input.searchKey,
         status: "created",
-        recurrenceDays: input.recurrenceDays ?? null,
+        recurrenceDays: input.recurrenceDays,
         createdAt: now,
         updatedAt: now,
       };
-      const company = getCompany(tracking.companyId);
-      const identifier =
-        input.searchType === "cnpj"
-          ? `CNPJ ${formatCnpj(input.searchKey)}`
-          : `CNJ ${formatCnj(input.searchKey)}`;
       dispatch({
         type: "addTracking",
         tracking,
-        activity: {
-          id: newId(),
-          kind: "tracking_created",
-          title: "Monitoramento criado (demonstração)",
-          description: company?.legalName
-            ? `${identifier} · ${company.legalName}`
-            : identifier,
-          occurredAt: now,
-          companyId: tracking.companyId,
-          href: "/monitoramentos",
-        },
+        activity: trackingActivity(
+          tracking,
+          getCompany(tracking.companyId),
+          "Monitoramento criado (demonstração)",
+        ),
       });
       return { ok: true, tracking };
     },
-    [state.trackings, getCompany],
+    [dataSource, state.trackings, getCompany],
   );
 
-  const setTrackingPaused = useCallback((id: string, paused: boolean) => {
-    dispatch({
-      type: "setTrackingStatus",
-      id,
-      status: paused ? "paused" : "updated",
-    });
-  }, []);
+  // Pausar de verdade exige a JUDIT (etapa 4); no modo "db", não faz nada.
+  const setTrackingPaused = useCallback(
+    (id: string, paused: boolean) => {
+      if (dataSource === "db") return;
+      dispatch({
+        type: "setTrackingStatus",
+        id,
+        status: paused ? "paused" : "updated",
+      });
+    },
+    [dataSource],
+  );
 
   const markAlertRead = useCallback(
     (id: string) => dispatch({ type: "markAlertRead", id }),
@@ -240,6 +295,12 @@ export function DemoStoreProvider({
 
   const simulateWebhookEvent = useCallback(
     (scenario: SimulationScenario): SimulationResult => {
+      if (dataSource === "db") {
+        return {
+          ok: false,
+          error: "A simulação de webhooks só existe no modo de demonstração.",
+        };
+      }
       const current = state;
 
       if (scenario === "duplicate_delivery") {
@@ -408,17 +469,18 @@ export function DemoStoreProvider({
 
       return { ok: true, eventId: event.id, duplicate: false };
     },
-    [state, lawsuits],
+    [dataSource, state, lawsuits],
   );
 
-  const reset = useCallback(
-    () => dispatch({ type: "reset", state: initialState }),
-    [initialState],
-  );
+  const reset = useCallback(() => {
+    if (dataSource === "db") return;
+    dispatch({ type: "reset", state: initialState });
+  }, [dataSource, initialState]);
 
   const value = useMemo<DemoStore>(
     () => ({
       ...state,
+      dataSource,
       companies,
       lawsuits,
       getCompany,
@@ -431,6 +493,7 @@ export function DemoStoreProvider({
     }),
     [
       state,
+      dataSource,
       companies,
       lawsuits,
       getCompany,
