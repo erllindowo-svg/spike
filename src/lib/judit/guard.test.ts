@@ -35,6 +35,15 @@ describe("assertAllowedSearchKey", () => {
     );
   });
 
+  it("accepts the allowlisted test CNJ, formatted or not", () => {
+    expect(() =>
+      assertAllowedSearchKey("lawsuit_cnj", "0000000-39.2026.8.26.0050"),
+    ).not.toThrow();
+    expect(() =>
+      assertAllowedSearchKey("lawsuit_cnj", "00000003920268260050"),
+    ).not.toThrow();
+  });
+
   it("rejects an unknown CNJ", () => {
     expect(() =>
       assertAllowedSearchKey("lawsuit_cnj", "0000000-00.0000.0.00.0000"),

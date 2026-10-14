@@ -41,9 +41,12 @@ const statusItems = [
 export function LawsuitsTable({
   lawsuits,
   onSelect,
+  emptyDescription = "Não há processos associados a este CNPJ nos dados de demonstração.",
 }: {
   lawsuits: Lawsuit[];
   onSelect: (lawsuit: Lawsuit) => void;
+  // Texto quando não há nenhum processo (muda conforme a origem dos dados).
+  emptyDescription?: string;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
@@ -105,7 +108,7 @@ export function LawsuitsTable({
           }
           description={
             lawsuits.length === 0
-              ? "Não há processos associados a este CNPJ nos dados de demonstração."
+              ? emptyDescription
               : "Ajuste a busca ou o filtro de status."
           }
           className="border"

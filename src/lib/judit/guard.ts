@@ -40,7 +40,9 @@ const ALLOWLIST: Record<GuardedSearchType, readonly string[]> = {
   oab: [],
   name: [],
   rji: [],
-  lawsuit_cnj: [],
+  // Fictitious lawsuit returned by POST /lawsuits for the test CNPJ above
+  // (observed 2026-10-14, see README).
+  lawsuit_cnj: ["0000000-39.2026.8.26.0050"],
 };
 
 // CNPJ and CNJ reuse the app's existing normalizers. The OAB, RJI and name
