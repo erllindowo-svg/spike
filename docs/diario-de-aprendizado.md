@@ -338,6 +338,168 @@ Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migra
 - Por que `data.ts` chama `connection()` antes de consultar o MongoDB no modo `db`?
 - A Server Action só é usada pelo formulário. Por que ela confere o `DATA_SOURCE` mesmo assim?
 
+### 2026-10-13 / Recuperação do Git após travamento do PC
+
+**Resumo técnico**
+
+O travamento corrompeu o commit da Fase 2b: a branch apontava para objetos vazios. O working tree estava íntegro (hashes conferidos com o índice). Com backup do `.git`, os objetos vazios foram removidos, a branch voltou para `87f9ccc` e o commit foi recriado (`8cb096f`). Testes, lint, typecheck, format e build passaram.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que o código não se perdeu, embora o commit tenha sido corrompido?
+- Por que conferir `git hash-object` contra o índice antes de recriar o commit?
+
+### 2026-10-13 / Conexão com o MongoDB Atlas
+
+**Resumo técnico**
+
+No diálogo "Connect" do Atlas, o método certo é "Drivers" (Node.js), porque quem conecta é o servidor Next.js, usando o driver oficial `mongodb`. A string `mongodb+srv://` vai para `MONGODB_URI` no `.env.local`, com a senha do usuário do banco, nunca no código nem no chat.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que a senha da string de conexão é a do usuário do banco, e não a da sua conta no Atlas?
+
+### 2026-10-13 / String de conexão do Atlas recebida
+
+**Resumo técnico**
+
+A string colada no chat ainda tinha o marcador `<db_password>`, então nenhuma senha foi exposta. Ela não traz `retryWrites` nem `w=majority`, mas o driver e o servidor atuais já usam esses padrões. Próximo passo: colar a string, com a senha real, no `.env.local` e subir o app no modo `db`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Onde fica a senha do usuário do banco
+
+**Resumo técnico**
+
+O Atlas mostra a senha do usuário do banco só uma vez, na criação, e não deixa consultá-la depois. Se ela não foi guardada, a saída é gerar uma nova em "Database Access" > "Edit" > "Edit Password". Senha autogerada evita caracteres especiais que quebram a URI.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Variáveis do `.env.local`
+
+**Resumo técnico**
+
+O código lê cinco variáveis, todas validadas em `src/lib/env.ts`: `MONGODB_URI`, `MONGODB_DB`, `DATA_SOURCE`, `JUDIT_API_KEY` e `JUDIT_LIVE_CALLS`. `NODE_ENV` é definida pelo Next. Para testar o banco, `JUDIT_LIVE_CALLS` pode ficar vazia, sem chamadas reais à JUDIT.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-13 / Primeiro teste no modo `db`: app continuou em `demo`
+
+**Resumo técnico**
+
+A página mostrava "Dados de demonstração". O `loadEnvConfig` do Next revelou nomes errados no `.env.local` (`MONGO_URI`, `MONGO_DB_NAME`, `DATA_SOURCE=mongodb`) em vez de `MONGODB_URI`, `MONGODB_DB` e `DATA_SOURCE=db`. O MongoDB nem foi contatado. Lição: perguntar ao carregador o que ele leu.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que um HTTP 200 não provava que o app estava lendo o MongoDB?
+
+### 2026-10-13 / Fechamento da sessão
+
+**Resumo técnico**
+
+Criados `docs/relatorio-de-progresso.md` (estado, pendências em ordem, checklist do teste `db`, tabela de falhas) e `docs/logs/2026-10-13-sessao.md` (log sanitizado). Servidor encerrado. O `.env.local` ainda tem os nomes errados. Nada foi commitado nesta etapa.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Diagnóstico do modelo de segurança do `.env`
+
+**Resumo técnico**
+
+Repositório público. `.env.local` nunca entrou no Git. `.env.example` está em `2af39e6` (publicado) e `8cb096f` (local), com conteúdo não revisado. O bloqueio do agente cobre só a ferramenta `Read`, não o terminal. Nenhuma URI do Mongo com senha no histórico rastreado.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que apagar um segredo do `.env.example` num commit novo não basta, se o commit antigo já foi enviado ao GitHub?
+- Que diferença existe entre "o agente não deve ler o `.env.local`" e "o agente não consegue ler o `.env.local`"?
+
+### 2026-10-14 / `.env.example` liberado para o agente e atualizado
+
+**Resumo técnico**
+
+O `deny` agora lista só arquivos de segredo (`.env`, `.env.local`, `.env.*.local`, `.env.development|production|test`). Conferência: `.env.example` vazio nas três versões, sem vazamento. Ele ainda descrevia o PostgreSQL (`DATABASE_URL`); foi reescrito com as cinco variáveis de `src/lib/env.ts`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Procedimento de segredos e primeiro ping no Atlas
+
+**Resumo técnico**
+
+Criados `pnpm env:check [--db]` (nomes, tamanhos, ping só leitura, sem valores) e `src/lib/env.test.ts` (`.env.example` vazio e sincronizado com `env.ts`). README ganhou o procedimento. Ping: rede ok, `bad auth`; a URI ainda contém `<db_password>`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que `bad auth` prova que o IP já está liberado no Atlas?
+
+### 2026-10-14 / Conexão com o Atlas funcionando
+
+**Resumo técnico**
+
+O `bad auth` tinha duas causas em sequência: a senha ficou entre `<` e `>` (sobra do marcador do Atlas) e, depois, a senha não era a do usuário do banco. Com uma senha nova gerada no Atlas, `pnpm env:check --db` conectou ao banco `raio_x`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / O que é o `.env.example`
+
+**Resumo técnico**
+
+O `.env.example` não protege nada sozinho: é a documentação versionada das variáveis. A proteção vem de manter valores fora do Git (`.gitignore`), seguindo o princípio "configuração no ambiente" do Twelve-Factor App. Convenção comum, não padrão formal; em produção, variáveis vêm da plataforma ou de um cofre de segredos.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Quem lê o `.env.local` e como o segredo chega aos serviços
+
+**Resumo técnico**
+
+O servidor Next lê o `.env.local` ao iniciar e coloca os valores em `process.env`. Git, navegador e agente não leem. A chave vai à JUDIT no cabeçalho `api-key` via HTTPS; a URI conecta ao Atlas via TLS. Em produção, os valores vêm do painel da plataforma, não do arquivo.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Balanço da segurança do `.env`
+
+**Resumo técnico**
+
+Resolvido: nenhum segredo no Git, `.env.example` sincronizado e testado, `env:check`, senha do Mongo nova. Aberto: trocar a `JUDIT_API_KEY` (prefixo vazado), commitar o procedimento, conferir Network Access e papel do usuário no Atlas, `JUDIT_LIVE_CALLS` ligado. Webhook e demo pública ficam para depois.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
 ---
 
 ## Perguntas e respostas
@@ -361,6 +523,22 @@ O Next.js copia o valor de variáveis `NEXT_PUBLIC_*` para dentro do JavaScript 
 **A regra `deny` impede qualquer programa de ler o `.env.local`? Qual é a proteção real contra a chave ir para o GitHub?**
 
 Não. A regra só bloqueia as ferramentas do Claude Code; outros programas (editor, terminal, scripts) leem o arquivo normalmente. A proteção contra o GitHub é o `.gitignore` (`.env*`), que impede o Git de rastrear o arquivo, somada ao hábito de conferir `git status` e `git diff` antes de cada commit.
+
+**Por que o código não se perdeu, embora o commit tenha sido corrompido?**
+
+O Git guarda as coisas em dois lugares independentes: os arquivos da pasta do projeto (o working tree) e cópias compactadas em `.git/objects`. O travamento aconteceu enquanto o commit era gravado. As cópias novas em `.git/objects` ficaram com 0 bytes, mas os arquivos da pasta, salvos minutos antes, já estavam no disco. Bastou criar o commit de novo a partir deles.
+
+**Por que conferir `git hash-object` contra o índice antes de recriar o commit?**
+
+O travamento também poderia ter danificado os arquivos da pasta. O índice ainda registrava o hash do conteúdo de cada arquivo no momento do commit. Se `git hash-object` de cada arquivo dá o mesmo hash, o conteúdo é idêntico, byte a byte, ao que ia para o commit. Assim, o commit recriado é igual ao perdido, exceto pela data.
+
+**Por que a senha da string de conexão é a do usuário do banco, e não a da sua conta no Atlas?**
+
+São duas identidades diferentes. A conta do Atlas é a pessoa que administra o cluster pelo site. O usuário do banco é quem a aplicação usa para ler e gravar dados, criado em "Database Access". Separá-las deixa dar à aplicação só o acesso de que ela precisa e trocar essa senha sem mexer no seu login. Se a string vazar, quem a tiver acessa os dados, mas não administra a sua conta.
+
+**Por que um HTTP 200 não provava que o app estava lendo o MongoDB?**
+
+O status só diz que o servidor conseguiu responder. Com `DATA_SOURCE` ausente, o app cai no modo `demo` e responde 200 com dados fictícios. Além disso, com streaming, a resposta começa antes de os dados chegarem, e um erro dentro do `Suspense` aparece depois de o 200 já ter sido enviado. A prova real é o conteúdo: o indicador "Banco de dados" no cabeçalho e os registros gravados no Atlas.
 
 ### Fase 0: client e erros
 
@@ -593,3 +771,17 @@ No modo `demo`, os dados ficam prontos na hora e a página inteira é gerada no 
 **Por que o `refresh()` é chamado depois de criar o monitoramento?**
 
 Ao monitorar um CNPJ novo, o servidor também cria a empresa. A lista de empresas do navegador veio do servidor quando a página carregou e não sabe disso. `refresh()` pede ao navegador que busque de novo os dados do servidor, sem recarregar a página.
+
+### Segurança do `.env`
+
+**Por que apagar um segredo do `.env.example` num commit novo não basta, se o commit antigo já foi enviado ao GitHub?**
+
+Porque o Git guarda o histórico inteiro. O commit antigo continua acessível pelo hash (e em clones, forks e caches feitos antes da correção). Num repositório público, o segredo deve ser considerado comprometido: a correção real é trocar a senha ou a chave no serviço de origem. Reescrever o histórico só reduz a exposição futura.
+
+**Que diferença existe entre "o agente não deve ler o `.env.local`" e "o agente não consegue ler o `.env.local`"?**
+
+A primeira é uma regra de conduta; a segunda é uma barreira técnica. A regra `deny` em `.claude/settings.local.json` bloqueia só a ferramenta `Read`. Pelo terminal, um comando como `node` ou `awk` ainda consegue abrir o arquivo, e foi assim que os 10 primeiros caracteres da chave vazaram na sessão anterior.
+
+**Por que `bad auth` prova que o IP já está liberado no Atlas?**
+
+Porque a autenticação acontece depois que a conexão chega ao servidor. Se o IP estivesse bloqueado, o driver nem alcançaria o Atlas e terminaria em `MongoServerSelectionError` (timeout) após cerca de 10 s. Receber uma resposta do servidor recusando a senha mostra que a rede funcionou e que o problema está nas credenciais.
