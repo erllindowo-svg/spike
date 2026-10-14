@@ -8,7 +8,12 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { CompanyDetail } from "@/features/companies/components/company-detail";
 import { summarizeDistribution } from "@/features/processes/types";
-import { getCompanyByCnpj, listLawsuits, staticParamSamples } from "@/lib/data";
+import {
+  getCompanyByCnpj,
+  listAsyncQueries,
+  listLawsuits,
+  staticParamSamples,
+} from "@/lib/data";
 
 export function generateStaticParams() {
   return staticParamSamples.companies();
@@ -36,7 +41,10 @@ async function CompanyContent({
   const company = await getCompanyByCnpj((await params).cnpj);
   if (!company) notFound();
 
-  const lawsuits = await listLawsuits({ companyId: company.id });
+  const [lawsuits, asyncQueries] = await Promise.all([
+    listLawsuits({ companyId: company.id }),
+    listAsyncQueries(company.id),
+  ]);
 
   return (
     <>
@@ -53,6 +61,7 @@ async function CompanyContent({
       <CompanyDetail
         company={company}
         lawsuits={lawsuits}
+        asyncQueries={asyncQueries}
         distribution={{
           area: summarizeDistribution(lawsuits, "area"),
           tribunal: summarizeDistribution(lawsuits, "tribunal"),

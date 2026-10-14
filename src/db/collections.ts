@@ -1,6 +1,12 @@
 import type { Db } from "mongodb";
 
-import type { Alert, Company, Tracking, WebhookEvent } from "./models";
+import type {
+  Alert,
+  Company,
+  JuditRequest,
+  Tracking,
+  WebhookEvent,
+} from "./models";
 
 // Documento no MongoDB: o mesmo modelo, com `id` guardado em `_id`. Usamos um
 // UUID em texto como `_id` (e não o ObjectId padrão) para que os
@@ -17,6 +23,7 @@ export type TrackingDoc = Doc<Tracking> & {
 };
 export type WebhookEventDoc = Doc<WebhookEvent>;
 export type AlertDoc = Doc<Alert>;
+export type JuditRequestDoc = Doc<JuditRequest>;
 
 export function collections(db: Db) {
   return {
@@ -24,6 +31,7 @@ export function collections(db: Db) {
     trackings: db.collection<TrackingDoc>("trackings"),
     webhookEvents: db.collection<WebhookEventDoc>("webhook_events"),
     alerts: db.collection<AlertDoc>("alerts"),
+    juditRequests: db.collection<JuditRequestDoc>("judit_requests"),
   };
 }
 
@@ -41,13 +49,16 @@ export function toModel<T extends { _id: string }>(
 }
 
 export const TRACKING_ACTIVE_KEY_INDEX = "trackings_active_search_key_unique";
+export const JUDIT_REQUESTS_REQUEST_ID_INDEX =
+  "judit_requests_request_id_unique";
 
 // Índices e regras de unicidade. O MongoDB não tem migrations como o SQL:
 // createIndex é idempotente (não faz nada se o índice já existe igual), então
 // é chamado na conexão. Mudar as opções de um índice existente exige
 // removê-lo antes; isso fica para quando acontecer.
 export async function ensureIndexes(db: Db): Promise<void> {
-  const { companies, trackings, webhookEvents, alerts } = collections(db);
+  const { companies, trackings, webhookEvents, alerts, juditRequests } =
+    collections(db);
 
   await Promise.all([
     companies.createIndex(
@@ -105,6 +116,17 @@ export async function ensureIndexes(db: Db): Promise<void> {
     alerts.createIndex(
       { readAt: 1, createdAt: -1 },
       { name: "alerts_read_at_created_at" },
+    ),
+
+    // Um registro por consulta da JUDIT. A consulta é cobrada ao ser criada;
+    // gravar o mesmo `request_id` duas vezes contaria a cobrança em dobro.
+    juditRequests.createIndex(
+      { requestId: 1 },
+      { name: JUDIT_REQUESTS_REQUEST_ID_INDEX, unique: true },
+    ),
+    juditRequests.createIndex(
+      { companyId: 1, createdAt: -1 },
+      { name: "judit_requests_company_id_created_at" },
     ),
   ]);
 }

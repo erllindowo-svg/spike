@@ -28,6 +28,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ActivityFeed } from "@/features/activity/components/activity-feed";
 import { formatCnpj } from "@/features/companies/cnpj";
 import type { Company } from "@/features/companies/types";
+import type { JuditRequest } from "@/db/models";
 import {
   DistributionCard,
   type DistributionData,
@@ -42,6 +43,7 @@ import {
   summarizeDistribution,
   type Lawsuit,
 } from "@/features/processes/types";
+import { AsyncQueriesCard } from "@/features/queries/components/async-queries-card";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { SearchTypeBadge } from "@/features/trackings/components/search-type-badge";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
@@ -60,10 +62,13 @@ type JuditSearch = Extract<SearchCompanyLawsuitsResult, { ok: true }>;
 export function CompanyDetail({
   company,
   lawsuits: demoLawsuits,
+  asyncQueries,
   distribution: demoDistribution,
 }: {
   company: Company;
   lawsuits: Lawsuit[];
+  // Consultas assíncronas gravadas no MongoDB; vazio no modo demo.
+  asyncQueries: JuditRequest[];
   distribution: DistributionData;
 }) {
   const { trackings, activity, dataSource } = useDemoStore();
@@ -309,6 +314,14 @@ export function CompanyDetail({
           />
         </CardContent>
       </Card>
+
+      {fromJudit && (
+        <AsyncQueriesCard
+          cnpj={company.cnpj}
+          queries={asyncQueries}
+          onSelectLawsuit={setSelected}
+        />
+      )}
 
       <LawsuitSheet
         lawsuit={selected}
