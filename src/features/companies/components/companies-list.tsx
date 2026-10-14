@@ -25,7 +25,7 @@ import {
   normalizeCnpj,
 } from "@/features/companies/cnpj";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
-import { getTrackingDisplayState } from "@/features/trackings/types";
+import { isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatNumber } from "@/lib/format";
 
@@ -64,11 +64,7 @@ export function CompaniesList({
   );
   const trackedCnpjs = new Set(
     trackings
-      .filter(
-        (t) =>
-          t.searchType === "cnpj" &&
-          getTrackingDisplayState(t.status) !== "completed",
-      )
+      .filter((t) => t.searchType === "cnpj" && !isTrackingClosed(t))
       .map((t) => t.searchKey),
   );
   const canTrackQuery =

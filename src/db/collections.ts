@@ -5,6 +5,7 @@ import type {
   Company,
   JuditRequest,
   Tracking,
+  TrackingCreation,
   WebhookEvent,
 } from "./models";
 
@@ -14,13 +15,24 @@ import type {
 type Doc<T extends { id: string }> = Omit<T, "id"> & { _id: string };
 
 export type CompanyDoc = Doc<Company>;
-export type TrackingDoc = Doc<Tracking> & {
-  // true enquanto o monitoramento não foi excluído. Existe só para o índice
-  // único parcial abaixo: o MongoDB não aceita "diferente de" ($ne) no filtro
-  // de um índice parcial, então não dá para escrever "status != deleted".
-  // Quem altera `status` precisa manter este campo coerente (activeFor).
-  active: boolean;
-};
+// Campos criados na etapa 4. Documentos gravados antes (etapa 2) não os
+// têm; toTracking (src/features/trackings/db.ts) aplica os equivalentes.
+type TrackingStage4Field =
+  | "mode"
+  | "creation"
+  | "creationError"
+  | "hourRange"
+  | "delivery"
+  | "lastCheckedAt";
+
+export type TrackingDoc = Doc<Omit<Tracking, TrackingStage4Field>> &
+  Partial<Pick<Tracking, TrackingStage4Field>> & {
+    // true enquanto o monitoramento não foi excluído. Existe só para o índice
+    // único parcial abaixo: o MongoDB não aceita "diferente de" ($ne) no filtro
+    // de um índice parcial, então não dá para escrever "status != deleted".
+    // Quem altera `status` precisa manter este campo coerente (activeFor).
+    active: boolean;
+  };
 export type WebhookEventDoc = Doc<WebhookEvent>;
 export type AlertDoc = Doc<Alert>;
 export type JuditRequestDoc = Doc<JuditRequest>;
@@ -36,9 +48,13 @@ export function collections(db: Db) {
 }
 
 // "deleted" é o status documentado pela JUDIT para monitoramento excluído.
-// Linhas excluídas continuam no banco como histórico.
-export function activeFor(status: string | null): boolean {
-  return status !== "deleted";
+// Uma criação recusada (`failed`) também libera o identificador. Linhas
+// inativas continuam no banco como histórico.
+export function activeFor(
+  status: string | null,
+  creation?: TrackingCreation,
+): boolean {
+  return status !== "deleted" && creation !== "failed";
 }
 
 export function toModel<T extends { _id: string }>(

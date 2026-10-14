@@ -14,8 +14,10 @@ import { formatCnpj } from "@/features/companies/cnpj";
 import type { Company } from "@/features/companies/types";
 import { formatCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
+import { trackingModeFor } from "@/features/queries/modes";
 import {
   getTrackingDisplayState,
+  isTrackingClosed,
   type NewTrackingInput,
   type Tracking,
 } from "@/features/trackings/types";
@@ -43,6 +45,8 @@ type Action =
   | { type: "reset"; state: DemoState }
   | { type: "addTracking"; tracking: Tracking; activity: ActivityItem }
   | { type: "setTrackingStatus"; id: string; status: string }
+  | { type: "replaceTracking"; tracking: Tracking }
+  | { type: "removeTracking"; id: string }
   | { type: "markAlertRead"; id: string }
   | { type: "markAllAlertsRead" }
   | { type: "receiveEvent"; event: WebhookEventView; activity: ActivityItem }
@@ -74,6 +78,18 @@ function reducer(state: DemoState, action: Action): DemoState {
             ? { ...t, status: action.status, updatedAt: new Date() }
             : t,
         ),
+      };
+    case "replaceTracking":
+      return {
+        ...state,
+        trackings: state.trackings.map((t) =>
+          t.id === action.tracking.id ? action.tracking : t,
+        ),
+      };
+    case "removeTracking":
+      return {
+        ...state,
+        trackings: state.trackings.filter((t) => t.id !== action.id),
       };
     case "markAlertRead":
       return {
@@ -159,8 +175,14 @@ function trackingActivity(
   };
 }
 
+// `notice` resume o que aconteceu com o envio à JUDIT (só no modo "db").
 export type AddTrackingResult =
-  { ok: true; tracking: Tracking } | { ok: false; error: string };
+  | {
+      ok: true;
+      tracking: Tracking;
+      notice?: { sent: boolean; message: string };
+    }
+  | { ok: false; error: string };
 
 export type SimulationResult =
   | { ok: true; eventId: string; duplicate: boolean }
@@ -173,6 +195,9 @@ type DemoStore = DemoState & {
   getCompany: (id: string | null) => Company | null;
   addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
+  // Modo "db": aplica o monitoramento devolvido por uma server action.
+  replaceTracking: (tracking: Tracking) => void;
+  removeTracking: (id: string) => void;
   markAlertRead: (id: string) => void;
   markAllAlertsRead: () => void;
   simulateWebhookEvent: (scenario: SimulationScenario) => SimulationResult;
@@ -219,23 +244,30 @@ export function DemoStoreProvider({
         if (!result.ok) {
           return { ok: false, error: trackingErrorMessages[result.reason] };
         }
+        const sent = result.outcome === "confirmed";
         dispatch({
           type: "addTracking",
           tracking: result.tracking,
           activity: trackingActivity(
             result.tracking,
             getCompany(result.tracking.companyId),
-            "Monitoramento salvo no banco",
+            sent
+              ? "Monitoramento criado na JUDIT"
+              : "Monitoramento reservado no banco",
           ),
         });
-        return { ok: true, tracking: result.tracking };
+        return {
+          ok: true,
+          tracking: result.tracking,
+          notice: { sent, message: result.message },
+        };
       }
 
       const duplicate = state.trackings.find(
         (t) =>
           t.searchType === input.searchType &&
           t.searchKey === input.searchKey &&
-          getTrackingDisplayState(t.status) !== "completed",
+          !isTrackingClosed(t),
       );
       if (duplicate) {
         return {
@@ -247,15 +279,22 @@ export function DemoStoreProvider({
       const now = new Date();
       const tracking: Tracking = {
         id: newId(),
-        // Sem ID da JUDIT: nenhum monitoramento real foi criado.
+        // Sem ID da JUDIT: nenhum monitoramento real foi criado. A criação
+        // "confirmada" e o status "created" são simulados.
         juditTrackingId: null,
         companyId: input.companyId ?? null,
+        mode: trackingModeFor(input.searchType),
         searchType: input.searchType,
         searchKey: input.searchKey,
+        creation: "confirmed",
+        creationError: null,
         status: "created",
         recurrenceDays: input.recurrenceDays,
+        hourRange: null,
+        delivery: "webhook",
         createdAt: now,
         updatedAt: now,
+        lastCheckedAt: null,
       };
       dispatch({
         type: "addTracking",
@@ -271,7 +310,8 @@ export function DemoStoreProvider({
     [dataSource, state.trackings, getCompany],
   );
 
-  // Pausar de verdade exige a JUDIT (etapa 4); no modo "db", não faz nada.
+  // Só para a demonstração. No modo "db", pausar chama a JUDIT
+  // (pauseTrackingAction em src/features/trackings/actions.ts).
   const setTrackingPaused = useCallback(
     (id: string, paused: boolean) => {
       if (dataSource === "db") return;
@@ -282,6 +322,15 @@ export function DemoStoreProvider({
       });
     },
     [dataSource],
+  );
+
+  const replaceTracking = useCallback(
+    (tracking: Tracking) => dispatch({ type: "replaceTracking", tracking }),
+    [],
+  );
+  const removeTracking = useCallback(
+    (id: string) => dispatch({ type: "removeTracking", id }),
+    [],
   );
 
   const markAlertRead = useCallback(
@@ -323,7 +372,7 @@ export function DemoStoreProvider({
           (t) =>
             t.searchType === wantedType &&
             t.juditTrackingId &&
-            getTrackingDisplayState(t.status) === "active",
+            getTrackingDisplayState(t) === "active",
         ) ?? null;
 
       const referenceId =
@@ -486,6 +535,8 @@ export function DemoStoreProvider({
       getCompany,
       addTracking,
       setTrackingPaused,
+      replaceTracking,
+      removeTracking,
       markAlertRead,
       markAllAlertsRead,
       simulateWebhookEvent,
@@ -499,6 +550,8 @@ export function DemoStoreProvider({
       getCompany,
       addTracking,
       setTrackingPaused,
+      replaceTracking,
+      removeTracking,
       markAlertRead,
       markAllAlertsRead,
       simulateWebhookEvent,

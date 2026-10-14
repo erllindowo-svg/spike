@@ -47,7 +47,7 @@ export function OverviewDashboard({
   const { openNewTracking } = useNewTrackingDialog();
 
   const activeTrackings = trackings.filter(
-    (t) => getTrackingDisplayState(t.status) === "active",
+    (t) => getTrackingDisplayState(t) === "active",
   ).length;
   const companiesWithTracking = new Set(
     trackings.filter((t) => t.searchType === "cnpj").map((t) => t.searchKey),

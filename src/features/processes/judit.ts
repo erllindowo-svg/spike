@@ -15,19 +15,21 @@ import type { CompanyRole, Lawsuit, LawsuitStatus } from "./types";
 
 export function fromJuditLawsuit(
   item: JuditLawsuit,
-  company: { id: string; cnpj: string },
+  // Empresa do CNPJ consultado. Sem empresa (monitoramento por CNJ), o
+  // processo fica sem empresa e sem lado.
+  company: { id: string; cnpj: string } | null,
 ): Lawsuit {
   const cnj = normalizeCnj(item.code);
   return {
     id: `${cnj}-${item.instance ?? 1}`,
     cnj,
-    companyId: company.id,
+    companyId: company?.id ?? null,
     tribunal: text(item.tribunal_acronym) ?? "Não informado",
     area: text(item.area),
     className: firstName(item.classifications),
     subject: firstName(item.subjects),
     judgingBody: firstName(item.courts) ?? text(item.county),
-    companyRole: companyRole(item.parties, company.cnpj),
+    companyRole: company ? companyRole(item.parties, company.cnpj) : null,
     status: status(item.status, item.situation),
     distributedAt: date(item.distribution_date),
     lastMovementAt: date(item.last_step?.step_date),

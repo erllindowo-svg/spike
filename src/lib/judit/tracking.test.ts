@@ -13,7 +13,7 @@ import {
   listTrackings,
   pauseTracking,
   resumeTracking,
-  updateTrackingRecurrence,
+  updateTrackingCallbackUrl,
 } from "./tracking";
 
 const TEST_CNPJ = "A1B2C3D4/E5F6-68";
@@ -105,14 +105,17 @@ describe("tracking by id", () => {
     expect(sentRequest(fetchMock)).toMatchObject({ method: "GET" });
   });
 
-  it("updates only the recurrence", async () => {
-    const fetchMock = mockFetch({ ...pausedTrackingBody, recurrence: 5 });
+  it("updates only the callback_url (recurrence is rejected by JUDIT)", async () => {
+    const fetchMock = mockFetch(pausedTrackingBody);
 
-    await updateTrackingRecurrence(TRACKING_ID, 5);
+    await updateTrackingCallbackUrl(
+      TRACKING_ID,
+      "https://exemplo.test/api/webhooks/judit",
+    );
 
     expect(sentRequest(fetchMock)).toMatchObject({
       method: "PATCH",
-      body: { recurrence: 5 },
+      body: { callback_url: "https://exemplo.test/api/webhooks/judit" },
     });
     expect(sentRequest(fetchMock).url.pathname).toBe(
       `/tracking/${TRACKING_ID}`,

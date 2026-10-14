@@ -19,8 +19,12 @@ export const searchTypeDescriptions: Record<TrackingSearchType, string> = {
 };
 
 // Estados exibidos na interface. São deliberadamente independentes dos valores
-// técnicos gravados em trackings.status (retornados pela JUDIT).
+// técnicos gravados em trackings.status (retornados pela JUDIT) e em
+// trackings.creation (o nosso ciclo de criação).
 export type TrackingDisplayState =
+  | "not_sent"
+  | "uncertain"
+  | "rejected"
   | "pending_first_run"
   | "active"
   | "paused"
@@ -28,9 +32,8 @@ export type TrackingDisplayState =
   | "failed"
   | "unknown";
 
-// Mapeamento provisório a partir dos status documentados pela JUDIT
-// (created, updating, updated, paused, deleted, suspended). Revisar na
-// etapa de integração.
+// Status documentados pela JUDIT (created, updating, updated, paused,
+// deleted). "suspended" só aparece no OpenAPI, sem explicação.
 const technicalToDisplay: Record<string, TrackingDisplayState> = {
   created: "pending_first_run",
   updating: "active",
@@ -41,13 +44,36 @@ const technicalToDisplay: Record<string, TrackingDisplayState> = {
 };
 
 export function getTrackingDisplayState(
-  status: string | null,
+  tracking: Pick<Tracking, "status" | "creation">,
 ): TrackingDisplayState {
-  if (!status) return "pending_first_run";
-  return technicalToDisplay[status] ?? "unknown";
+  switch (tracking.creation) {
+    case "pending":
+      return "not_sent";
+    case "sending":
+    case "uncertain":
+      return "uncertain";
+    case "failed":
+      return "rejected";
+  }
+  if (!tracking.status) return "pending_first_run";
+  return Object.hasOwn(technicalToDisplay, tracking.status)
+    ? technicalToDisplay[tracking.status]
+    : "unknown";
+}
+
+// Encerrado: excluído na JUDIT ou recusado na criação. Não conta como
+// monitoramento existente (e libera o identificador).
+export function isTrackingClosed(
+  tracking: Pick<Tracking, "status" | "creation">,
+): boolean {
+  const state = getTrackingDisplayState(tracking);
+  return state === "completed" || state === "rejected";
 }
 
 export const trackingDisplayLabels: Record<TrackingDisplayState, string> = {
+  not_sent: "Não enviado à JUDIT",
+  uncertain: "Envio incerto",
+  rejected: "Recusado pela JUDIT",
   pending_first_run: "Aguardando primeira execução",
   active: "Ativo",
   paused: "Pausado",

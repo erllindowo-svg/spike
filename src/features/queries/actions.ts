@@ -6,12 +6,8 @@ import { z } from "zod";
 import type { JuditRequest } from "@/db/models";
 import { cnpjSchema } from "@/features/companies/cnpj";
 import { getCompanyByCnpj } from "@/features/companies/db";
-import { fromJuditLawsuit } from "@/features/processes/judit";
-import type { Lawsuit } from "@/features/processes/types";
 import { getDataSource } from "@/lib/data";
 import { createRequest, getRequest, listResponses } from "@/lib/judit/requests";
-import { lawsuitSchema } from "@/lib/judit/schemas/lawsuits";
-import { responseCameFromCache } from "@/lib/judit/schemas/requests";
 
 import {
   getJuditRequest,
@@ -19,6 +15,7 @@ import {
   updateJuditRequestStatus,
 } from "./db";
 import { juditActionFailure, type JuditActionFailure } from "./failure";
+import { summarizeResponses, type ResponsesSummary } from "./responses";
 
 // Server Actions da consulta assíncrona (POST /requests). O fluxo tem três
 // passos, cada um disparado por um clique, sem polling automático:
@@ -111,25 +108,12 @@ export async function startAsyncQueryAction(
   }
 }
 
-export type AsyncQueryResults = {
-  lawsuits: Lawsuit[];
-  // Total informado pela JUDIT e quantos vieram nesta página.
-  totalResponses: number;
-  loadedResponses: number;
-  // Respostas que vieram do cache da JUDIT (cached_response: true).
-  cachedResponses: number;
-  // Itens com response_type "application_error" (ex.: nada encontrado).
-  applicationErrors: string[];
-  // Itens com outro response_type ou com formato inesperado.
-  ignoredResponses: number;
-};
-
 export type CheckAsyncQueryResult =
   | {
       ok: true;
       request: JuditRequest;
       // Só existe quando o status é "completed".
-      results: AsyncQueryResults | null;
+      results: ResponsesSummary | null;
     }
   | Unavailable
   | JuditActionFailure;
@@ -178,33 +162,7 @@ export async function checkAsyncQueryAction(
     }
 
     const list = await listResponses({ requestId: stored.requestId });
-    const results: AsyncQueryResults = {
-      lawsuits: [],
-      totalResponses: list.all_count,
-      loadedResponses: list.page_data.length,
-      cachedResponses: 0,
-      applicationErrors: [],
-      ignoredResponses: 0,
-    };
-    for (const item of list.page_data) {
-      if (responseCameFromCache(item) === true) results.cachedResponses++;
-
-      if (item.response_type === "application_error") {
-        results.applicationErrors.push(
-          applicationErrorText(item.response_data),
-        );
-        continue;
-      }
-      const lawsuit =
-        item.response_type === "lawsuit"
-          ? lawsuitSchema.safeParse(item.response_data)
-          : null;
-      if (!lawsuit?.success) {
-        results.ignoredResponses++;
-        continue;
-      }
-      results.lawsuits.push(fromJuditLawsuit(lawsuit.data, company));
-    }
+    const results = summarizeResponses(list, company);
 
     refresh();
     return { ok: true, request, results };
@@ -219,18 +177,4 @@ function unavailable(): Unavailable {
     reason: "unavailable",
     message: "Consultas à JUDIT só funcionam no modo banco de dados.",
   };
-}
-
-// O formato de `response_data` de um application_error varia nos exemplos da
-// documentação; mostramos o código/mensagem quando existirem.
-function applicationErrorText(data: unknown): string {
-  if (typeof data === "object" && data !== null) {
-    const { code, message } = data as Record<string, unknown>;
-    const parts = [code, message].filter(
-      (part): part is string | number =>
-        typeof part === "string" || typeof part === "number",
-    );
-    if (parts.length > 0) return parts.join(": ");
-  }
-  return "Erro de aplicação sem descrição.";
 }

@@ -10,7 +10,7 @@ import { formatCnj } from "@/features/processes/cnj";
 import { companyRoleLabels, type Lawsuit } from "@/features/processes/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
-import { getTrackingDisplayState } from "@/features/trackings/types";
+import { isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
 import {
   formatCurrency,
@@ -43,7 +43,7 @@ export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
     (t) =>
       t.searchType === "cnj" &&
       t.searchKey === lawsuit.cnj &&
-      getTrackingDisplayState(t.status) !== "completed",
+      !isTrackingClosed(t),
   );
 
   if (tracking) {
@@ -51,7 +51,7 @@ export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
       <div className="flex items-center gap-2 text-sm">
         <CheckCircle2Icon className="size-4 text-success" aria-hidden />
         <span>Processo monitorado</span>
-        <TrackingStatusBadge status={tracking.status} />
+        <TrackingStatusBadge tracking={tracking} />
       </div>
     );
   }

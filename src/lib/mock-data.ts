@@ -11,6 +11,7 @@ import type {
   LawsuitMovement,
   LawsuitStatus,
 } from "@/features/processes/types";
+import { trackingModeFor } from "@/features/queries/modes";
 import type { Tracking } from "@/features/trackings/types";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
@@ -294,12 +295,19 @@ const T = (
   id: mockId(3, n),
   juditTrackingId: `f3a1c2d4-0000-4000-9000-${String(n).padStart(12, "0")}`,
   companyId: company ? companyId(company) : null,
+  mode: trackingModeFor(searchType),
   searchType,
   searchKey,
+  creation: "confirmed",
+  creationError: null,
   status,
   recurrenceDays,
+  hourRange: null,
+  // A demonstração simula a entrega por webhook.
+  delivery: "webhook",
   createdAt: at(createdAt),
   updatedAt: at(updatedAt),
+  lastCheckedAt: null,
 });
 
 export const trackings: Tracking[] = [
