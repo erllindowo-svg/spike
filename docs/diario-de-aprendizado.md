@@ -10,8 +10,187 @@ Depois de cada fatia importante:
 2. Escreva você mesmo a seção **Minha explicação em palavras próprias** sem copiar a explicação do agente.
 3. Tente responder às perguntas de verificação antes de pedir as respostas.
 4. Registre qualquer dúvida que ainda não saiba resolver sem ajuda.
+5. Se algo falhou (ou poderia falhar), registre o caso no **Catálogo de investigação de falhas**, logo abaixo.
 
 Não é necessário registrar alterações triviais de CSS, nomes ou formatação.
+
+---
+
+## Catálogo de investigação de falhas
+
+Este é o material de suporte técnico do projeto: cada falha que aconteceu (ou que o código já prevê) com o sintoma, o sinal que separa uma hipótese da outra, a causa e a prevenção. Atualize a cada caso novo, usando o modelo no fim da seção.
+
+**Status de cada caso**
+
+- **Observado:** aconteceu neste projeto, com data.
+- **Previsto:** o código trata e os testes simulam, mas nunca foi visto com o serviço real.
+- **Documentado:** vem da documentação da JUDIT e ainda não foi confirmado numa chamada real.
+
+### Método (AGENTS.md, seção 10)
+
+1. Reproduzir, ou explicar por que não é possível.
+2. Ler o sinal: mensagem, status HTTP, nome do erro, log do servidor. Sem segredos.
+3. Localizar a camada em que parou (mapa abaixo).
+4. Formular a hipótese mais provável e um teste pequeno que a confirme ou refute.
+5. Fazer a menor correção na causa e rodar uma regressão.
+6. Registrar o caso aqui.
+
+### Mapa das camadas
+
+```
+ NAVEGADOR            SERVIDOR NEXT (sua máquina / Vercel)                 SERVIÇOS EXTERNOS
+ ─────────            ─────────────────────────────────────                ─────────────────
+ formulário ──POST──► Server Action / rota /api/dev/judit/...
+                        │
+                        ├─ 1. ambiente: .env.local → loadEnvConfig → process.env
+                        │       └─ src/lib/env.ts valida (getServerEnv)
+                        │
+                        ├─ 2. banco: src/db/index.ts (getDb) ──TLS──────────► MongoDB Atlas
+                        │       └─ ensureIndexes na 1ª conexão                (Network Access,
+                        │                                                      Database Access)
+                        └─ 3. JUDIT: guard.ts (kill switch, allowlist)
+                                └─ client.ts (juditRequest) ──HTTPS─────────► lawsuits / requests /
+                                     header api-key, timeout 15 s               tracking .production.judit.io
+ Ferramentas de diagnóstico: pnpm env:check [--db] · log do terminal do pnpm dev · Atlas Data Explorer
+```
+
+**Primeira pergunta de triagem: em que camada parou?**
+
+| Sinal                                                                | Camada provável                                          |
+| -------------------------------------------------------------------- | -------------------------------------------------------- |
+| Página com selo "Dados de demonstração" quando devia ser "Banco"     | 1. ambiente                                              |
+| "Variável de ambiente … ausente ou inválida"                         | 1. ambiente                                              |
+| Espera longa e depois erro (≈30 s no app, ≈10 s no `env:check --db`) | 2. rede até o Atlas                                      |
+| `bad auth` / `authentication failed`                                 | 2. credenciais do banco (a rede funcionou)               |
+| Rota `/api/dev/judit/...` responde 404                               | 3. rotas de dev desligadas (ambiente), não "rota errada" |
+| Rota de dev responde 4xx/5xx com `error.kind`                        | 3. JUDIT: ver a tabela da seção C                        |
+| Comando do agente "denied"                                           | Permissões do Claude Code, não o código                  |
+
+### A. Ambiente: a ponte entre o código e a infraestrutura
+
+**A1. App continua em "Dados de demonstração" com o Atlas configurado.** _Observado em 2026-10-13._
+
+- Sinal: selo de demonstração no cabeçalho; HTTP 200 na página (o 200 não prova nada, o modo demo também responde 200).
+- Hipóteses: `DATA_SOURCE` ausente ou com nome errado; servidor com ambiente antigo.
+- Teste que separou: perguntar ao carregador do Next o que ele leu (hoje: `pnpm env:check`). Mostrou `MONGO_URI`, `MONGO_DB_NAME` e `DATA_SOURCE=mongodb` em vez de `MONGODB_URI`, `MONGODB_DB` e `DATA_SOURCE=db`.
+- Causa raiz: o `.env.example` ainda descrevia o PostgreSQL; a ponte entre código e ambiente estava quebrada, e o agente não podia lê-la.
+- Prevenção: `src/lib/env.test.ts` (o `.env.example` precisa ter exatamente as variáveis de `env.ts`) e o aviso de "nomes que o código não usa" no `env:check`.
+- Lição de suporte: pergunte ao programa o que ele leu, não ao arquivo o que ele contém.
+
+**A2. `DATA_SOURCE=mongodb` caiu em demo em vez de dar erro.** _Observado em 2026-10-13; causa não confirmada._
+
+- Esperado pelo código: `getServerEnv("DATA_SOURCE")` lança "Variável de ambiente DATA_SOURCE ausente ou inválida".
+- Hipótese: o `pnpm dev` (com Cache Components) serviu uma renderização feita antes da troca do `.env.local`; o log mostrava `Reload env: .env.local`.
+- Teste proposto: com o servidor parado, colocar um valor inválido, subir `pnpm dev` do zero e abrir a página. Se der erro, a hipótese se confirma. Lição provável: depois de mudar o `.env.local`, reinicie o servidor antes de concluir qualquer coisa.
+
+**A3. `.env.example` com valor real ou desatualizado.** _Previsto (prevenção criada em 2026-10-14)._
+
+- Sinal: `pnpm test` falha em `src/lib/env.test.ts`, mostrando só nomes de variáveis.
+- Correção: deixar o valor vazio e copiar a linha para o `.env.local`. Se o valor chegou a um commit enviado, trocar a credencial no serviço.
+
+**A4. Valor do `.env` cortado no `#`.** _Observado com dado falso em 2026-10-14._
+
+- Sinal: o `env:check` mostra um tamanho menor que o esperado, ou "a URI não tem usuário e senha".
+- Causa: num valor sem aspas, o carregador trata o `#` como início de comentário.
+- Correção: senhas só com letras e números, ou o valor entre aspas.
+
+### B. MongoDB Atlas
+
+**B1. `bad auth : authentication failed`.** _Observado em 2026-10-14, duas causas seguidas._
+
+- O que o sinal prova: a conexão chegou ao Atlas (rede e IP ok); a falha é de usuário ou senha.
+- Causa 1: a senha ficou entre `<` e `>`, sobra do marcador `<db_password>` do Atlas.
+- Causa 2: depois disso, a senha ainda não era a do usuário do banco (Database Access), e sim outra.
+- Teste que separou: `pnpm env:check` mostra usuário, caminho, opções e avisos da URI sem exibir a senha. Quando tudo isso está certo e o erro continua, só sobra a senha.
+- Correção: Atlas > Database Access > Edit Password > Autogenerate; colar entre `usuario:` e `@`; salvar o arquivo.
+- Dica: o tamanho da URI mudar (102 → 100 → 106) é um indício de que o arquivo foi de fato salvo.
+
+**B2. Espera longa e depois `MongoServerSelectionError`.** _Previsto._
+
+- Hipóteses: IP não liberado em Network Access; sem internet; cluster pausado.
+- Teste: `pnpm env:check --db` (desiste em 10 s, contra 30 s do driver no app).
+
+**B3. `MongoParseError`.** _Previsto._ URI malformada, quase sempre por caractere especial na senha sem codificação (`@ : / ? #`).
+
+**B4. "Já existe um monitoramento ativo para este identificador."** _Observado em 2026-10-14; é comportamento correto, não falha._
+
+- Quem decide: o índice único parcial `trackings_active_search_key_unique` (`{searchType, searchKey}` com `active: true`). O driver devolve E11000, e `isDuplicateKeyError` traduz para `reason: "duplicate"`.
+- Falha de verdade seria o oposto: um duplicado gravado. Nesse caso, conferir a aba Indexes da coleção `trackings`.
+
+**B5. "Não foi possível salvar no banco. Tente novamente em instantes."** _Previsto._ A mensagem do driver fica só no log do servidor: procurar `[trackings] falha ao gravar monitoramento:` no terminal do `pnpm dev`.
+
+**B6. Coleções não aparecem no Atlas.** _Previsto._ O app nunca conectou: modo `demo` ou nenhuma página leu o banco. Na primeira conexão, `ensureIndexes` cria as quatro coleções, mesmo vazias.
+
+### C. Chamadas à JUDIT pelo client padronizado
+
+Nenhuma chamada real foi feita até 2026-10-14; tudo aqui está como **Previsto** ou **Documentado**. Toda chamada passa por `juditRequest` (`src/lib/judit/client.ts`), e cada falha vira uma classe de `src/lib/judit/errors.ts`. As rotas `/api/dev/judit/...` traduzem a classe num status HTTP **da nossa rota** (`src/lib/judit/dev-route.ts`): 502 e 504 querem dizer "a JUDIT falhou", não "a rota está quebrada".
+
+As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
+
+| #   | Onde falha                   | Classe (`kind`)                                        | Rota dev | Primeira hipótese e próximo passo                                                                                                                                                                           |
+| --- | ---------------------------- | ------------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | Rota desligada               | —                                                      | 404      | `NODE_ENV` não é `development` (usou `pnpm start`?) ou `JUDIT_LIVE_CALLS` não é exatamente `enabled`. Conferir com `pnpm env:check`.                                                                        |
+| 1   | Entrada da nossa rota        | — (`invalid_input`)                                    | 400      | Corpo não é JSON ou campo fora do schema da rota; `issues` diz qual.                                                                                                                                        |
+| 2   | Kill switch                  | `JuditLiveCallsDisabledError` (`live_calls_disabled`)  | 503      | Raro pela rota, que já responde 404 antes. Em código chamado por outro caminho, significa `JUDIT_LIVE_CALLS` desligado.                                                                                     |
+| 3   | Allowlist                    | `JuditGuardError` (`guard`)                            | 403      | Documento fora de `ALLOWLIST` em `guard.ts`. A mensagem não repete a chave, de propósito (pode ser documento de pessoa real).                                                                               |
+| 4   | Rede                         | `JuditNetworkError` (`network`)                        | 502      | DNS, TLS, sem internet. Ver `cause`. Não houve resposta HTTP.                                                                                                                                               |
+| 5   | Tempo limite                 | `JuditTimeoutError` (`timeout`)                        | 504      | 15 s (180 s com `on_demand`). **Num POST, a JUDIT pode ter processado e cobrado mesmo assim.** Não repetir às cegas: conferir antes o histórico (`GET /requests`).                                          |
+| 6   | HTTP 4xx/5xx                 | `JuditHttpError` (`http`)                              | 502      | Ler `upstreamStatus`, `errorName` e `bodySnippet`. 401: chave inválida **ou** limite de uso excedido (documentado). 5xx: problema do lado da JUDIT.                                                         |
+| 7   | HTTP 429                     | `JuditRateLimitError` (`rate_limit`)                   | 429      | Limite de requisições por minuto (180 por chave numa página da documentação, 500 em outra). Ver `rateLimit` (`Retry-After`, `X-RateLimit-*`, guardados crus).                                               |
+| 8   | HTTP 200 com erro de negócio | `JuditApplicationError` (`application_error`)          | 422      | A chamada foi válida, mas o **resultado** é uma exceção, como `LAWSUIT_NOT_FOUND` ou `SECRECY_RESTRICTED`. Ver `code` e `applicationMessage`. HTTP 200 sozinho não é sucesso.                               |
+| 9   | HTTP 2xx inutilizável        | `JuditUnexpectedResponseError` (`unexpected_response`) | 502      | Corpo não é JSON ou não bate com o schema. `issues` lista só caminhos de campos (nunca valores). Comparar com as contradições em `src/lib/judit/README.md`: é aqui que um contrato mal documentado aparece. |
+
+**Casos especiais que não são falha** (documentados):
+
+- `POST /lawsuits` com HTTP 404 e `has_lawsuits: false` significa "nenhum processo"; o client devolve lista vazia. Qualquer outro 404 continua erro.
+- `status: "pending"` num request não significa dado pronto: o fluxo é assíncrono e não há polling automático.
+- Um monitoramento recém-criado não tem resultado: a primeira execução acontece em até 24 h.
+- Resposta vinda do cache **também é cobrada** (`responseCameFromCache` só informa a origem).
+
+**Lacunas a confirmar na primeira chamada real** (README da JUDIT, contradições):
+
+- formato do corpo de erro: aninhado `{ error: { name, message } }` ou plano `{ error, message, code }` (1);
+- `code` do application_error como texto ou número (5);
+- lista de processos em `response_data` ou em `lawsuits` (10);
+- onde fica o indicador de cache (19);
+- campos aceitos no `PATCH /tracking` (26);
+- significado do status `suspended` (28) e se existe status de falha num request (24).
+
+**Ao escalar para o suporte da JUDIT**, leve: método e caminho (`call.method`, `call.service`, `call.path`), status HTTP, `errorName`/`code`, horário aproximado e o `request_id` ou `tracking_id`, quando houver. Nunca a chave, nunca o payload com dados processuais.
+
+### D. Git e ferramentas
+
+**D1. `fatal: bad object HEAD` após o PC travar.** _Observado em 2026-10-13._
+
+- Sinal: objetos vazios em `.git/objects` (39 arquivos, gravados no instante do travamento).
+- Teste que separou: `git hash-object` de cada arquivo da pasta bateu com o hash do índice, ou seja, o código estava íntegro e só o commit tinha se perdido.
+- Correção: backup do `.git`, remover objetos vazios, apontar a branch para o último commit bom (`87f9ccc`), refazer o índice e recriar o commit.
+- Lição: antes de qualquer reparo, faça backup e separe "o código está íntegro?" de "o histórico está íntegro?".
+
+**D2. Mensagem de commit "engolida" no título.** _Observado em 2026-10-14._ Sem linha em branco entre título e corpo, o Git trata tudo como título. Corrigido com `--amend` antes do push.
+
+**D3. Comando do agente negado.** _Observado em 2026-10-14._ Pode vir da regra `deny` (só bloqueia a ferramenta `Read`) ou do classificador do modo automático (bloqueou `git diff .env.example` mesmo com o arquivo liberado). "Negado" é uma decisão de permissão, não um erro do projeto.
+
+### E. Segurança como falha operacional
+
+**E1. Diagnóstico que vazou parte de um segredo.** _Observado em 2026-10-13._ Um script improvisado imprimiu os 10 primeiros caracteres da chave. Prevenção: só `pnpm env:check`, que mostra nomes, tamanhos e valores não secretos. Avaliado como risco irrelevante em 2026-10-14.
+
+**E2. Repositório público.** Tudo que entra num commit enviado deve ser tratado como publicado. Verificado em 2026-10-14: nenhum segredo no histórico.
+
+### Modelo para novos casos
+
+```
+**Título curto do sintoma.** _Observado em AAAA-MM-DD / Previsto / Documentado._
+
+- Sinal: o que apareceu (mensagem, status, log), sem segredos.
+- Camada: ambiente / banco / JUDIT / Git / ferramenta.
+- Hipóteses, em ordem de probabilidade:
+- Teste que separou as hipóteses:
+- Causa:
+- Correção:
+- Prevenção (teste, aviso, documentação):
+- Lição de suporte:
+```
 
 ---
 
@@ -500,6 +679,55 @@ Resolvido: nenhum segredo no Git, `.env.example` sincronizado e testado, `env:ch
 
 > Preencha esta seção você mesmo.
 
+### 2026-10-14 / Commit do procedimento e barreira técnica possível
+
+**Resumo técnico**
+
+Commits locais `561a05f` (procedimento de segredos) e `6532c05` (documentos). Chave JUDIT mantida; `0.0.0.0/0` no Atlas aceito por ora. Barreira técnica possível: sandbox do Claude Code, que aplica as regras `deny` de leitura também ao terminal. O `env:check` lê o `.env.local`, mas só exibe valores não secretos.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Roteiro do teste do modo `db`
+
+**Resumo técnico**
+
+Roteiro em seis passos: subir `pnpm dev`, conferir o selo "Banco de dados", ver as coleções criadas pelo `ensureIndexes`, gravar o CNPJ fictício `A1B2C3D4/E5F6-68`, recarregar (persistência), repetir (duplicado barrado pelo índice `trackings_active_search_key_unique`) e conferir no Atlas.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que as coleções aparecem no Atlas antes de qualquer monitoramento ser gravado?
+
+### 2026-10-14 / Teste do modo `db` concluído
+
+**Resumo técnico**
+
+O app criou as quatro coleções ao conectar. O CNPJ fictício gerou um documento em `companies` e um em `trackings`, sem ID da JUDIT. A repetição mostrou "Já existe um monitoramento ativo…", e o banco seguiu com um documento: o índice único parcial barrou a duplicata. Etapa 2 concluída.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Catálogo de investigação de falhas
+
+**Resumo técnico**
+
+Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e de `errors.ts`/`dev-route.ts`: mapa de camadas, triagem por sinal e casos de ambiente, Atlas, JUDIT (classe → status da rota dev → hipótese), Git e segurança. Cada caso marcado como observado, previsto ou documentado.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Uma rota `/api/dev/judit/...` respondeu 404. Por que isso não significa que o endereço está errado, e qual o primeiro comando a rodar?
+- Um `POST /requests` deu 504 na rota de dev. Por que não repetir a chamada imediatamente?
+
 ---
 
 ## Perguntas e respostas
@@ -785,3 +1013,19 @@ A primeira é uma regra de conduta; a segunda é uma barreira técnica. A regra 
 **Por que `bad auth` prova que o IP já está liberado no Atlas?**
 
 Porque a autenticação acontece depois que a conexão chega ao servidor. Se o IP estivesse bloqueado, o driver nem alcançaria o Atlas e terminaria em `MongoServerSelectionError` (timeout) após cerca de 10 s. Receber uma resposta do servidor recusando a senha mostra que a rede funcionou e que o problema está nas credenciais.
+
+### Teste do modo `db`
+
+**Por que as coleções aparecem no Atlas antes de qualquer monitoramento ser gravado?**
+
+Porque, na primeira conexão, o app chama `ensureIndexes` (`src/db/collections.ts`), e `createIndex` cria a coleção se ela ainda não existir. Basta abrir uma página que leia o banco para `companies`, `trackings`, `webhook_events` e `alerts` surgirem, vazias, mas já com os índices únicos.
+
+### Catálogo de investigação de falhas
+
+**Uma rota `/api/dev/judit/...` respondeu 404. Por que isso não significa que o endereço está errado, e qual o primeiro comando a rodar?**
+
+As rotas de dev respondem 404 de propósito quando estão desligadas: fora de `NODE_ENV=development` (por exemplo, com `pnpm start`) ou sem `JUDIT_LIVE_CALLS` exatamente igual a `enabled`. É uma proteção contra custo: uma rota pública poderia gastar os créditos da chave. O primeiro comando é `pnpm env:check`, para ver o valor de `JUDIT_LIVE_CALLS`.
+
+**Um `POST /requests` deu 504 na rota de dev. Por que não repetir a chamada imediatamente?**
+
+O 504 só diz que nós desistimos de esperar (`JuditTimeoutError`). A JUDIT pode ter recebido e processado a requisição, e cobrado por ela. Como a documentação não menciona chave de idempotência para esse endpoint, repetir pode criar uma segunda requisição e cobrar duas vezes. Primeiro confira o histórico (`GET /requests`) e só então decida.

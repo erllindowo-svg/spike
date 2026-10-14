@@ -5,13 +5,13 @@ está em [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md).
 
 ## Onde estamos
 
-| Etapa (AGENTS.md, seção 6)                         | Estado                                                       |
-| -------------------------------------------------- | ------------------------------------------------------------ |
-| 1. Fundação e interface com dados fictícios        | Concluída (tag `prototype-v0.1.0`).                          |
-| Client JUDIT (fases 0–3, sem chamadas reais)       | Concluído e mesclado em `main` (PR #1).                      |
-| 2. Modelo de dados e persistência                  | **Conexão com o Atlas ok; falta testar o app no modo `db`.** |
-| 3. Primeira consulta real à JUDIT pelo servidor    | Não iniciada.                                                |
-| 4 a 7. Monitoramento real, webhooks, idempotência… | Não iniciadas.                                               |
+| Etapa (AGENTS.md, seção 6)                         | Estado                                               |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| 1. Fundação e interface com dados fictícios        | Concluída (tag `prototype-v0.1.0`).                  |
+| Client JUDIT (fases 0–3, sem chamadas reais)       | Concluído e mesclado em `main` (PR #1).              |
+| 2. Modelo de dados e persistência                  | **Concluída: testada contra o Atlas em 2026-10-14.** |
+| 3. Primeira consulta real à JUDIT pelo servidor    | Não iniciada.                                        |
+| 4 a 7. Monitoramento real, webhooks, idempotência… | Não iniciadas.                                       |
 
 ### Estado do Git
 
@@ -52,7 +52,14 @@ agora pode lê-lo; a regra `deny` cobre só os arquivos com segredos.
 `DATA_SOURCE="db"` e a conexão com o Atlas (ping ok, nenhuma coleção ainda).
 A senha do usuário do banco foi trocada por uma gerada no Atlas.
 
-### 3. Testar o modo `db` (checklist)
+### 3. ~~Testar o modo `db`~~ (feito em 2026-10-14)
+
+Resultado: o app criou as quatro coleções na primeira conexão; o monitoramento
+do CNPJ fictício `A1B2C3D4/E5F6-68` foi gravado (1 documento em `companies`, 1
+em `trackings`, `juditTrackingId` e `status` nulos); a segunda tentativa foi
+recusada com "Já existe um monitoramento ativo…" e o banco continuou com 1
+documento, barrado pelo índice `trackings_active_search_key_unique`. Checklist
+usado:
 
 1. `pnpm dev`, depois abra `http://localhost:3000/monitoramentos`.
 2. O cabeçalho deve mostrar **"Banco de dados"**, e não "Dados de
@@ -72,16 +79,11 @@ A senha do usuário do banco foi trocada por uma gerada no Atlas.
 
 ### 4. Pendências menores
 
-- **Chave da JUDIT (opcional):** um diagnóstico desta sessão exibiu os 10
-  primeiros caracteres (de 36) da `JUDIT_API_KEY` na conversa com o agente.
-  O risco é baixo; gere uma chave nova se preferir não correr nenhum.
 - **Reflog do Git (cosmético):** `git fsck` acusa duas entradas que citam o
   commit perdido `a5ed8b0`. Nada deixa de funcionar. Para limpar:
   `sed -i '/a5ed8b0d0c2d4fb7ba062b6fc11e7ba815553f87/d' .git/logs/HEAD .git/logs/refs/heads/feat/persistence`
 - **Diário:** preencher "Minha explicação em palavras próprias" nas entradas
   desta sessão.
-- **Commit dos documentos:** o diário, este relatório e o log da sessão
-  ainda não foram commitados.
 
 ## Se algo der errado no teste
 
@@ -98,7 +100,7 @@ O HTTP 200 sozinho não prova nada: a página pode responder 200 no modo
 
 ## Depois do teste do banco
 
-1. Commitar os documentos e abrir o PR de `feat/persistence` (você faz o merge).
+1. Abrir o PR de `feat/persistence` (você faz o merge).
 2. **Etapa 3: primeira consulta real à JUDIT pelo servidor**, só com o
    documento fictício `A1B2C3D4/E5F6-68`. A sugestão é começar por
    `POST /api/dev/judit/lawsuits/count`, a consulta mais barata e síncrona, e
@@ -109,5 +111,5 @@ O HTTP 200 sozinho não prova nada: a página pode responder 200 no modo
 
 Um bom pedido inicial:
 
-> Li o `docs/relatorio-de-progresso.md`. Corrigi o `.env.local` [e liberei o
-> IP]. Vamos fazer o teste do modo `db`.
+> Li o `docs/relatorio-de-progresso.md`. Vamos abrir o PR de
+> `feat/persistence` e planejar a etapa 3.
