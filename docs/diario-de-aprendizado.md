@@ -123,7 +123,7 @@ Este é o material de suporte técnico do projeto: cada falha que aconteceu (ou 
 
 ### C. Chamadas à JUDIT pelo client padronizado
 
-Nenhuma chamada real foi feita até 2026-10-14; tudo aqui está como **Previsto** ou **Documentado**. Toda chamada passa por `juditRequest` (`src/lib/judit/client.ts`), e cada falha vira uma classe de `src/lib/judit/errors.ts`. As rotas `/api/dev/judit/...` traduzem a classe num status HTTP **da nossa rota** (`src/lib/judit/dev-route.ts`): 502 e 504 querem dizer "a JUDIT falhou", não "a rota está quebrada".
+A primeira chamada real foi feita em 2026-10-14 (`POST /lawsuits/count`, sucesso); os casos de falha abaixo continuam como **Previsto** ou **Documentado** até acontecerem. Toda chamada passa por `juditRequest` (`src/lib/judit/client.ts`), e cada falha vira uma classe de `src/lib/judit/errors.ts`. As rotas `/api/dev/judit/...` traduzem a classe num status HTTP **da nossa rota** (`src/lib/judit/dev-route.ts`): 502 e 504 querem dizer "a JUDIT falhou", não "a rota está quebrada".
 
 As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 
@@ -147,7 +147,22 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Um monitoramento recém-criado não tem resultado: a primeira execução acontece em até 24 h.
 - Resposta vinda do cache **também é cobrada** (`responseCameFromCache` só informa a origem).
 
-**Lacunas a confirmar na primeira chamada real** (README da JUDIT, contradições):
+**Observado na primeira chamada real** (2026-10-14, `POST /lawsuits/count`, CNPJ `A1B2C3D4/E5F6-68`):
+
+- HTTP 200 da nossa rota, `{"total":1,"limited":false}`, em 2,0 s medidos pelo `curl` (no `next dev`, o tempo inclui a compilação da rota no primeiro acesso; o terminal separa `next.js` de `application-code`).
+- `response_type: "lawsuits"` não foi rejeitado (contradição 14).
+- `POST /lawsuits`: HTTP 200, `has_lawsuits: true`, `request_id` e um processo (CNJ `0000000-39.2026.8.26.0050`, TJSP), também em 2,0 s. Partes no formato do OpenAPI (contradição 16); nenhum indicador de cache (19); `phase`/`status` ausentes e textos `"NÃO INFORMADO"` (33). A lacuna 10 **não** foi resolvida: a rota mostra a saída já normalizada pelo `transform`.
+- Campo não documentado `limited` (contradição 32). Lição de suporte: o schema tolerante (`looseObject`) deixou passar um campo novo; um schema estrito teria transformado isso num 502 sem que nada estivesse errado.
+
+**C10. Primeira chamada a uma rota leva ~2 s no `next dev`.** _Observado em 2026-10-14._
+
+- Sinal: `count` e `POST /lawsuits` levaram 2,01 s cada; a documentação promete "milissegundos".
+- Hipóteses: limite do documento de teste na JUDIT; rede/TLS; compilação da rota pelo Turbopack.
+- Teste que separou (gratuito): `POST /api/dev/judit/lawsuits/synthetic` com corpo `{}`, rota nunca acessada, que responde 400 **sem** chamar a JUDIT: 2,28 s na primeira vez e 0,014 s na segunda.
+- Causa provável: compilação no primeiro acesso, que sozinha já leva ~2 s. Sobra pouco ou nada para a JUDIT. Confirmação final: linhas do terminal (`next.js` × `application-code`) ou uma nova chamada a uma rota já compilada.
+- Lição de suporte: um número "redondo" e repetido sugere uma causa fixa, e havia uma, mas do nosso lado. Meça a latência em rota já aquecida (ou com `pnpm build && pnpm start`) antes de atribuí-la ao fornecedor.
+
+**Lacunas a confirmar nas próximas chamadas reais** (README da JUDIT, contradições):
 
 - formato do corpo de erro: aninhado `{ error: { name, message } }` ou plano `{ error, message, code }` (1);
 - `code` do application_error como texto ou número (5);
@@ -170,6 +185,15 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 **D2. Mensagem de commit "engolida" no título.** _Observado em 2026-10-14._ Sem linha em branco entre título e corpo, o Git trata tudo como título. Corrigido com `--amend` antes do push.
 
 **D3. Comando do agente negado.** _Observado em 2026-10-14._ Pode vir da regra `deny` (só bloqueia a ferramenta `Read`) ou do classificador do modo automático (bloqueou `git diff .env.example` mesmo com o arquivo liberado). "Negado" é uma decisão de permissão, não um erro do projeto.
+
+**D4. Diário com 91 linhas no Cursor e 1233 no disco.** _Observado em 2026-10-14._
+
+- Sinal: o editor mostrava uma versão antiga do diário. O Git, o GitHub e o `wc -l` mostravam a versão completa.
+- Hipóteses: cópia em outra pasta (havia uma em `~/Downloads`, com 59 linhas); branch desatualizada; aba com alterações não salvas.
+- Teste que separou: nenhuma versão no Git tinha 91 linhas. O backup de "arquivos não salvos" do Cursor (`~/.config/Cursor/Backups`) tinha exatamente 91 linhas, baseado no arquivo de 12/10.
+- Causa: uma aba aberta desde 12/10 tinha uma edição acidental não salva. Com alterações pendentes, o editor não recarrega o arquivo quando o disco muda.
+- Correção: descartar a aba (Revert File), sem salvar. Salvar teria sobrescrito as 1233 linhas.
+- Lição de suporte: "o arquivo está vazio" pode ser verdade só na tela de quem está olhando. Compare a fonte (disco, Git) com o que o cliente exibe.
 
 ### E. Segurança como falha operacional
 
@@ -728,6 +752,270 @@ Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e d
 - Uma rota `/api/dev/judit/...` respondeu 404. Por que isso não significa que o endereço está errado, e qual o primeiro comando a rodar?
 - Um `POST /requests` deu 504 na rota de dev. Por que não repetir a chamada imediatamente?
 
+### 2026-10-14 / `main` atualizada após o merge do PR #2
+
+**Resumo técnico**
+
+`git switch main` e `git pull` fizeram fast-forward de `2af39e6` para `c8e84b8` (merge do PR #2, `feat/persistence`). A `main` agora tem MongoDB, `DATA_SOURCE`, client da JUDIT, rotas de dev e `check-env`. Nenhum conflito: a `main` local não tinha commits próprios.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Plano da etapa 3 e preparo da primeira chamada real
+
+**Resumo técnico**
+
+`pnpm env:check` mostrou `JUDIT_LIVE_CALLS="enabled"` e chave definida, com o `next dev` rodando na porta 3000. A página `/cache-judit/count` confere com `countLawsuits`. Plano: `count`, depois `POST /lawsuits` (lacuna 10) e só então a fatia vertical na página da empresa.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Primeira chamada real à JUDIT
+
+**Resumo técnico**
+
+`curl` na rota de dev `lawsuits/count` com o CNPJ fictício: HTTP 200, `{"total":1,"limited":false}`, 2,0 s. Contrato confirmado; `response_type` aceito. `limited` não está documentado: registrado como contradição 32 no README e no catálogo. Schema tolerante evitou um falso 502.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Se a chamada respondesse `{"total": 0}`, isso provaria que a integração falhou?
+- Por que o campo `limited` não quebrou a validação, e por que não o adicionamos ao schema?
+
+### 2026-10-14 / Hot Storage real com o CNPJ fictício
+
+**Resumo técnico**
+
+`POST /lawsuits` devolveu um processo fictício (TJSP, CNJ válido). Confirmou partes no formato do OpenAPI e campos `phase`/`status` ausentes. A lacuna 10 continua aberta: o `transform` renomeia a lista para `lawsuits` antes da rota responder. Os 2,0 s nas duas chamadas ainda não foram explicados.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que a saída da rota de dev não prova se a JUDIT usa `lawsuits` ou `response_data`?
+- O que fazer com um campo que chega como `"NÃO INFORMADO"`?
+
+### 2026-10-14 / De onde vêm os 2 s?
+
+**Resumo técnico**
+
+Não há atraso programado: o único `setTimeout` em `client.ts` é um teto de 15 s que aborta a chamada, não uma espera. A JUDIT também não documenta atraso proposital. Hipóteses abertas: compilação da rota no `next dev`, latência de rede/TLS ou demora da JUDIT. As linhas do terminal separam essas hipóteses.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Qual a diferença entre um tempo limite (timeout) e um atraso (delay)?
+
+### 2026-10-14 / CNJ fictício na allowlist e teste da compilação
+
+**Resumo técnico**
+
+`0000000-39.2026.8.26.0050` entrou na allowlist (`guard.ts`) com teste; 86 testes, lint, typecheck e format ok. Lacuna 10 mantida aberta. Teste gratuito: rota nunca compilada, sem chamar a JUDIT, levou 2,28 s e depois 0,014 s. Os 2 s são compilação do `next dev`, não da JUDIT (catálogo C10).
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / A rota está mal otimizada?
+
+**Resumo técnico**
+
+Não. O `next dev` compila cada rota no primeiro acesso (guia `local-development.md` do Next); o `next build` compila tudo antes. Já aquecida, a rota respondeu em 14 ms. Os 2 s são custo do ambiente de desenvolvimento, não do nosso código; em produção, o tempo relevante será o da JUDIT.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que medir desempenho no `next dev` engana, e onde a medida faria sentido?
+
+### 2026-10-14 / Desenho da fatia 3: híbrido datalake + request assíncrona
+
+**Resumo técnico**
+
+Decisão sua: não copiar processos para o MongoDB. A tela lê o datalake (`POST /lawsuits`) e, para dados frescos, dispara `POST /requests`. Lacuna: a documentação não diz que um request concluído atualiza o datalake, então o resultado novo é lido em `GET /responses`. Proposto guardar só o ponteiro (`request_id`).
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que guardar o `request_id` não é "replicar a JUDIT", mas guardar a lista de processos seria?
+
+### 2026-10-14 / Fatia 3a: consulta ao datalake na página da empresa
+
+**Resumo técnico**
+
+Botão "Consultar datalake JUDIT" (modo `db`) chama `searchCompanyLawsuitsAction`, que valida o CNPJ, exige a empresa cadastrada e chama `searchLawsuits`. `fromJuditLawsuit` converte o processo para o modelo da tela. Nada é gravado. 99 testes, lint, typecheck e build ok; clique real ainda não testado.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- A server action recusa CNPJs fora da allowlist. Por que isso não basta para publicar o app com `JUDIT_LIVE_CALLS` ligado?
+- Por que o mapeamento lê `classifications` de forma defensiva em vez de tipar o campo no schema Zod?
+
+### 2026-10-14 / Encerramento da sessão
+
+**Resumo técnico**
+
+Log em `docs/logs/2026-10-14-sessao.md` e relatório atualizado. Branch `feat/judit-datalake` criada a partir da `main`, com dois commits (código da 3a e documentação), não enviada ao GitHub. Um commit é um retrato, não uma entrega: o que está pendente fica escrito na mensagem e no relatório.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Como commitar um trabalho que ainda não terminou sem atrapalhar a `main`?
+
+### 2026-10-14 / Onde está o diário?
+
+**Resumo técnico**
+
+O diário parecia ter 91 linhas porque uma aba do Cursor guardava, desde 12/10, uma edição acidental não salva, e por isso não recarregava o arquivo do disco. O arquivo real tem mais de 1200 linhas. Primeiro palpite errado: a cópia em `~/Downloads`. Caso D4 no catálogo.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que o editor não atualizou a aba quando o arquivo mudou no disco?
+- Se a aba antiga tivesse sido salva por cima, como recuperar o diário completo?
+
+### 2026-10-14 / "Razão social indisponível" no modo `db`
+
+**Resumo técnico**
+
+Comportamento esperado. `ensureCompany` (`src/features/companies/db.ts`) cria a empresa só com o CNPJ (`legalName: null`), e nenhuma fatia busca dados cadastrais. O texto vem do cabeçalho em `company-detail.tsx`, não do botão do datalake. O resultado do clique ainda não foi relatado.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Teste manual da fatia 3a concluído
+
+**Resumo técnico**
+
+O clique em "Consultar datalake JUDIT" (modo `db`, CNPJ fictício) funcionou: a server action chamou `POST /lawsuits` e mostrou o resultado. Nova observação: a JUDIT aceitou o CNPJ **sem máscara** (`A1B2C3D4E5F668`). Fatia 3a validada de ponta a ponta. Próxima: 3b.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / `on_demand`: custo por uso, não por funcionalidade
+
+**Resumo técnico**
+
+A JUDIT cobra por requisição. Ter `on_demand` no código não custa nada, só o envio com `true` custa. Docs: "força a busca em tempo real nos tribunais" (request-document) e "custo maior" (glossário), sem valores publicados. Proposta para a 3b: uma opção desmarcada por padrão e `onDemand` gravado em `judit_requests`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que gravar `onDemand` em cada request, se a JUDIT já sabe o que foi pedido?
+
+### 2026-10-14 / Modalidades de consulta explícitas
+
+**Resumo técnico**
+
+Decisão sua: cada consulta e monitoramento deve declarar a modalidade JUDIT usada (endpoint, sync/async, datalake/tribunal, polling/webhook). Nada implícito, como uma caixa `on_demand` escondida. Os rótulos da interface ficam para depois. Proposta: um catálogo tipado de modalidades e um campo `mode` gravado. Aguardando aprovação.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Request assíncrona atualiza o datalake
+
+**Resumo técnico**
+
+Você confirmou que uma request assíncrona concluída atualiza o datalake da JUDIT (fonte: tech lead da JUDIT). Isso reforça o desenho híbrido: depois da request, um `POST /lawsuits` barato já lê dado fresco, sem cópia no MongoDB. Banco próprio de processos só compensa com muitas consultas repetidas. A atualização chega junto com a entrega (também confirmado).
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Que sinal, no uso real, indicaria que chegou a hora de guardar processos no próprio banco?
+
+### 2026-10-14 / Mapa da estrutura do projeto
+
+**Resumo técnico**
+
+Três camadas: `src/lib/judit` (como chamar cada endpoint, sem decisões de produto), `src/features/<domínio>` (regras, persistência, actions, mapeamento) e `src/app` (páginas e rotas de dev). `src/lib/data.ts` escolhe demo ou MongoDB. O catálogo de modalidades ficaria entre features e o client.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que `searchCompanyLawsuitsAction` confere o modo, o CNPJ e a empresa, se o botão só aparece quando tudo isso já está certo?
+- Em qual pasta entra uma decisão como "esta consulta é `historical_on_demand`", e por que não em `src/lib/judit`?
+
+### 2026-10-14 / Fatia 3b: consultas assíncronas com modalidade explícita
+
+**Resumo técnico**
+
+Catálogo `modes.ts`, coleção `judit_requests` (índice único em `requestId`) e duas actions: criar a consulta (comum ou on-demand, com `cache_ttl_in_days`) e verificar o status e as respostas. O `request_id` vai para o log antes de gravar. 111 testes, lint, typecheck, format e build passando. Falta o teste manual.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que `checkAsyncQueryAction` procura o `request_id` no nosso banco antes de perguntar à JUDIT?
+- Por que o `request_id` é registrado no log antes de ser gravado no MongoDB?
+
+### 2026-10-14 / Revisão da fatia 3b
+
+**Resumo técnico**
+
+Você revisou o código da 3b e aprovou sem pedir mudanças. Ainda pendente: o teste manual com a JUDIT (reiniciar o `pnpm dev` antes, para criar o índice de `judit_requests`) e o commit.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Teste manual da fatia 3b concluído
+
+**Resumo técnico**
+
+Teste manual feito por você com o CNPJ fictício: criar, verificar status e ler o resultado funcionaram. Com isso, a JUDIT também aceitou o CNPJ sem máscara em `POST /requests`. Fatia 3b validada de ponta a ponta; falta o commit.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Encerramento da etapa 3
+
+**Resumo técnico**
+
+Textos da consulta síncrona sem "datalake", usando o rótulo do catálogo. Etapa 3 concluída: consulta síncrona e assíncrona (comum e on-demand), testadas com a JUDIT real. Relatório e log atualizados. Próxima sessão: merge da branch e desenho da etapa 4, monitoramento real com cobrança recorrente.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
 ---
 
 ## Perguntas e respostas
@@ -1029,3 +1317,83 @@ As rotas de dev respondem 404 de propósito quando estão desligadas: fora de `N
 **Um `POST /requests` deu 504 na rota de dev. Por que não repetir a chamada imediatamente?**
 
 O 504 só diz que nós desistimos de esperar (`JuditTimeoutError`). A JUDIT pode ter recebido e processado a requisição, e cobrado por ela. Como a documentação não menciona chave de idempotência para esse endpoint, repetir pode criar uma segunda requisição e cobrar duas vezes. Primeiro confira o histórico (`GET /requests`) e só então decida.
+
+### Primeira chamada real
+
+**Se a chamada respondesse `{"total": 0}`, isso provaria que a integração falhou?**
+
+Não. HTTP 200 com um `total` numérico prova que a chave, a URL, o cabeçalho e o formato funcionaram. Zero é um resultado de negócio: o datalake não tem processos para aquele documento, ou o filtro excluiu todos. Para separar "integração quebrada" de "não há dados", olhe o status e o formato, não o valor. Com o documento fictício, a documentação promete um processo, então 0 seria uma divergência a investigar com a JUDIT, não um erro do nosso código.
+
+**Por que o campo `limited` não quebrou a validação, e por que não o adicionamos ao schema?**
+
+`lawsuitsCountResponseSchema` é um `z.looseObject`: exige `total` e deixa passar campos extras. Não o adicionamos porque não sabemos o que ele significa. Tipá-lo seria afirmar um contrato que a JUDIT não documentou, e nenhum código nosso precisa dele ainda.
+
+**Por que a saída da rota de dev não prova se a JUDIT usa `lawsuits` ou `response_data`?**
+
+Porque a rota devolve o resultado de `searchLawsuits`, e o schema faz um `transform` que pega `lawsuits ?? response_data` e sempre chama o resultado de `lawsuits`. Duas entradas diferentes produzem a mesma saída. Lição: normalizar é bom para o resto do código, mas apaga a evidência do contrato original. Para diagnosticar um contrato, observe o dado **antes** da normalização.
+
+**O que fazer com um campo que chega como `"NÃO INFORMADO"`?**
+
+Tratá-lo como ausência de dado, igual a `null`: não mostrar "NÃO INFORMADO" como se fosse um valor real, nem usar em filtros ou contagens. É uma convenção da JUDIT, e não um valor do tribunal.
+
+**Qual a diferença entre um tempo limite (timeout) e um atraso (delay)?**
+
+Um atraso faz o código **esperar** antes de agir, e toda chamada fica mais lenta. Um tempo limite é um **teto**: a chamada segue na velocidade normal e só é interrompida se passar do limite. Em `client.ts`, o `setTimeout` de 15 s dispara `controller.abort()` só quando a JUDIT demora demais; quando ela responde antes, `clearTimeout` cancela o timer e ele não tem efeito. Rate limit é uma terceira coisa: o servidor recusa (HTTP 429) quando passamos de N requisições por minuto, mas não atrasa a resposta.
+
+**Por que medir desempenho no `next dev` engana, e onde a medida faria sentido?**
+
+Porque o `next dev` compila cada rota sob demanda, no primeiro acesso, e não aplica as otimizações de produção: o primeiro tempo mede o compilador, não o código. A medida faz sentido com `pnpm build && pnpm start` ou, no `dev`, só a partir do segundo acesso à rota. Nas rotas `/api/dev/judit`, que respondem 404 fora do `dev`, a alternativa é olhar o `application-code` no terminal.
+
+### Fatia 3: híbrido
+
+**Por que guardar o `request_id` não é "replicar a JUDIT", mas guardar a lista de processos seria?**
+
+A lista de processos é **dado** da JUDIT: copiá-la cria uma segunda fonte que envelhece e precisa ser sincronizada, além de guardar dados processuais (LGPD). O `request_id` é um **ponteiro** para um trabalho que nós mesmos pedimos: sem ele, depois de recarregar a página, não saberíamos qual request acompanhar, e o único jeito de reencontrá-lo seria listar o histórico da conta inteira (`GET /requests`). Guardamos a referência, não o conteúdo.
+
+**A server action recusa CNPJs fora da allowlist. Por que isso não basta para publicar o app com `JUDIT_LIVE_CALLS` ligado?**
+
+Uma server action é um `POST` que qualquer pessoa pode enviar, sem passar pelo botão. A allowlist limita **o que** é consultado, mas não **quem** consulta nem **quantas vezes**. Alguém poderia repetir a consulta do CNPJ fictício milhares de vezes, e cada uma seria cobrada. Antes de publicar, faltam autenticação e limite de taxa, ou o kill switch desligado.
+
+**Por que o mapeamento lê `classifications` de forma defensiva em vez de tipar o campo no schema Zod?**
+
+Porque a documentação mostra duas formas (lista de textos ou de objetos `{ code, name }`, contradição 34). Se o schema exigisse uma delas e a JUDIT mandasse a outra, a validação falharia e a consulta inteira viraria um erro (502), por causa de um campo secundário. Lendo com cuidado no mapeamento, um formato inesperado só deixa a classe em branco.
+
+### Encerramento de 2026-10-14
+
+**Como commitar um trabalho que ainda não terminou sem atrapalhar a `main`?**
+
+Numa branch própria (`git switch -c feat/judit-datalake`): as mudanças não commitadas vão junto, e a `main` continua igual. O commit pode registrar uma etapa parcial, desde que os testes passem e a mensagem diga o que foi feito e o que falta. Só o merge na `main`, via PR, precisa estar "pronto". Antes de enviar ao GitHub ou abrir o PR, ainda dá para ajustar os commits.
+
+### Editor e arquivos não salvos
+
+**Por que o editor não atualizou a aba quando o arquivo mudou no disco?**
+Porque a aba tinha alterações não salvas. Uma aba sem alterações é recarregada automaticamente. Com alterações pendentes, o editor mantém a sua versão para não perder o que você digitou. Se você salvar, o arquivo do disco é sobrescrito.
+
+**Se a aba antiga tivesse sido salva por cima, como recuperar o diário completo?**
+Com `git restore docs/diario-de-aprendizado.md`, que traz de volta a versão do último commit (`8d48c02`, 1223 linhas). Antes, rode `git diff` para ver o que vai ser descartado. O que ainda não estava commitado se perderia, porque o Git só guarda o que entrou em commit. Por isso vale commitar o diário com frequência.
+
+### Custo do `on_demand`
+
+**Por que gravar `onDemand` em cada request, se a JUDIT já sabe o que foi pedido?**
+Para conferir a fatura e investigar falhas sem depender do painel da JUDIT. Com o campo no MongoDB, dá para contar quantas consultas caras o app disparou e comparar com o consumo cobrado. Também ajuda a explicar por que uma request demorou mais.
+
+### Datalake e banco próprio
+
+**Que sinal, no uso real, indicaria que chegou a hora de guardar processos no próprio banco?**
+O mesmo CNPJ ou CNJ sendo consultado muitas vezes em pouco tempo, com custo ou latência pesando. Também quando a tela precisa funcionar mesmo com a JUDIT fora do ar, ou quando é preciso comparar versões antigas de um processo. Sem esses sinais, a cópia só adiciona dado sensível para proteger e manter atualizado.
+
+### Estrutura do projeto
+
+**Por que `searchCompanyLawsuitsAction` confere o modo, o CNPJ e a empresa, se o botão só aparece quando tudo isso já está certo?**
+Porque uma server action é, por baixo, um POST que qualquer pessoa pode enviar sem usar a tela. O botão é só conveniência; a proteção real fica no servidor. Como cada chamada à JUDIT é cobrada, confiar no navegador seria abrir uma torneira de custo.
+
+**Em qual pasta entra uma decisão como "esta consulta é `historical_on_demand`", e por que não em `src/lib/judit`?**
+Em `src/features` (no catálogo de modalidades). `src/lib/judit` só sabe _como_ falar com cada endpoint, com padrões seguros. Escolher _qual_ modalidade usar e por quê é regra do produto. Separar as duas coisas deixa o client reutilizável e testável sem saber nada das telas.
+
+### Consultas assíncronas
+
+**Por que `checkAsyncQueryAction` procura o `request_id` no nosso banco antes de perguntar à JUDIT?**
+A allowlist só protege chamadas com documento ou CNJ. Uma chamada por ID passaria direto e poderia ler consultas que outra aplicação fez com a mesma chave. Exigir que o ID exista em `judit_requests` limita a action às consultas criadas por este app.
+
+**Por que o `request_id` é registrado no log antes de ser gravado no MongoDB?**
+Quando a JUDIT responde 201, a consulta já foi aceita e cobrada. Se a gravação falhar logo depois, o ID se perderia, e com ele o resultado pago. O log guarda o ID para recuperá-lo. Ele não é segredo: sem a chave da API, não dá acesso a nada.

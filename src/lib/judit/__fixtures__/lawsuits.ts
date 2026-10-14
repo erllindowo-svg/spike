@@ -68,3 +68,53 @@ export const entityCnpjBody = {
     },
   ],
 };
+
+// Real POST /lawsuits response for the fictitious test CNPJ A1B2C3D4/E5F6-68,
+// observed on 2026-10-14 (empty arrays and crawler/tags metadata omitted).
+// The list field name is shown as `lawsuits`, but it was observed after our
+// transform, so the raw name is still unknown (README, contradiction 10).
+export const hotStorageObservedBody = {
+  has_lawsuits: true,
+  request_id: "2bf22fa7-4061-4ea6-8e69-b479bc12c24c",
+  lawsuits: [
+    {
+      code: "0000000-39.2026.8.26.0050",
+      instance: 1,
+      name: "PARTE TESTE X EMPRESA TESTE",
+      tribunal_acronym: "TJSP",
+      distribution_date: "2026-05-01T03:00:00.000Z",
+      amount: 0,
+      secrecy_level: 0,
+      justice: "8",
+      justice_description: "JUSTIÇA ESTADUAL",
+      tribunal: "26",
+      county: "20 CRIMINAL DE CENTRAL",
+      state: "SP",
+      city: "SAO PAULO",
+      area: "NÃO INFORMADO",
+      classifications: [],
+      subjects: [],
+      courts: [],
+      parties: [
+        {
+          main_document: "A1B2C3D4E5F668",
+          name: "EMPRESA TESTE",
+          side: "Passive",
+          person_type: "RÉU",
+          documents: [{ document: "A1B2C3D4E5F668", document_type: "cnpj" }],
+          lawyers: [],
+        },
+        {
+          name: "PARTE TESTE",
+          side: "Active",
+          person_type: "AUTOR",
+          documents: [],
+          lawyers: [],
+        },
+      ],
+      situation: "NÃO INFORMADO",
+      judge: "NÃO INFORMADO",
+      steps: [],
+    },
+  ],
+};

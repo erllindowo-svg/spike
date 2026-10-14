@@ -3,12 +3,14 @@
 import {
   CalendarClockIcon,
   CheckCircle2Icon,
+  CloudDownloadIcon,
   FileTextIcon,
   LandmarkIcon,
   RadarIcon,
   ScaleIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { CopyButton } from "@/components/shared/copy-button";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -22,16 +24,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { ActivityFeed } from "@/features/activity/components/activity-feed";
 import { formatCnpj } from "@/features/companies/cnpj";
 import type { Company } from "@/features/companies/types";
+import type { JuditRequest } from "@/db/models";
 import {
   DistributionCard,
   type DistributionData,
 } from "@/features/processes/components/distribution-card";
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
 import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
-import type { Lawsuit } from "@/features/processes/types";
+import {
+  searchCompanyLawsuitsAction,
+  type SearchCompanyLawsuitsResult,
+} from "@/features/processes/actions";
+import {
+  summarizeDistribution,
+  type Lawsuit,
+} from "@/features/processes/types";
+import { AsyncQueriesCard } from "@/features/queries/components/async-queries-card";
+import { QUERY_MODES } from "@/features/queries/modes";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { SearchTypeBadge } from "@/features/trackings/components/search-type-badge";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
@@ -41,22 +54,56 @@ import {
   getTrackingDisplayState,
 } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 
 import { RegistrationStatusBadge } from "./registration-status-badge";
 
+type JuditSearch = Extract<SearchCompanyLawsuitsResult, { ok: true }>;
+
 export function CompanyDetail({
   company,
-  lawsuits,
-  distribution,
+  lawsuits: demoLawsuits,
+  asyncQueries,
+  distribution: demoDistribution,
 }: {
   company: Company;
   lawsuits: Lawsuit[];
+  // Consultas assíncronas gravadas no MongoDB; vazio no modo demo.
+  asyncQueries: JuditRequest[];
   distribution: DistributionData;
 }) {
-  const { trackings, activity } = useDemoStore();
+  const { trackings, activity, dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [selected, setSelected] = useState<Lawsuit | null>(null);
+  const [judit, setJudit] = useState<JuditSearch | null>(null);
+  const [searching, startSearch] = useTransition();
+
+  // No modo "db", os processos não vêm do banco: aparecem só depois de uma
+  // consulta ao datalake da JUDIT, feita sob clique porque cada uma é cobrada.
+  const fromJudit = dataSource === "db";
+  const lawsuits = fromJudit ? (judit?.lawsuits ?? []) : demoLawsuits;
+  const distribution = fromJudit
+    ? {
+        area: summarizeDistribution(lawsuits, "area"),
+        tribunal: summarizeDistribution(lawsuits, "tribunal"),
+      }
+    : demoDistribution;
+
+  function searchJudit() {
+    startSearch(async () => {
+      const result = await searchCompanyLawsuitsAction(company.cnpj);
+      if (!result.ok) {
+        toast.error("Consulta à JUDIT não concluída", {
+          description: result.message,
+        });
+        return;
+      }
+      setJudit(result);
+      toast.success(
+        `${formatNumber(result.lawsuits.length)} processo(s) na ${QUERY_MODES.datalake_sync.label.toLowerCase()}`,
+      );
+    });
+  }
 
   const lawsuitCnjs = new Set(lawsuits.map((l) => l.cnj));
   const linkedTrackings = trackings.filter(
@@ -227,18 +274,55 @@ export function CompanyDetail({
         <CardHeader>
           <CardTitle>Processos associados</CardTitle>
           <CardDescription>
-            Selecione um processo para ver detalhes e movimentações.
+            {!fromJudit
+              ? "Selecione um processo para ver detalhes e movimentações."
+              : judit
+                ? `${QUERY_MODES.datalake_sync.label} à JUDIT feita em ${formatDateTime(judit.fetchedAt)}${judit.requestId ? ` · request_id ${judit.requestId}` : ""}. Não fica salvo: recarregar a página limpa a lista.`
+                : "Os processos vêm de uma consulta síncrona à JUDIT. Cada consulta é cobrada."}
           </CardDescription>
-          <CardAction>
+          <CardAction className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground tabular-nums">
               {formatNumber(lawsuits.length)} processos
             </span>
+            {fromJudit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={searchJudit}
+                disabled={searching}
+              >
+                {searching ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <CloudDownloadIcon data-icon="inline-start" />
+                )}
+                Fazer {QUERY_MODES.datalake_sync.label.toLowerCase()}
+              </Button>
+            )}
           </CardAction>
         </CardHeader>
         <CardContent>
-          <LawsuitsTable lawsuits={lawsuits} onSelect={setSelected} />
+          <LawsuitsTable
+            lawsuits={lawsuits}
+            onSelect={setSelected}
+            emptyDescription={
+              fromJudit
+                ? judit
+                  ? "A consulta síncrona não retornou processos para este CNPJ."
+                  : "Clique em “Fazer consulta síncrona” para buscar os processos."
+                : undefined
+            }
+          />
         </CardContent>
       </Card>
+
+      {fromJudit && (
+        <AsyncQueriesCard
+          cnpj={company.cnpj}
+          queries={asyncQueries}
+          onSelectLawsuit={setSelected}
+        />
+      )}
 
       <LawsuitSheet
         lawsuit={selected}

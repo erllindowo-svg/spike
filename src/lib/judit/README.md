@@ -182,6 +182,11 @@ Registradas em vez de escolhidas em silêncio.
 10. **Campo da lista em `POST /lawsuits`.** A página do Hot Storage mostra os
     processos em `response_data`; o OpenAPI e a página on-demand, em
     `lawsuits`. `searchLawsuits` aceita os dois e devolve sempre `lawsuits`.
+    _Chamada real em 2026-10-14 (CNPJ fictício): **ainda não resolvida.**_ A
+    rota de dev devolve a saída **depois** do `transform`, que sempre chama a
+    lista de `lawsuits`; com qualquer um dos dois nomes, a saída seria igual.
+    Confirmado só que a raiz não tem outros campos além de `has_lawsuits`,
+    `request_id` e a lista (sem paginação, sem indicador de cache).
 11. **"Nenhum processo" vem como HTTP 404.** A página do Hot Storage diz que
     `POST /lawsuits` responde 404 com `has_lawsuits: false` quando não acha
     processos. Tratamos esse corpo específico como resultado vazio; outro 404
@@ -194,11 +199,18 @@ Registradas em vez de escolhidas em silêncio.
 14. **`response_type` em `/lawsuits/count`.** A página o marca como
     obrigatório com `"lawsuits"`; os exemplos não o enviam e o enum do
     OpenAPI não contém `"lawsuits"` (só `application_*`, com padrão
-    `lawsuits`). Enviamos `"lawsuits"`.
+    `lawsuits`). Enviamos `"lawsuits"`. _Observado em 2026-10-14:_ com
+    `response_type: "lawsuits"` e `A1B2C3D4/E5F6-68`, a resposta foi HTTP 200
+    `{ "total": 1, "limited": false }`. Isso prova que o campo não é
+    rejeitado, não que a JUDIT o usa.
 15. **`partners` em entidades.** O OpenAPI o marca como obrigatório; o
     exemplo de CPF não o traz. Tratado como opcional.
 16. **Partes no Hot Storage.** O exemplo usa `document`/`document_type`; o
     OpenAPI usa `main_document`/`documents`. Não tipamos partes ainda.
+    _Observado em 2026-10-14:_ a resposta real segue o **OpenAPI**
+    (`main_document` + `documents: [{ document, document_type: "cnpj" }]`).
+    A parte sem documento veio sem `main_document` e com `documents: []`, ou
+    seja, `main_document` é opcional na prática.
 17. **`GET /lawsuits/{lawsuit_cnj}`** não tem página na documentação, só o
     OpenAPI. Cobrança e significado de `all_att`/`saved_att`/
     `only_att_with_steps` são desconhecidos; esses parâmetros não são
@@ -210,6 +222,9 @@ Registradas em vez de escolhidas em silêncio.
     `page_data[].cached_response`; o OpenAPI usa `cached` na raiz do item; o
     exemplo da própria página traz os dois dentro de `tags`.
     `responseCameFromCache` verifica os quatro lugares.
+    _Observado em 2026-10-14 no `POST /lawsuits`:_ nenhum dos quatro
+    aparece; `tags` trouxe só `dictionary_updated_at`. No Hot Storage, tudo
+    vem do datalake, então talvez o indicador nem se aplique a esta rota.
 20. **Paginação de `GET /requests`.** A página de paginação diz padrão 20 e
     máximo 1000; o OpenAPI de `GET /requests` diz padrão 10, mínimo 5 e
     máximo 100, e marca `page`, `page_size`, `created_at_gte` e
@@ -251,3 +266,32 @@ Registradas em vez de escolhidas em silêncio.
 31. **Cobrança do tracking** não tem selo em nenhuma das duas páginas, e a
     documentação não diz se cada execução recorrente é cobrada como uma
     requisição. Tratado como cobrável, por execução.
+32. **Campo `limited` em `/lawsuits/count`.** _Observado em 2026-10-14._ A
+    resposta real trouxe `"limited": false`, que não aparece na página nem no
+    OpenAPI (`LawsuitsCount.Response.Post`). Significado desconhecido; a
+    hipótese de "contagem truncada por um teto" não está confirmada. O schema
+    é `looseObject`, então o campo passa sem quebrar a validação, mas não o
+    tipamos nem o usamos até a JUDIT documentá-lo.
+33. **Processo fictício do Hot Storage.** _Observado em 2026-10-14._ A página
+    lista `phase` e `status` entre os campos principais, mas o item real não
+    os trouxe (nem `last_step`); nosso schema já os trata como opcionais.
+    Vários campos usam o texto `"NÃO INFORMADO"` em vez de `null` (`area`,
+    `situation`, `judge`, `system`, `tribunal_url`): a interface deve tratar
+    esse texto como ausência de dado. CNJ do processo fictício:
+    `0000000-39.2026.8.26.0050` (dígitos verificadores válidos).
+34. **Formato de `classifications`, `subjects`, `courts` e `side`.** A página
+    do objeto processo (`/schemas/lawsuit-object`) mostra listas de textos
+    (`["PROCEDIMENTO COMUM CÍVEL"]`), `courts` como texto e `side` em
+    maiúsculas (`"ACTIVE"`); o exemplo do Hot Storage e a resposta real usam
+    objetos `{ code, name }` e `side` como `"Active"`. O mapeamento
+    `fromJuditLawsuit` (`src/features/processes/judit.ts`) aceita as duas
+    formas em vez de tipar uma delas no schema.
+35. **Request assíncrona atualiza o datalake?** A página
+    [request-document](https://docs.judit.io/requests/request-document)
+    descreve o fluxo sem `on_demand` como "sem acesso direto aos tribunais",
+    mas o aviso sobre `cached_response` diz que a JUDIT "dispara uma
+    atualização nos tribunais" depois da resposta em cache. **Confirmado pelo
+    tech lead da JUDIT em 2026-10-14:** uma request assíncrona concluída
+    atualiza o datalake, no mesmo fluxo em que os dados são entregues ao
+    cliente. Quando a request fica `completed`, um `POST /lawsuits` já lê o
+    dado atualizado.

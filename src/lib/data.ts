@@ -10,6 +10,7 @@ import { connection } from "next/server";
 //   alertas, eventos de webhook e atividade ainda não têm funções de
 //   persistência e aparecem vazios. Nada aqui chama a JUDIT.
 
+import type { JuditRequest } from "@/db/models";
 import type { ActivityItem } from "@/features/activity/types";
 import type { AlertView } from "@/features/alerts/types";
 import { normalizeCnpj } from "@/features/companies/cnpj";
@@ -17,6 +18,7 @@ import * as companiesDb from "@/features/companies/db";
 import type { Company } from "@/features/companies/types";
 import { normalizeCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
+import * as queriesDb from "@/features/queries/db";
 import * as trackingsDb from "@/features/trackings/db";
 import type { Tracking } from "@/features/trackings/types";
 import type { WebhookEventView } from "@/features/webhooks/types";
@@ -70,6 +72,15 @@ export async function getLawsuitByCnj(cnj: string): Promise<Lawsuit | null> {
   if (await usingDatabase()) return null;
   const normalized = normalizeCnj(cnj);
   return mock.lawsuits.find((l) => l.cnj === normalized) ?? null;
+}
+
+// Consultas assíncronas criadas na JUDIT (coleção judit_requests). Só existem
+// no modo "db": a demonstração não chama a JUDIT.
+export async function listAsyncQueries(
+  companyId: string,
+): Promise<JuditRequest[]> {
+  if (await usingDatabase()) return queriesDb.listJuditRequests(companyId);
+  return [];
 }
 
 const byDateDesc =
