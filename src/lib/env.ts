@@ -4,8 +4,9 @@ import { z } from "zod";
 
 // Variables are read on demand: the build does not depend on credentials and
 // each module only requires what it actually uses. Values never go into
-// error messages.
-const serverEnvSchema = z.object({
+// error messages. Exported so src/lib/env.test.ts can keep .env.example in
+// sync with it.
+export const serverEnvSchema = z.object({
   // MongoDB connection string (Atlas gives the mongodb+srv:// form). Checked
   // as a prefix, not as a URL: the mongodb:// form may list several hosts,
   // which a URL parser rejects.

@@ -101,6 +101,28 @@ Regras:
 - O build não exige credenciais: elas são validadas apenas quando usadas.
 - Na Vercel, cadastre as variáveis em _Project Settings → Environment Variables_.
 
+### Segredos: procedimento
+
+O repositório é público. Os valores reais ficam só no `.env.local`, fora do
+Git; o `.env.example` é a ponte entre o código e o `.env.local` e contém apenas
+nomes, sem valores.
+
+- **Inspecionar o ambiente:** `pnpm env:check` mostra os arquivos carregados e,
+  para cada variável, se está definida e o tamanho, nunca o valor secreto.
+  Também aponta nomes que o código não usa (ex.: `MONGO_URI`).
+  `pnpm env:check --db` testa a conexão com o MongoDB (ping, só leitura).
+  Use isso em vez de abrir o arquivo ou imprimir variáveis.
+- **Sincronia automática:** `src/lib/env.test.ts` (roda em `pnpm test`) falha
+  se o `.env.example` tiver um valor preenchido ou se as variáveis dele forem
+  diferentes das validadas em `src/lib/env.ts`.
+- **Agentes de IA:** podem ler o `.env.example`, mas não os arquivos com
+  segredos (regra `deny` em `.claude/settings.local.json`, só nesta máquina).
+  A regra bloqueia a ferramenta de leitura, não o terminal; por isso o
+  `pnpm env:check` é o único caminho combinado.
+- **Incidente:** se um segredo aparecer em um commit, log ou conversa, troque a
+  credencial no serviço de origem (Atlas > Database Access; painel da JUDIT).
+  Apagar o valor num commit novo não o remove do histórico.
+
 ### MongoDB Atlas
 
 O cliente (`src/db/index.ts`) abre uma conexão por instância do servidor e a
