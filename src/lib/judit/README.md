@@ -286,3 +286,12 @@ Registradas em vez de escolhidas em silêncio.
     objetos `{ code, name }` e `side` como `"Active"`. O mapeamento
     `fromJuditLawsuit` (`src/features/processes/judit.ts`) aceita as duas
     formas em vez de tipar uma delas no schema.
+35. **Request assíncrona atualiza o datalake?** A página
+    [request-document](https://docs.judit.io/requests/request-document)
+    descreve o fluxo sem `on_demand` como "sem acesso direto aos tribunais",
+    mas o aviso sobre `cached_response` diz que a JUDIT "dispara uma
+    atualização nos tribunais" depois da resposta em cache. **Confirmado pelo
+    tech lead da JUDIT em 2026-10-14:** uma request assíncrona concluída
+    atualiza o datalake, no mesmo fluxo em que os dados são entregues ao
+    cliente. Quando a request fica `completed`, um `POST /lawsuits` já lê o
+    dado atualizado.

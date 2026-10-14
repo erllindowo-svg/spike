@@ -186,6 +186,15 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 
 **D3. Comando do agente negado.** _Observado em 2026-10-14._ Pode vir da regra `deny` (só bloqueia a ferramenta `Read`) ou do classificador do modo automático (bloqueou `git diff .env.example` mesmo com o arquivo liberado). "Negado" é uma decisão de permissão, não um erro do projeto.
 
+**D4. Diário com 91 linhas no Cursor e 1233 no disco.** _Observado em 2026-10-14._
+
+- Sinal: o editor mostrava uma versão antiga do diário. O Git, o GitHub e o `wc -l` mostravam a versão completa.
+- Hipóteses: cópia em outra pasta (havia uma em `~/Downloads`, com 59 linhas); branch desatualizada; aba com alterações não salvas.
+- Teste que separou: nenhuma versão no Git tinha 91 linhas. O backup de "arquivos não salvos" do Cursor (`~/.config/Cursor/Backups`) tinha exatamente 91 linhas, baseado no arquivo de 12/10.
+- Causa: uma aba aberta desde 12/10 tinha uma edição acidental não salva. Com alterações pendentes, o editor não recarrega o arquivo quando o disco muda.
+- Correção: descartar a aba (Revert File), sem salvar. Salvar teria sobrescrito as 1233 linhas.
+- Lição de suporte: "o arquivo está vazio" pode ser verdade só na tela de quem está olhando. Compare a fonte (disco, Git) com o que o cliente exibe.
+
 ### E. Segurança como falha operacional
 
 **E1. Diagnóstico que vazou parte de um segredo.** _Observado em 2026-10-13._ Um script improvisado imprimiu os 10 primeiros caracteres da chave. Prevenção: só `pnpm env:check`, que mostra nomes, tamanhos e valores não secretos. Avaliado como risco irrelevante em 2026-10-14.
@@ -874,6 +883,129 @@ Log em `docs/logs/2026-10-14-sessao.md` e relatório atualizado. Branch `feat/ju
 
 - Como commitar um trabalho que ainda não terminou sem atrapalhar a `main`?
 
+### 2026-10-14 / Onde está o diário?
+
+**Resumo técnico**
+
+O diário parecia ter 91 linhas porque uma aba do Cursor guardava, desde 12/10, uma edição acidental não salva, e por isso não recarregava o arquivo do disco. O arquivo real tem mais de 1200 linhas. Primeiro palpite errado: a cópia em `~/Downloads`. Caso D4 no catálogo.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que o editor não atualizou a aba quando o arquivo mudou no disco?
+- Se a aba antiga tivesse sido salva por cima, como recuperar o diário completo?
+
+### 2026-10-14 / "Razão social indisponível" no modo `db`
+
+**Resumo técnico**
+
+Comportamento esperado. `ensureCompany` (`src/features/companies/db.ts`) cria a empresa só com o CNPJ (`legalName: null`), e nenhuma fatia busca dados cadastrais. O texto vem do cabeçalho em `company-detail.tsx`, não do botão do datalake. O resultado do clique ainda não foi relatado.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Teste manual da fatia 3a concluído
+
+**Resumo técnico**
+
+O clique em "Consultar datalake JUDIT" (modo `db`, CNPJ fictício) funcionou: a server action chamou `POST /lawsuits` e mostrou o resultado. Nova observação: a JUDIT aceitou o CNPJ **sem máscara** (`A1B2C3D4E5F668`). Fatia 3a validada de ponta a ponta. Próxima: 3b.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / `on_demand`: custo por uso, não por funcionalidade
+
+**Resumo técnico**
+
+A JUDIT cobra por requisição. Ter `on_demand` no código não custa nada, só o envio com `true` custa. Docs: "força a busca em tempo real nos tribunais" (request-document) e "custo maior" (glossário), sem valores publicados. Proposta para a 3b: uma opção desmarcada por padrão e `onDemand` gravado em `judit_requests`.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que gravar `onDemand` em cada request, se a JUDIT já sabe o que foi pedido?
+
+### 2026-10-14 / Modalidades de consulta explícitas
+
+**Resumo técnico**
+
+Decisão sua: cada consulta e monitoramento deve declarar a modalidade JUDIT usada (endpoint, sync/async, datalake/tribunal, polling/webhook). Nada implícito, como uma caixa `on_demand` escondida. Os rótulos da interface ficam para depois. Proposta: um catálogo tipado de modalidades e um campo `mode` gravado. Aguardando aprovação.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Request assíncrona atualiza o datalake
+
+**Resumo técnico**
+
+Você confirmou que uma request assíncrona concluída atualiza o datalake da JUDIT (fonte: tech lead da JUDIT). Isso reforça o desenho híbrido: depois da request, um `POST /lawsuits` barato já lê dado fresco, sem cópia no MongoDB. Banco próprio de processos só compensa com muitas consultas repetidas. A atualização chega junto com a entrega (também confirmado).
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Que sinal, no uso real, indicaria que chegou a hora de guardar processos no próprio banco?
+
+### 2026-10-14 / Mapa da estrutura do projeto
+
+**Resumo técnico**
+
+Três camadas: `src/lib/judit` (como chamar cada endpoint, sem decisões de produto), `src/features/<domínio>` (regras, persistência, actions, mapeamento) e `src/app` (páginas e rotas de dev). `src/lib/data.ts` escolhe demo ou MongoDB. O catálogo de modalidades ficaria entre features e o client.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que `searchCompanyLawsuitsAction` confere o modo, o CNPJ e a empresa, se o botão só aparece quando tudo isso já está certo?
+- Em qual pasta entra uma decisão como "esta consulta é `historical_on_demand`", e por que não em `src/lib/judit`?
+
+### 2026-10-14 / Fatia 3b: consultas assíncronas com modalidade explícita
+
+**Resumo técnico**
+
+Catálogo `modes.ts`, coleção `judit_requests` (índice único em `requestId`) e duas actions: criar a consulta (comum ou on-demand, com `cache_ttl_in_days`) e verificar o status e as respostas. O `request_id` vai para o log antes de gravar. 111 testes, lint, typecheck, format e build passando. Falta o teste manual.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que `checkAsyncQueryAction` procura o `request_id` no nosso banco antes de perguntar à JUDIT?
+- Por que o `request_id` é registrado no log antes de ser gravado no MongoDB?
+
+### 2026-10-14 / Revisão da fatia 3b
+
+**Resumo técnico**
+
+Você revisou o código da 3b e aprovou sem pedir mudanças. Ainda pendente: o teste manual com a JUDIT (reiniciar o `pnpm dev` antes, para criar o índice de `judit_requests`) e o commit.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / Teste manual da fatia 3b concluído
+
+**Resumo técnico**
+
+Teste manual feito por você com o CNPJ fictício: criar, verificar status e ler o resultado funcionaram. Com isso, a JUDIT também aceitou o CNPJ sem máscara em `POST /requests`. Fatia 3b validada de ponta a ponta; falta o commit.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
 ---
 
 ## Perguntas e respostas
@@ -1221,3 +1353,37 @@ Porque a documentação mostra duas formas (lista de textos ou de objetos `{ cod
 **Como commitar um trabalho que ainda não terminou sem atrapalhar a `main`?**
 
 Numa branch própria (`git switch -c feat/judit-datalake`): as mudanças não commitadas vão junto, e a `main` continua igual. O commit pode registrar uma etapa parcial, desde que os testes passem e a mensagem diga o que foi feito e o que falta. Só o merge na `main`, via PR, precisa estar "pronto". Antes de enviar ao GitHub ou abrir o PR, ainda dá para ajustar os commits.
+
+### Editor e arquivos não salvos
+
+**Por que o editor não atualizou a aba quando o arquivo mudou no disco?**
+Porque a aba tinha alterações não salvas. Uma aba sem alterações é recarregada automaticamente. Com alterações pendentes, o editor mantém a sua versão para não perder o que você digitou. Se você salvar, o arquivo do disco é sobrescrito.
+
+**Se a aba antiga tivesse sido salva por cima, como recuperar o diário completo?**
+Com `git restore docs/diario-de-aprendizado.md`, que traz de volta a versão do último commit (`8d48c02`, 1223 linhas). Antes, rode `git diff` para ver o que vai ser descartado. O que ainda não estava commitado se perderia, porque o Git só guarda o que entrou em commit. Por isso vale commitar o diário com frequência.
+
+### Custo do `on_demand`
+
+**Por que gravar `onDemand` em cada request, se a JUDIT já sabe o que foi pedido?**
+Para conferir a fatura e investigar falhas sem depender do painel da JUDIT. Com o campo no MongoDB, dá para contar quantas consultas caras o app disparou e comparar com o consumo cobrado. Também ajuda a explicar por que uma request demorou mais.
+
+### Datalake e banco próprio
+
+**Que sinal, no uso real, indicaria que chegou a hora de guardar processos no próprio banco?**
+O mesmo CNPJ ou CNJ sendo consultado muitas vezes em pouco tempo, com custo ou latência pesando. Também quando a tela precisa funcionar mesmo com a JUDIT fora do ar, ou quando é preciso comparar versões antigas de um processo. Sem esses sinais, a cópia só adiciona dado sensível para proteger e manter atualizado.
+
+### Estrutura do projeto
+
+**Por que `searchCompanyLawsuitsAction` confere o modo, o CNPJ e a empresa, se o botão só aparece quando tudo isso já está certo?**
+Porque uma server action é, por baixo, um POST que qualquer pessoa pode enviar sem usar a tela. O botão é só conveniência; a proteção real fica no servidor. Como cada chamada à JUDIT é cobrada, confiar no navegador seria abrir uma torneira de custo.
+
+**Em qual pasta entra uma decisão como "esta consulta é `historical_on_demand`", e por que não em `src/lib/judit`?**
+Em `src/features` (no catálogo de modalidades). `src/lib/judit` só sabe _como_ falar com cada endpoint, com padrões seguros. Escolher _qual_ modalidade usar e por quê é regra do produto. Separar as duas coisas deixa o client reutilizável e testável sem saber nada das telas.
+
+### Consultas assíncronas
+
+**Por que `checkAsyncQueryAction` procura o `request_id` no nosso banco antes de perguntar à JUDIT?**
+A allowlist só protege chamadas com documento ou CNJ. Uma chamada por ID passaria direto e poderia ler consultas que outra aplicação fez com a mesma chave. Exigir que o ID exista em `judit_requests` limita a action às consultas criadas por este app.
+
+**Por que o `request_id` é registrado no log antes de ser gravado no MongoDB?**
+Quando a JUDIT responde 201, a consulta já foi aceita e cobrada. Se a gravação falhar logo depois, o ID se perderia, e com ele o resultado pago. O log guarda o ID para recuperá-lo. Ele não é segredo: sem a chave da API, não dá acesso a nada.

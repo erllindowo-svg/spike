@@ -52,7 +52,8 @@ Navegador ◄── lista + request_id + horário (só em memória; F5 limpa)
 ```
 
 Verificado: 99 testes, lint, typecheck, format e build; página carrega no
-modo `db` com o botão. **Não verificado:** o clique real.
+modo `db` com o botão. **Clique real verificado em 2026-10-14:** funcionou,
+com o CNPJ sem máscara.
 
 ## Próxima sessão, em ordem
 
@@ -72,15 +73,20 @@ modo `db` com o botão. **Não verificado:** o clique real.
 Confirmar o caso C10: no terminal do `pnpm dev`, compare `next.js` com
 `application-code` na linha da primeira chamada.
 
-### 3. Fatia 3b: dados frescos via request assíncrona
+### 3. Fatia 3b: consultas assíncronas (concluída; revisada e testada em 2026-10-14)
 
-- Coleção `judit_requests` (`requestId` com índice único, `companyId`,
-  `searchType`, `searchKey`, `status` bruto, `onDemand`, `createdAt`,
-  `lastCheckedAt`).
-- Botões "Atualizar nos tribunais" (`POST /requests`) e "Verificar status"
-  (manual, sem polling); quando `completed`, mostrar `GET /responses`.
-- **Decisão pendente:** usar ou não `on_demand` (ir ao tribunal, mais caro).
-- Testar se o datalake muda depois de um request concluído (não documentado).
+- Modalidades explícitas: catálogo `src/features/queries/modes.ts`
+  (`datalake_sync`, `historical_async`, `historical_on_demand`); o `mode`
+  é gravado, não deduzido de `on_demand`.
+- Coleção `judit_requests` (índice único em `requestId`), com `mode`,
+  `delivery: "polling"` e `cacheTtlInDays` (só na on-demand).
+- Card "Consultas assíncronas" na página da empresa (modo `db`): criar
+  consulta comum ou on-demand, "Verificar status" manual e leitura das
+  respostas quando `completed` (não gravadas).
+- Decisões: sem janela de confirmação; `cache_ttl_in_days` opcional na
+  on-demand; cofre de credenciais fica para depois.
+- **Reinicie o `pnpm dev` antes de testar:** a conexão com o banco fica
+  guardada entre recargas, e os índices novos só são criados ao conectar.
 
 ### Pendências conhecidas
 
