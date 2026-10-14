@@ -23,6 +23,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -107,7 +108,8 @@ function NewTrackingForm({
   onDone: () => void;
 }) {
   const router = useRouter();
-  const { addTracking, companies, lawsuits } = useDemoStore();
+  const { addTracking, companies, lawsuits, dataSource } = useDemoStore();
+  const [saving, setSaving] = useState(false);
   const [searchType, setSearchType] = useState<TrackingSearchType>(
     defaults.searchType ?? "cnpj",
   );
@@ -137,8 +139,9 @@ function NewTrackingForm({
     ? companies.find((c) => c.id === matchedLawsuit.companyId)
     : undefined;
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (saving) return;
     const parsed = (searchType === "cnpj" ? cnpjSchema : cnjSchema).safeParse(
       value,
     );
@@ -147,7 +150,8 @@ function NewTrackingForm({
       return;
     }
 
-    const result = addTracking({
+    setSaving(true);
+    const result = await addTracking({
       searchType,
       searchKey: parsed.data,
       companyId:
@@ -156,20 +160,28 @@ function NewTrackingForm({
           : (matchedLawsuit?.companyId ?? null),
       recurrenceDays: Number(recurrence),
     });
+    setSaving(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
 
     onDone();
-    toast.success("Monitoramento adicionado em modo de demonstração", {
-      description:
-        "Nenhum monitoramento foi criado na JUDIT. O item existe apenas nesta sessão do navegador.",
-      action: {
-        label: "Ver lista",
-        onClick: () => router.push("/monitoramentos"),
+    toast.success(
+      dataSource === "db"
+        ? "Monitoramento salvo no banco"
+        : "Monitoramento adicionado em modo de demonstração",
+      {
+        description:
+          dataSource === "db"
+            ? "Registrado no MongoDB. Nenhum monitoramento foi criado na JUDIT ainda."
+            : "Nenhum monitoramento foi criado na JUDIT. O item existe apenas nesta sessão do navegador.",
+        action: {
+          label: "Ver lista",
+          onClick: () => router.push("/monitoramentos"),
+        },
       },
-    });
+    );
   }
 
   return (
@@ -294,8 +306,9 @@ function NewTrackingForm({
       <Alert>
         <InfoIcon />
         <AlertDescription>
-          Modo de demonstração: o item é adicionado apenas à lista local.
-          Nenhuma requisição é enviada à JUDIT.
+          {dataSource === "db"
+            ? "O monitoramento é gravado no banco de dados. Nenhuma requisição é enviada à JUDIT."
+            : "Modo de demonstração: o item é adicionado apenas à lista local. Nenhuma requisição é enviada à JUDIT."}
         </AlertDescription>
       </Alert>
 
@@ -303,7 +316,10 @@ function NewTrackingForm({
         <Button type="button" variant="outline" onClick={onDone}>
           Cancelar
         </Button>
-        <Button type="submit">Adicionar monitoramento</Button>
+        <Button type="submit" disabled={saving}>
+          {saving && <Spinner data-icon="inline-start" />}
+          Adicionar monitoramento
+        </Button>
       </DialogFooter>
     </form>
   );

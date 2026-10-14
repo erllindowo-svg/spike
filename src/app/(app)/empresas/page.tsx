@@ -10,9 +10,9 @@ import { listLawsuits } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Empresas" };
 
-export default function CompaniesPage() {
+export default async function CompaniesPage() {
   const summary: CompanyLawsuitSummary = {};
-  for (const lawsuit of listLawsuits()) {
+  for (const lawsuit of await listLawsuits()) {
     if (!lawsuit.companyId) continue;
     const entry = (summary[lawsuit.companyId] ??= { total: 0, active: 0 });
     entry.total += 1;

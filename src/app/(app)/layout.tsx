@@ -1,17 +1,49 @@
+import { Suspense } from "react";
+
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { GlobalSearch } from "@/components/layout/global-search";
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { NewTrackingDialogProvider } from "@/features/trackings/components/new-tracking-dialog";
-import { getInitialDemoState, listCompanies, listLawsuits } from "@/lib/data";
+import {
+  getDataSource,
+  getInitialState,
+  listCompanies,
+  listLawsuits,
+} from "@/lib/data";
 import { DemoStoreProvider } from "@/lib/demo-store";
 
+// No modo "db", os dados só são lidos na requisição; o Suspense mostra o
+// esqueleto enquanto o MongoDB responde. No modo "demo", tudo continua
+// pré-renderizado e o esqueleto não chega a aparecer.
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
+    <Suspense
+      fallback={
+        <main className="mx-auto w-full max-w-7xl p-4 md:p-6">
+          <PageSkeleton />
+        </main>
+      }
+    >
+      <AppData>{children}</AppData>
+    </Suspense>
+  );
+}
+
+async function AppData({ children }: { children: React.ReactNode }) {
+  const [initialState, companies, lawsuits] = await Promise.all([
+    getInitialState(),
+    listCompanies(),
+    listLawsuits(),
+  ]);
+
+  return (
     <DemoStoreProvider
-      initialState={getInitialDemoState()}
-      companies={listCompanies()}
-      lawsuits={listLawsuits()}
+      dataSource={getDataSource()}
+      initialState={initialState}
+      companies={companies}
+      lawsuits={lawsuits}
     >
       <NewTrackingDialogProvider>
         <SidebarProvider>

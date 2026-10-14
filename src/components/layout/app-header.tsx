@@ -1,6 +1,11 @@
 "use client";
 
-import { FlaskConicalIcon, LogOutIcon, SettingsIcon } from "lucide-react";
+import {
+  DatabaseIcon,
+  FlaskConicalIcon,
+  LogOutIcon,
+  SettingsIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
@@ -23,6 +28,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useDemoStore } from "@/lib/demo-store";
 
 import { GlobalSearch } from "./global-search";
 import { getPageTitle } from "./navigation";
@@ -32,6 +38,8 @@ function PageTitle() {
 }
 
 export function AppHeader() {
+  const { dataSource } = useDemoStore();
+
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/80 md:px-6">
       <SidebarTrigger className="-ml-1.5" />
@@ -47,21 +55,40 @@ export function AppHeader() {
           <GlobalSearch />
         </div>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 text-xs font-medium text-warning" />
-            }
-          >
-            <FlaskConicalIcon className="size-3.5" aria-hidden />
-            <span className="hidden sm:inline">Dados de demonstração</span>
-            <span className="sm:hidden">Demo</span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-64">
-            Todas as informações são fictícias e ficam apenas em memória.
-            Nenhuma consulta é feita à JUDIT nem ao banco de dados.
-          </TooltipContent>
-        </Tooltip>
+        {dataSource === "db" ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border bg-muted px-2.5 text-xs font-medium text-muted-foreground" />
+              }
+            >
+              <DatabaseIcon className="size-3.5" aria-hidden />
+              <span className="hidden sm:inline">Banco de dados</span>
+              <span className="sm:hidden">Banco</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">
+              Empresas e monitoramentos vêm do MongoDB. Processos, alertas e
+              webhooks ainda não são persistidos e aparecem vazios. Nenhuma
+              consulta é feita à JUDIT.
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 text-xs font-medium text-warning" />
+              }
+            >
+              <FlaskConicalIcon className="size-3.5" aria-hidden />
+              <span className="hidden sm:inline">Dados de demonstração</span>
+              <span className="sm:hidden">Demo</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">
+              Todas as informações são fictícias e ficam apenas em memória.
+              Nenhuma consulta é feita à JUDIT nem ao banco de dados.
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger

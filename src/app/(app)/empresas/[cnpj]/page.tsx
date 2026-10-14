@@ -8,16 +8,16 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { CompanyDetail } from "@/features/companies/components/company-detail";
 import { summarizeDistribution } from "@/features/processes/types";
-import { getCompanyByCnpj, listCompanies, listLawsuits } from "@/lib/data";
+import { getCompanyByCnpj, listLawsuits, staticParamSamples } from "@/lib/data";
 
 export function generateStaticParams() {
-  return listCompanies().map((c) => ({ cnpj: c.cnpj }));
+  return staticParamSamples.companies();
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/empresas/[cnpj]">): Promise<Metadata> {
-  const company = getCompanyByCnpj((await params).cnpj);
+  const company = await getCompanyByCnpj((await params).cnpj);
   return { title: company?.legalName ?? "Empresa" };
 }
 
@@ -33,10 +33,10 @@ export default function CompanyPage({ params }: PageProps<"/empresas/[cnpj]">) {
 async function CompanyContent({
   params,
 }: Pick<PageProps<"/empresas/[cnpj]">, "params">) {
-  const company = getCompanyByCnpj((await params).cnpj);
+  const company = await getCompanyByCnpj((await params).cnpj);
   if (!company) notFound();
 
-  const lawsuits = listLawsuits({ companyId: company.id });
+  const lawsuits = await listLawsuits({ companyId: company.id });
 
   return (
     <>

@@ -2,8 +2,8 @@ import { OverviewDashboard } from "@/features/overview/components/overview-dashb
 import { summarizeDistribution } from "@/features/processes/types";
 import { listLawsuits } from "@/lib/data";
 
-export default function OverviewPage() {
-  const lawsuits = listLawsuits();
+export default async function OverviewPage() {
+  const lawsuits = await listLawsuits();
 
   return (
     <OverviewDashboard

@@ -50,7 +50,7 @@ export function TrackingsTable({
   trackings: Tracking[];
   variant?: "full" | "compact";
 }) {
-  const { getCompany, lawsuits, webhookEvents, setTrackingPaused } =
+  const { getCompany, lawsuits, webhookEvents, setTrackingPaused, dataSource } =
     useDemoStore();
   const lastEvents = getLastEventByReference(webhookEvents);
   const full = variant === "full";
@@ -215,21 +215,27 @@ export function TrackingsTable({
                           Sem eventos (item local)
                         </DropdownMenuItem>
                       )}
-                      {(state === "active" || state === "paused") && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() =>
-                              togglePause(tracking, state === "active")
-                            }
-                          >
-                            {state === "active" ? <PauseIcon /> : <PlayIcon />}
-                            {state === "active"
-                              ? "Pausar (demonstração)"
-                              : "Retomar (demonstração)"}
-                          </DropdownMenuItem>
-                        </>
-                      )}
+                      {/* Pausar de verdade depende da JUDIT (etapa 4). */}
+                      {dataSource === "demo" &&
+                        (state === "active" || state === "paused") && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() =>
+                                togglePause(tracking, state === "active")
+                              }
+                            >
+                              {state === "active" ? (
+                                <PauseIcon />
+                              ) : (
+                                <PlayIcon />
+                              )}
+                              {state === "active"
+                                ? "Pausar (demonstração)"
+                                : "Retomar (demonstração)"}
+                            </DropdownMenuItem>
+                          </>
+                        )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

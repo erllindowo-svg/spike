@@ -1,13 +1,12 @@
-import type { NewTracking, Tracking } from "@/db/schema";
+import type { Tracking, TrackingSearchType } from "@/db/models";
 
-export type { Tracking };
+export type { Tracking, TrackingSearchType };
 
-export type TrackingSearchType = Tracking["searchType"];
-
-export type NewTrackingInput = Pick<
-  NewTracking,
-  "searchType" | "searchKey" | "companyId" | "recurrenceDays"
->;
+export type NewTrackingInput = Pick<Tracking, "searchType" | "searchKey"> & {
+  companyId?: string | null;
+  // Obrigatória e sem padrão: define com que frequência o monitoramento roda.
+  recurrenceDays: number;
+};
 
 export const searchTypeLabels: Record<TrackingSearchType, string> = {
   cnpj: "CNPJ",

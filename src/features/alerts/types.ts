@@ -1,11 +1,11 @@
-import type { Alert } from "@/db/schema";
+import type { Alert } from "@/db/models";
 
 // Tipos usados em alerts.type. Valores próprios do produto, não da JUDIT.
 export type AlertType = "new_lawsuit" | "lawsuit_movement" | "tracking_notice";
 
 export type AlertView = Omit<Alert, "type"> & {
   type: AlertType;
-  // Ainda não existe coluna para o processo relacionado; candidato ao schema.
+  // Ainda não existe campo para o processo relacionado; candidato ao modelo.
   lawsuitCnj: string | null;
 };
 

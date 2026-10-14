@@ -70,7 +70,7 @@ Ao explicar uma funcionalidade, descreva o caminho da informação de ponta a po
 1. o usuário preenche o formulário no navegador;
 2. a aplicação valida os dados;
 3. o servidor chama a API da JUDIT com credenciais mantidas no servidor;
-4. a aplicação interpreta a resposta e salva o identificador retornado no PostgreSQL;
+4. a aplicação interpreta a resposta e salva o identificador retornado no MongoDB;
 5. mais tarde, a JUDIT envia um webhook para uma rota pública da aplicação;
 6. a aplicação valida e persiste o evento, trata duplicidades e o associa ao monitoramento;
 7. a interface lê o evento persistido e mostra um alerta.
@@ -168,7 +168,7 @@ Se a configuração de callback depender de uma mudança na conta JUDIT ou de ap
 
 ## 9. Princípios técnicos para esta stack
 
-O projeto deverá usar Next.js com App Router, TypeScript, Tailwind CSS, shadcn/ui, PostgreSQL e Drizzle ORM, conforme a configuração real do repositório.
+O projeto deverá usar Next.js com App Router, TypeScript, Tailwind CSS, shadcn/ui e MongoDB (driver oficial, com validação via Zod), conforme a configuração real do repositório.
 
 - Use TypeScript strict e prefira tipos derivados dos contratos e schemas validados.
 - Mantenha segredos e integrações no servidor, nunca em componentes cliente.

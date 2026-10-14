@@ -107,7 +107,7 @@ export function WebhookDiagnostics() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { webhookEvents, simulateWebhookEvent } = useDemoStore();
+  const { webhookEvents, simulateWebhookEvent, dataSource } = useDemoStore();
 
   const reference = searchParams.get("referencia");
   const selectedId = searchParams.get("evento");
@@ -222,36 +222,39 @@ export function WebhookDiagnostics() {
   return (
     <>
       <PageIntro description="Inspecione os callbacks recebidos, o processamento de cada um e os alertas gerados. Útil para investigar duplicidades, falhas e eventos ainda não processados.">
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button />}>
-            <WebhookIcon data-icon="inline-start" />
-            Simular evento
-            <ChevronDownIcon data-icon="inline-end" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                Simulação local: nenhum dado é enviado ou recebido da JUDIT.
-              </DropdownMenuLabel>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            {scenarios.map((s) => (
-              <DropdownMenuItem
-                key={s.value}
-                onClick={() => simulate(s.value)}
-                className="items-start"
-              >
-                <s.icon className="mt-0.5" />
-                <span className="flex flex-col">
-                  <span>{s.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {s.description}
+        {/* A simulação só existe no modo de demonstração. */}
+        {dataSource === "demo" && (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button />}>
+              <WebhookIcon data-icon="inline-start" />
+              Simular evento
+              <ChevronDownIcon data-icon="inline-end" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Simulação local: nenhum dado é enviado ou recebido da JUDIT.
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              {scenarios.map((s) => (
+                <DropdownMenuItem
+                  key={s.value}
+                  onClick={() => simulate(s.value)}
+                  className="items-start"
+                >
+                  <s.icon className="mt-0.5" />
+                  <span className="flex flex-col">
+                    <span>{s.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {s.description}
+                    </span>
                   </span>
-                </span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </PageIntro>
 
       <Alert>

@@ -38,12 +38,12 @@ const integrations = [
     icon: DatabaseIcon,
     title: "Banco de dados",
     description:
-      "Schema e migrations prontos (PostgreSQL + Drizzle), mas a interface ainda usa apenas dados em memória.",
+      "MongoDB, ativado com DATA_SOURCE=db. Empresas e monitoramentos já são persistidos; processos, alertas e webhooks ainda não.",
   },
 ];
 
 export function SettingsPanel() {
-  const { reset } = useDemoStore();
+  const { reset, dataSource } = useDemoStore();
 
   return (
     <>
@@ -79,27 +79,29 @@ export function SettingsPanel() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-3xl">
-        <CardHeader>
-          <CardTitle>Dados de demonstração</CardTitle>
-          <CardDescription>
-            Monitoramentos criados, alertas lidos e eventos simulados existem
-            apenas na memória desta aba.
-          </CardDescription>
-          <CardAction>
-            <Button
-              variant="outline"
-              onClick={() => {
-                reset();
-                toast.success("Dados de demonstração restaurados.");
-              }}
-            >
-              <RotateCcwIcon data-icon="inline-start" />
-              Restaurar
-            </Button>
-          </CardAction>
-        </CardHeader>
-      </Card>
+      {dataSource === "demo" && (
+        <Card className="max-w-3xl">
+          <CardHeader>
+            <CardTitle>Dados de demonstração</CardTitle>
+            <CardDescription>
+              Monitoramentos criados, alertas lidos e eventos simulados existem
+              apenas na memória desta aba.
+            </CardDescription>
+            <CardAction>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  reset();
+                  toast.success("Dados de demonstração restaurados.");
+                }}
+              >
+                <RotateCcwIcon data-icon="inline-start" />
+                Restaurar
+              </Button>
+            </CardAction>
+          </CardHeader>
+        </Card>
+      )}
     </>
   );
 }

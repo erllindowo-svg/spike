@@ -12,16 +12,16 @@ import {
   LawsuitDetails,
   LawsuitTrackingAction,
 } from "@/features/processes/components/lawsuit-details";
-import { getLawsuitByCnj, listCompanies, listLawsuits } from "@/lib/data";
+import { getLawsuitByCnj, listCompanies, staticParamSamples } from "@/lib/data";
 
 export function generateStaticParams() {
-  return listLawsuits().map((l) => ({ cnj: l.cnj }));
+  return staticParamSamples.lawsuits();
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/processos/[cnj]">): Promise<Metadata> {
-  const lawsuit = getLawsuitByCnj((await params).cnj);
+  const lawsuit = await getLawsuitByCnj((await params).cnj);
   return { title: lawsuit ? formatCnj(lawsuit.cnj) : "Processo" };
 }
 
@@ -37,9 +37,9 @@ export default function LawsuitPage({ params }: PageProps<"/processos/[cnj]">) {
 async function LawsuitContent({
   params,
 }: Pick<PageProps<"/processos/[cnj]">, "params">) {
-  const lawsuit = getLawsuitByCnj((await params).cnj);
+  const lawsuit = await getLawsuitByCnj((await params).cnj);
   if (!lawsuit) notFound();
-  const back = listCompanies().find((c) => c.id === lawsuit.companyId);
+  const back = (await listCompanies()).find((c) => c.id === lawsuit.companyId);
 
   return (
     <>

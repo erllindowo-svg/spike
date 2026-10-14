@@ -1,29 +1,63 @@
-// Camada de acesso aos dados de demonstração. As assinaturas imitam consultas
-// futuras ao banco/JUDIT para que os mocks possam ser trocados sem mexer na UI.
+import "server-only";
+
+import { connection } from "next/server";
+
+// Camada de acesso aos dados usada pelas páginas e pelo layout. A variável
+// DATA_SOURCE escolhe a origem para o app inteiro:
+//
+// - "demo" (padrão): dados fictícios de mock-data.ts, em memória.
+// - "db": MongoDB. Só empresas e monitoramentos já são persistidos; processos,
+//   alertas, eventos de webhook e atividade ainda não têm funções de
+//   persistência e aparecem vazios. Nada aqui chama a JUDIT.
 
 import type { ActivityItem } from "@/features/activity/types";
 import type { AlertView } from "@/features/alerts/types";
 import { normalizeCnpj } from "@/features/companies/cnpj";
+import * as companiesDb from "@/features/companies/db";
 import type { Company } from "@/features/companies/types";
 import { normalizeCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
+import * as trackingsDb from "@/features/trackings/db";
 import type { Tracking } from "@/features/trackings/types";
 import type { WebhookEventView } from "@/features/webhooks/types";
+import { getServerEnv } from "@/lib/env";
 
 import * as mock from "./mock-data";
 
-export function listCompanies(): Company[] {
+export type DataSource = "demo" | "db";
+
+export function getDataSource(): DataSource {
+  return getServerEnv("DATA_SOURCE");
+}
+
+// No modo "db", espera a requisição chegar antes de consultar o banco. Sem
+// isso, o Next tentaria consultar o MongoDB durante o build (prerender) e
+// congelaria o resultado na página. Os dados de demonstração continuam sendo
+// pré-renderizados como antes.
+async function usingDatabase(): Promise<boolean> {
+  if (getDataSource() !== "db") return false;
+  await connection();
+  return true;
+}
+
+export async function listCompanies(): Promise<Company[]> {
+  if (await usingDatabase()) return companiesDb.listCompanies();
   return [...mock.companies].sort((a, b) =>
     (a.legalName ?? a.cnpj).localeCompare(b.legalName ?? b.cnpj, "pt-BR"),
   );
 }
 
-export function getCompanyByCnpj(cnpj: string): Company | null {
+export async function getCompanyByCnpj(cnpj: string): Promise<Company | null> {
+  if (await usingDatabase()) return companiesDb.getCompanyByCnpj(cnpj);
   const normalized = normalizeCnpj(cnpj);
   return mock.companies.find((c) => c.cnpj === normalized) ?? null;
 }
 
-export function listLawsuits(filter?: { companyId?: string }): Lawsuit[] {
+// Processos virão da JUDIT (etapa 3 em diante); ainda não são persistidos.
+export async function listLawsuits(filter?: {
+  companyId?: string;
+}): Promise<Lawsuit[]> {
+  if (await usingDatabase()) return [];
   return mock.lawsuits
     .filter((l) => !filter?.companyId || l.companyId === filter.companyId)
     .sort(
@@ -32,7 +66,8 @@ export function listLawsuits(filter?: { companyId?: string }): Lawsuit[] {
     );
 }
 
-export function getLawsuitByCnj(cnj: string): Lawsuit | null {
+export async function getLawsuitByCnj(cnj: string): Promise<Lawsuit | null> {
+  if (await usingDatabase()) return null;
   const normalized = normalizeCnj(cnj);
   return mock.lawsuits.find((l) => l.cnj === normalized) ?? null;
 }
@@ -49,8 +84,16 @@ export type DemoState = {
   activity: ActivityItem[];
 };
 
-// Coleções mutáveis na demonstração; a interface as mantém em memória.
-export function getInitialDemoState(): DemoState {
+// Coleções que a interface mantém no estado do navegador (demo-store.tsx).
+export async function getInitialState(): Promise<DemoState> {
+  if (await usingDatabase()) {
+    return {
+      trackings: await trackingsDb.listTrackings(),
+      alerts: [],
+      webhookEvents: [],
+      activity: [],
+    };
+  }
   return {
     trackings: [...mock.trackings].sort(byDateDesc((t) => t.updatedAt)),
     alerts: [...mock.alerts].sort(byDateDesc((a) => a.createdAt)),
@@ -61,4 +104,11 @@ export function getInitialDemoState(): DemoState {
   };
 }
 
-export { DEMO_NOW } from "./mock-data";
+// Amostra de parâmetros para generateStaticParams. Com cacheComponents, rotas
+// dinâmicas precisam de ao menos um parâmetro no build; vem sempre da
+// demonstração para que o build nunca dependa do banco. No modo "db", as
+// páginas desses parâmetros só consultam o banco na requisição.
+export const staticParamSamples = {
+  companies: () => mock.companies.map((c) => ({ cnpj: c.cnpj })),
+  lawsuits: () => mock.lawsuits.map((l) => ({ cnj: l.cnj })),
+};
