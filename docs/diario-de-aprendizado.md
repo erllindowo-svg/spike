@@ -1006,6 +1006,16 @@ Teste manual feito por você com o CNPJ fictício: criar, verificar status e ler
 
 > Preencha esta seção você mesmo.
 
+### 2026-10-14 / Encerramento da etapa 3
+
+**Resumo técnico**
+
+Textos da consulta síncrona sem "datalake", usando o rótulo do catálogo. Etapa 3 concluída: consulta síncrona e assíncrona (comum e on-demand), testadas com a JUDIT real. Relatório e log atualizados. Próxima sessão: merge da branch e desenho da etapa 4, monitoramento real com cobrança recorrente.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
 ---
 
 ## Perguntas e respostas
