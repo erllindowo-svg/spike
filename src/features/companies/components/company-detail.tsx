@@ -44,6 +44,7 @@ import {
   type Lawsuit,
 } from "@/features/processes/types";
 import { AsyncQueriesCard } from "@/features/queries/components/async-queries-card";
+import { QUERY_MODES } from "@/features/queries/modes";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { SearchTypeBadge } from "@/features/trackings/components/search-type-badge";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
@@ -99,7 +100,7 @@ export function CompanyDetail({
       }
       setJudit(result);
       toast.success(
-        `${formatNumber(result.lawsuits.length)} processo(s) no datalake da JUDIT`,
+        `${formatNumber(result.lawsuits.length)} processo(s) na ${QUERY_MODES.datalake_sync.label.toLowerCase()}`,
       );
     });
   }
@@ -276,8 +277,8 @@ export function CompanyDetail({
             {!fromJudit
               ? "Selecione um processo para ver detalhes e movimentações."
               : judit
-                ? `Datalake da JUDIT, consultado em ${formatDateTime(judit.fetchedAt)}${judit.requestId ? ` · request_id ${judit.requestId}` : ""}. Não fica salvo: recarregar a página limpa a lista.`
-                : "Os processos vêm do datalake da JUDIT. Cada consulta é cobrada."}
+                ? `${QUERY_MODES.datalake_sync.label} à JUDIT feita em ${formatDateTime(judit.fetchedAt)}${judit.requestId ? ` · request_id ${judit.requestId}` : ""}. Não fica salvo: recarregar a página limpa a lista.`
+                : "Os processos vêm de uma consulta síncrona à JUDIT. Cada consulta é cobrada."}
           </CardDescription>
           <CardAction className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground tabular-nums">
@@ -295,7 +296,7 @@ export function CompanyDetail({
                 ) : (
                   <CloudDownloadIcon data-icon="inline-start" />
                 )}
-                Consultar datalake JUDIT
+                Fazer {QUERY_MODES.datalake_sync.label.toLowerCase()}
               </Button>
             )}
           </CardAction>
@@ -307,8 +308,8 @@ export function CompanyDetail({
             emptyDescription={
               fromJudit
                 ? judit
-                  ? "O datalake da JUDIT não tem processos para este CNPJ."
-                  : "Clique em “Consultar datalake JUDIT” para buscar os processos."
+                  ? "A consulta síncrona não retornou processos para este CNPJ."
+                  : "Clique em “Fazer consulta síncrona” para buscar os processos."
                 : undefined
             }
           />
