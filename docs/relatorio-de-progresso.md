@@ -14,7 +14,7 @@
 | 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                |
 | 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado. |
 | 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                          |
-| 6. Processamento, alertas e diagnóstico     | **Implementada** em 2026-10-15; falta o teste manual (ver abaixo).       |
+| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15: entrega real processada pelo túnel.         |
 | 7. Produto: fluxos e experiência            | Redefinida em 2026-10-15 (`docs/plano-etapas-6-7.md`). Não iniciada.     |
 | 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").              |
 
@@ -178,6 +178,13 @@ Card da empresa: callback_url quando JUDIT_WEBHOOK_PUBLIC_ORIGIN está preenchid
 4. Uma segunda consulta igual, logo em seguida, só é aceita se a primeira
    estiver concluída no banco (G5).
 
+**Resultado (2026-10-15, feito pelo agente):** passos 1 a 3 aprovados. As
+entregas antigas ficaram `ignored`; a consulta real (`delivery: "webhook"`)
+recebeu o processo em 1,8 s e o código 600 em 5,5 s, e ficou `completed`
+sem "Verificar status" (`lastCheckedAt` nulo), sem alerta. O passo 4 não foi
+feito ao vivo para não gastar outra consulta. Detalhes no diário, entrada
+"Teste manual da etapa 6".
+
 ## Revisão técnica de 2026-10-14: o que corrigir nas próximas sessões
 
 Revisão do trabalho do dia (fatias 3b e 4). Corrigidos em 2026-10-14
@@ -336,8 +343,8 @@ produto.
 
 ## Próxima sessão, em ordem
 
-1. Teste manual da etapa 6 (seção acima), depois push e PR da
-   `feat/judit-webhook-processing` (você).
+1. Esvaziar `JUDIT_WEBHOOK_PUBLIC_ORIGIN` no `.env.local` (o túnel foi
+   desligado), depois push e PR da `feat/judit-webhook-processing` (você).
 2. **Etapa 7 (produto):** começar pelo uso guiado. Plano em
    [`docs/plano-etapas-6-7.md`](plano-etapas-6-7.md), seção "Etapa 7
    redefinida".

@@ -316,6 +316,7 @@ Receber não é processar. A rota grava e responde 200; o processamento roda dep
 - Teste que separou: procurar o `reference_id` em `judit_requests` (Atlas) e comparar `receivedAt` do evento com `createdAt` da consulta.
 - Correção: no segundo caso, nada a fazer: a action processa de novo as entregas antecipadas logo depois de gravar (`processEventsForReference`). Em qualquer caso, "Reprocessar" roda as regras outra vez.
 - Lição de suporte: "ignorado" não é erro, é "não é meu". Num ticket, o `reference_id` diz de quem é a entrega.
+- Observado em 2026-10-15: as duas entregas da etapa 5 (consulta criada pela rota de dev) ficaram `ignored` com essa nota. Reprocessar de novo deu o mesmo resultado, sem erro.
 
 **G2. Evento parado em "Processando".** _Previsto (testado com MongoDB em memória)._ O servidor caiu entre a reserva do evento e o registro do resultado. Depois de 5 minutos (`STALE_PROCESSING_MS`), "Reprocessar" aceita o evento de novo. Antes disso, recusa, para não processar em dobro algo que pode estar em andamento.
 
@@ -1233,6 +1234,28 @@ Etapa 6 implementada em quatro fatias e quatro commits na branch `feat/judit-web
 
 - Por que o processamento roda depois do 200, e não antes?
 - O mesmo processo chega duas vezes por um monitoramento por documento: o que impede dois alertas, e por que essa regra não serve para o monitoramento por CNJ?
+
+### 2026-10-15 / Teste manual da etapa 6
+
+**Resumo técnico**
+
+Teste feito pelo agente, a pedido do usuário. Depois do `pnpm dev` reiniciado, as entregas antigas ficaram `ignored` (G1). Uma consulta assíncrona real, criada pela action do card com o túnel ligado, foi concluída pelo webhook (código 600) em 5,5 s, sem "Verificar status" e sem alerta.
+
+**O que foi feito e o que apareceu**
+
+- `pnpm dev` reiniciado pelo usuário às 20:36:09. A primeira leitura do banco passou pelo `ensureIndexes` sem erro: o índice `alerts_dedupe_key_unique` foi criado. A confirmação é indireta: um índice recusado derrubaria a conexão. Não foi aberto o Atlas.
+- "Reprocessar" chamado como o botão faria (server action pelo `curl`, sem chamada à JUDIT): as duas entregas antigas ficaram `ignored`, em cerca de 140 ms cada.
+- Túnel `cloudflared` ligado; pela internet, `/` e `/webhooks` responderam 404 e o webhook sem token, 401 (F5).
+- `JUDIT_WEBHOOK_PUBLIC_ORIGIN` posta no `.env.local` pelo usuário; o `next dev` releu o arquivo sem reiniciar.
+- Consulta `historical_async` do CNPJ fictício pela action do card (1 consulta gasta): gravada com `delivery: "webhook"` às 23:38:36.663 (UTC).
+- Linha do tempo: processo recebido às 23:38:38.434 (1,8 s depois da gravação), processado em 134 ms, sem alerta; código 600 recebido às 23:38:42.136, processado em 166 ms, com a nota "Consulta marcada como concluída".
+- Na página da empresa: status `completed`, `updatedAt` às 23:38:42.306 (o webhook) e `lastCheckedAt` nulo (ninguém perguntou à JUDIT). Nenhum alerta criado.
+- Túnel desligado ao fim (a URL passou a responder 530).
+
+**Não verificado**
+
+- Recusa de uma segunda consulta igual em aberto (G5): exigiria gastar outra consulta; está coberta pelos testes.
+- Entregas de monitoramento (C14, IK11) e a ordem "entrega antes da gravação" (G1, segundo caso): a gravação veio 1,8 s antes da primeira entrega.
 
 ---
 

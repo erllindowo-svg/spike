@@ -122,3 +122,12 @@ token faz as entregas pendentes de requisições antigas receberem 401.
 Consulta assíncrona do CNPJ de teste com `callbackOrigin`: duas entregas
 gravadas em 7 s (o processo, do cache, e o código 600), ambas `pending` e
 com o token mascarado. Pela URL do túnel, só esta rota respondeu; o resto, 404. Detalhes no diário, entrada "Teste real do webhook".
+
+## Resultado do teste real da etapa 6 (2026-10-15)
+
+Consulta assíncrona do CNPJ de teste criada pela action do card, com
+`JUDIT_WEBHOOK_PUBLIC_ORIGIN` apontando para o túnel: o processo chegou em
+1,8 s e foi processado sem alerta; o código 600 chegou em 5,5 s e marcou a
+consulta `completed` sem nenhuma pergunta à JUDIT. As entregas da etapa 5
+(rota de dev, sem `judit_requests`) ficaram `ignored`. Detalhes no diário,
+entrada "Teste manual da etapa 6".
