@@ -1,9 +1,7 @@
 # Webhooks
 
-Recebimento das entregas que a JUDIT envia para a `callback_url` de uma
-requisição (etapa 5). O processamento (associar o evento à consulta ou ao
-monitoramento e gerar o alerta) é a etapa 6. As telas `/webhooks` e
-`/alertas` ainda mostram dados fictícios.
+Recebimento (etapa 5) e processamento (etapa 6) das entregas que a JUDIT
+envia para a `callback_url` de uma requisição ou de um monitoramento.
 
 ## Fluxo
 
@@ -11,6 +9,7 @@ monitoramento e gerar o alerta) é a etapa 6. As telas `/webhooks` e
 servidor ── POST /requests + callback_url=https://<túnel>/api/webhooks/judit?token=… ──▶ JUDIT
 JUDIT ── POST JSON (uma entrega por resposta) ──▶ túnel ──▶ src/proxy.ts ──▶ route.ts
 route.ts: token → JSON → envelope → grava em webhook_events (pending) → 200
+          └─ after(): process.ts → associa → atualiza estado / cria alerta → processed | ignored | failed
 ```
 
 | Arquivo                               | Responsabilidade                                                              |
@@ -19,6 +18,9 @@ route.ts: token → JSON → envelope → grava em webhook_events (pending) → 
 | `callback.ts`                         | Token: leitura, comparação em tempo constante, `callback_url` e mascaramento  |
 | `envelope.ts`                         | Valida o envelope e decide o que gravar (redução de dados, token mascarado)   |
 | `db.ts`                               | Grava em `webhook_events`; reentrega vira `duplicate: true` pelo índice único |
+| `delivery.ts`                         | Lê o que a entrega diz, pelo contrato documentado (600, 700–703, erro)        |
+| `process.ts`                          | Regras do app: associa, atualiza consulta/monitoramento, cria alerta          |
+| `actions.ts`                          | "Reprocessar" (tela `/webhooks`)                                              |
 | `src/proxy.ts`                        | Em desenvolvimento, quem vem pelo túnel só alcança a rota do webhook          |
 | `src/app/api/dev/webhooks/route.ts`   | Lista as últimas entregas gravadas (só desenvolvimento, só desta máquina)     |
 
@@ -35,6 +37,43 @@ A JUDIT espera 2xx em menos de 10 s e repete a entrega em 5xx ou timeout
 | Evento gravado                                | 200    | —               |
 | Reentrega (mesmo `callback_id`) já gravada    | 200    | —               |
 | Configuração inválida ou banco indisponível   | 503    | Sim             |
+
+## Processamento (etapa 6)
+
+Receber não é processar. O evento é gravado e respondido primeiro; as regras
+rodam depois, com `after()` do Next, e uma falha nelas nunca vira 5xx para a
+JUDIT (o evento já está salvo).
+
+```
+pending ──claim (atômico)──▶ processing ──▶ processed   regra aplicada (nota diz o quê)
+                                        ├─▶ ignored     referência desconhecida ou aviso não tratado
+                                        └─▶ failed      erro de banco no meio (processingError)
+"Reprocessar": pending, failed, ignored e processing parado há mais de 5 min
+```
+
+| Entrega                             | Ação no banco                         | Alerta                             |
+| ----------------------------------- | ------------------------------------- | ---------------------------------- |
+| Processo, monitoramento documento   | —                                     | `new_lawsuit`, um por processo     |
+| Processo, monitoramento por CNJ     | —                                     | `lawsuit_movement`, um por entrega |
+| Processo, consulta assíncrona       | —                                     | nenhum                             |
+| `application_info` 600 (consulta)   | `judit_requests.status = "completed"` | nenhum                             |
+| `application_info` 700–703          | monitoramento `status = "paused"`     | `tracking_notice`                  |
+| `application_error` (consulta)      | nada: o status não muda (IK7)         | nenhum                             |
+| `application_error` (monitoramento) | —                                     | `tracking_notice`                  |
+| Referência que o app não conhece    | evento `ignored`                      | nenhum                             |
+
+- **Alerta duplicado:** `alerts.dedupeKey` tem índice único
+  (`alerts_dedupe_key_unique`). Reprocessar, reentregar ou receber o mesmo
+  processo duas vezes (cache e atualizado) não cria um segundo alerta.
+- **Ordem de chegada:** uma entrega pode chegar antes de o app gravar o
+  `request_id` (a JUDIT respondeu, mas o `insert` ainda não terminou). Ela
+  fica `ignored` e volta a ser processada quando a consulta é gravada.
+- **Aviso atrasado:** um 700 que chegue depois de a pessoa reativar o
+  monitoramento o marcaria como pausado. "Atualizar status" corrige pela
+  JUDIT.
+- **Não verificado ao vivo:** entregas de monitoramento (o CNPJ de teste não
+  gera nenhuma; catálogo, C14). As regras de monitoramento foram testadas com
+  os exemplos da documentação.
 
 ## O que é gravado
 

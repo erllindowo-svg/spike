@@ -90,3 +90,18 @@ export async function updateJuditRequestStatus(
   );
   return doc ? toJuditRequest(doc) : null;
 }
+
+// A JUDIT avisou pelo webhook que a consulta terminou (application_info,
+// código 600). Grava o mesmo status que GET /requests/{id} devolveria, mas
+// não mexe em `lastCheckedAt`: ninguém perguntou à JUDIT, foi ela que avisou.
+export async function markJuditRequestCompleted(
+  requestId: string,
+): Promise<JuditRequest | null> {
+  const { juditRequests } = collections(await getDb());
+  const doc = await juditRequests.findOneAndUpdate(
+    { requestId },
+    { $set: { status: "completed", updatedAt: new Date() } },
+    { returnDocument: "after" },
+  );
+  return doc ? toJuditRequest(doc) : null;
+}

@@ -152,6 +152,34 @@ export async function getStoredTracking(id: string): Promise<Tracking | null> {
   return doc ? toTracking(doc) : null;
 }
 
+// Busca pelo tracking_id da JUDIT (o `reference_id` de um webhook de
+// monitoramento). Só monitoramentos que a JUDIT confirmou têm esse ID.
+export async function getTrackingByJuditId(
+  juditTrackingId: string,
+): Promise<Tracking | null> {
+  const { trackings } = collections(await getDb());
+  const doc = await trackings.findOne({ juditTrackingId });
+  return doc ? toTracking(doc) : null;
+}
+
+// A JUDIT avisou pelo webhook que pausou o monitoramento (application_info,
+// códigos 700 a 703). Grava o status que GET /tracking/{id} devolveria
+// ("paused"), sem mexer em `lastCheckedAt`: ninguém perguntou à JUDIT.
+// Limite conhecido: um aviso atrasado, que chegue depois de a pessoa
+// reativar o monitoramento, o marcaria como pausado de novo. "Atualizar
+// status" no menu do monitoramento corrige pelo que a JUDIT informa.
+export async function markTrackingPausedByJudit(
+  id: string,
+): Promise<Tracking | null> {
+  const { trackings } = collections(await getDb());
+  const doc = await trackings.findOneAndUpdate(
+    { _id: id, creation: "confirmed" },
+    { $set: { status: "paused", updatedAt: new Date() } },
+    { returnDocument: "after" },
+  );
+  return doc ? toTracking(doc) : null;
+}
+
 // Filtro de "reserva pendente": inclui documentos da etapa 2, que não têm o
 // campo `creation`.
 const pendingReservation: Filter<TrackingDoc> = {

@@ -33,7 +33,11 @@ export type TrackingDoc = Doc<Omit<Tracking, TrackingStage4Field>> &
     // Quem altera `status` precisa manter este campo coerente (activeFor).
     active: boolean;
   };
-export type WebhookEventDoc = Doc<WebhookEvent>;
+// Campos criados na etapa 6. Eventos gravados antes (etapa 5) não os têm;
+// toWebhookEvent (src/features/webhooks/db.ts) usa null no lugar.
+type WebhookEventStage6Field = "processingStartedAt" | "processingNote";
+export type WebhookEventDoc = Doc<Omit<WebhookEvent, WebhookEventStage6Field>> &
+  Partial<Pick<WebhookEvent, WebhookEventStage6Field>>;
 export type AlertDoc = Doc<Alert>;
 export type JuditRequestDoc = Doc<JuditRequest>;
 
@@ -69,6 +73,7 @@ export const JUDIT_REQUESTS_REQUEST_ID_INDEX =
   "judit_requests_request_id_unique";
 export const WEBHOOK_EVENTS_CALLBACK_ID_INDEX =
   "webhook_events_callback_id_unique";
+export const ALERTS_DEDUPE_KEY_INDEX = "alerts_dedupe_key_unique";
 
 // Índices e regras de unicidade. O MongoDB não tem migrations como o SQL:
 // createIndex é idempotente (não faz nada se o índice já existe igual), então
@@ -127,9 +132,23 @@ export async function ensureIndexes(db: Db): Promise<void> {
     ),
 
     alerts.createIndex({ companyId: 1 }, { name: "alerts_company_id" }),
+    // Só para busca (alertas de um evento). A unicidade fica no índice de
+    // baixo: um evento pode não gerar alerta, e o mesmo fato pode chegar em
+    // dois eventos (versão do cache e versão atualizada).
     alerts.createIndex(
       { webhookEventId: 1 },
       { name: "alerts_webhook_event_id" },
+    ),
+    // Um alerta por fato (regra em src/features/webhooks/process.ts). Novo
+    // nome de propósito: o MongoDB recusa um createIndex com o nome de um
+    // índice existente e opções diferentes (`unique`).
+    alerts.createIndex(
+      { dedupeKey: 1 },
+      {
+        name: ALERTS_DEDUPE_KEY_INDEX,
+        unique: true,
+        partialFilterExpression: { dedupeKey: { $type: "string" } },
+      },
     ),
     alerts.createIndex(
       { readAt: 1, createdAt: -1 },

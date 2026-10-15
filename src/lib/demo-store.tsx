@@ -413,7 +413,9 @@ export function DemoStoreProvider({
         },
         receivedAt,
         processingStatus: "pending",
+        processingStartedAt: null,
         processedAt: null,
+        processingNote: null,
         processingError: null,
         duplicateDeliveries: 0,
         alertIds: [],
@@ -478,7 +480,9 @@ export function DemoStoreProvider({
           type: isNewLawsuit ? "new_lawsuit" : "lawsuit_movement",
           companyId: tracking.companyId,
           webhookEventId: event.id,
+          trackingId: tracking.id,
           lawsuitCnj: lawsuit?.cnj ?? null,
+          dedupeKey: `demo:${event.id}`,
           title: isNewLawsuit
             ? "Novo processo identificado"
             : "Nova movimentação processual",
