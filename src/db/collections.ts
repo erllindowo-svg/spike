@@ -35,7 +35,8 @@ export type TrackingDoc = Doc<Omit<Tracking, TrackingStage4Field>> &
   };
 // Campos criados na etapa 6. Eventos gravados antes (etapa 5) não os têm;
 // toWebhookEvent (src/features/webhooks/db.ts) usa null no lugar.
-type WebhookEventStage6Field = "processingStartedAt" | "processingNote";
+type WebhookEventStage6Field =
+  "processingStartedAt" | "processingNote" | "duplicateDeliveries";
 export type WebhookEventDoc = Doc<Omit<WebhookEvent, WebhookEventStage6Field>> &
   Partial<Pick<WebhookEvent, WebhookEventStage6Field>>;
 export type AlertDoc = Doc<Alert>;

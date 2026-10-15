@@ -83,6 +83,9 @@ export type WebhookEvent = {
   processingNote: string | null;
   // Motivo de "failed".
   processingError: string | null;
+  // Reentregas com o mesmo callback_id, recusadas pelo índice único. Muitas
+  // indicam que a JUDIT não recebeu o nosso 2xx a tempo.
+  duplicateDeliveries: number;
 };
 
 export type Alert = {

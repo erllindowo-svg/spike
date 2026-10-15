@@ -32,6 +32,7 @@ function toWebhookEvent(doc: WebhookEventDoc): WebhookEvent {
     processedAt: doc.processedAt,
     processingNote: doc.processingNote ?? null,
     processingError: doc.processingError,
+    duplicateDeliveries: doc.duplicateDeliveries ?? 0,
   };
 }
 
@@ -43,7 +44,8 @@ function toWebhookEvent(doc: WebhookEventDoc): WebhookEvent {
 // recebe 2xx a tempo. O índice único recusa a segunda gravação, e isso volta
 // como `duplicate: true`, sem erro: para a JUDIT, a entrega já foi recebida.
 // A regra fica no índice, e não numa consulta antes do insert, porque duas
-// entregas simultâneas passariam juntas pela consulta.
+// entregas simultâneas passariam juntas pela consulta. A reentrega só soma 1
+// ao contador do evento original, para o diagnóstico.
 // Qualquer outro erro sobe para a rota, que responde 503 (a JUDIT tenta de
 // novo).
 export async function saveWebhookEvent(
@@ -59,17 +61,36 @@ export async function saveWebhookEvent(
     processedAt: null,
     processingNote: null,
     processingError: null,
+    duplicateDeliveries: 0,
   };
 
   try {
     await webhookEvents.insertOne(doc);
   } catch (error) {
     if (isDuplicateKeyError(error, WEBHOOK_EVENTS_CALLBACK_ID_INDEX)) {
+      await countDuplicate(input.callbackId);
       return { duplicate: true, event: null };
     }
     throw error;
   }
   return { duplicate: false, event: toWebhookEvent(doc) };
+}
+
+// Só diagnóstico: se falhar, a reentrega continua sendo respondida com 200
+// (o evento já está gravado), e o contador fica um a menos.
+async function countDuplicate(callbackId: string | null) {
+  try {
+    const { webhookEvents } = collections(await getDb());
+    await webhookEvents.updateOne(
+      { callbackId },
+      { $inc: { duplicateDeliveries: 1 } },
+    );
+  } catch (error) {
+    console.warn(
+      "[webhooks] contador de reentregas não atualizado:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 // As entregas mais recentes primeiro. Usado pela rota de dev

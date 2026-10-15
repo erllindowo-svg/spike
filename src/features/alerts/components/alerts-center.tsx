@@ -48,7 +48,7 @@ const typeStyles: Record<AlertType, { icon: LucideIcon; className: string }> = {
 type ReadFilter = "all" | "unread" | "read";
 
 export function AlertsCenter() {
-  const { alerts, getCompany, markAlertRead, markAllAlertsRead } =
+  const { alerts, dataSource, getCompany, markAlertRead, markAllAlertsRead } =
     useDemoStore();
   const [type, setType] = useState<AlertType | "all">("all");
   const [read, setRead] = useState<ReadFilter>("all");
@@ -84,9 +84,10 @@ export function AlertsCenter() {
         <Button
           variant="outline"
           disabled={unread === 0}
-          onClick={() => {
-            markAllAlertsRead();
-            toast.success("Todos os alertas foram marcados como lidos.");
+          onClick={async () => {
+            const error = await markAllAlertsRead();
+            if (error) toast.error(error);
+            else toast.success("Todos os alertas foram marcados como lidos.");
           }}
         >
           <CheckCheckIcon data-icon="inline-start" />
@@ -140,7 +141,9 @@ export function AlertsCenter() {
             }
             description={
               alerts.length === 0 || read === "unread"
-                ? "Novos alertas aparecem quando os monitoramentos recebem eventos. Você pode simular um evento no diagnóstico de webhooks."
+                ? dataSource === "db"
+                  ? "Novos alertas aparecem quando a JUDIT entrega eventos dos monitoramentos. O diagnóstico de webhooks mostra cada entrega e o que foi feito com ela."
+                  : "Novos alertas aparecem quando os monitoramentos recebem eventos. Você pode simular um evento no diagnóstico de webhooks."
                 : "Ajuste os filtros de tipo ou de leitura."
             }
             action={

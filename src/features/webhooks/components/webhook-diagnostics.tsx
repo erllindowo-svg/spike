@@ -259,12 +259,26 @@ export function WebhookDiagnostics() {
 
       <Alert>
         <InfoIcon />
-        <AlertTitle>Recebimento real ainda não implementado</AlertTitle>
-        <AlertDescription>
-          Os eventos abaixo são fictícios. O endpoint de webhook, a validação de
-          origem e o processamento serão implementados conforme a documentação
-          oficial da JUDIT.
-        </AlertDescription>
+        {dataSource === "db" ? (
+          <>
+            <AlertTitle>Entregas reais da JUDIT</AlertTitle>
+            <AlertDescription>
+              Cada linha é uma entrega gravada pela rota do webhook. O
+              processamento roda logo depois da resposta à JUDIT; um evento com
+              falha ou ignorado pode ser reprocessado no detalhe. Mostra as 200
+              entregas mais recentes.
+            </AlertDescription>
+          </>
+        ) : (
+          <>
+            <AlertTitle>Modo demonstração</AlertTitle>
+            <AlertDescription>
+              Os eventos abaixo são fictícios e o processamento é simulado no
+              navegador. No modo banco de dados, esta tela mostra as entregas
+              reais gravadas pela rota do webhook.
+            </AlertDescription>
+          </>
+        )}
       </Alert>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -388,7 +402,9 @@ export function WebhookDiagnostics() {
               description={
                 hasFilters
                   ? "Ajuste a busca ou os filtros."
-                  : "Use “Simular evento” para inserir um callback fictício."
+                  : dataSource === "db"
+                    ? "As entregas aparecem aqui quando a JUDIT chama a rota do webhook (src/features/webhooks/README.md)."
+                    : "Use “Simular evento” para inserir um callback fictício."
               }
               action={
                 hasFilters ? (
