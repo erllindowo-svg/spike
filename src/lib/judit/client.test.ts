@@ -136,6 +136,32 @@ describe("with live calls enabled", () => {
     expect(dump(error)).not.toContain(API_KEY);
   });
 
+  it("masks the webhook token that JUDIT echoes in a callback_url", async () => {
+    const token = "a".repeat(64);
+    vi.stubEnv("JUDIT_WEBHOOK_TOKEN", token);
+    mockFetch(
+      jsonResponse({
+        request_id: "abc",
+        callback_url: `https://x.trycloudflare.com/api/webhooks/judit?token=${token}`,
+      }),
+    );
+
+    const result = await call();
+
+    expect(JSON.stringify(result)).not.toContain(token);
+    expect(result).toMatchObject({
+      callback_url:
+        "https://x.trycloudflare.com/api/webhooks/judit?token=[REDACTED]",
+    });
+  });
+
+  it("keeps working when the webhook token setting is invalid", async () => {
+    vi.stubEnv("JUDIT_WEBHOOK_TOKEN", "short");
+    mockFetch(jsonResponse({ request_id: "abc" }));
+
+    await expect(call()).resolves.toEqual({ request_id: "abc" });
+  });
+
   it("maps HTTP 404 to JuditHttpError", async () => {
     mockFetch(jsonResponse(notFoundBody, { status: 404 }));
 

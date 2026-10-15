@@ -25,6 +25,21 @@ export const serverEnvSchema = z.object({
   // "disabled", and src/lib/judit/guard.ts only accepts the exact value
   // "enabled".
   JUDIT_LIVE_CALLS: z.string().trim().optional(),
+  // Secret that JUDIT sends back in the webhook URL (?token=...): the docs
+  // define no signature, so this is how the route tells JUDIT from anyone
+  // else. Absent means the webhook route is disabled (404). See
+  // src/features/webhooks/callback.ts. An empty line (`JUDIT_WEBHOOK_TOKEN=`,
+  // as copied from .env.example) reaches process.env as "", so it is read as
+  // absent; otherwise min(32) would fail and the route would answer 503,
+  // making JUDIT retry instead of stopping.
+  JUDIT_WEBHOOK_TOKEN: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.string().trim().min(32).optional(),
+  ),
+  // Maintenance switch: only the exact value "enabled" stores the whole
+  // webhook payload (lawsuit data included) for diagnosis. Off by default.
+  JUDIT_WEBHOOK_FULL_PAYLOAD: z.string().trim().optional(),
 });
 
 type ServerEnv = z.infer<typeof serverEnvSchema>;

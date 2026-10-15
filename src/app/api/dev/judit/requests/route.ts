@@ -1,18 +1,27 @@
 import { z } from "zod";
 
 import {
+  buildJuditCallbackUrl,
+  getWebhookToken,
+} from "@/features/webhooks/callback";
+import {
   devJuditRoutesEnabled,
   errorResponse,
   notFoundResponse,
   readInput,
   readQuery,
 } from "@/lib/judit/dev-route";
+import { getServerEnv } from "@/lib/env";
 import { createRequest, listRequests } from "@/lib/judit/requests";
 import { lawsuitFilterSchema } from "@/lib/judit/schemas/lawsuits";
 
 // Development-only manual tests for POST /requests (step 1 of the async
 // flow) and GET /requests (history). See dev-route.ts for why these answer
 // 404 outside development.
+//
+// `callbackOrigin` (optional) is the public https origin of the tunnel, e.g.
+// https://xxxx.trycloudflare.com. The server turns it into the callback_url
+// with the webhook token, so the secret never goes through the terminal.
 
 const createSchema = z.strictObject({
   searchType: z.enum(["cpf", "cnpj", "oab", "name", "lawsuit_cnj"]),
@@ -23,6 +32,12 @@ const createSchema = z.strictObject({
   withInferredParties: z.boolean().optional(),
   lawsuitInstance: z.int().positive().optional(),
   filter: lawsuitFilterSchema.optional(),
+  callbackOrigin: z
+    .url()
+    .refine((url) => url.startsWith("https://"), {
+      message: "Use uma URL https://",
+    })
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -31,8 +46,36 @@ export async function POST(request: Request) {
   const input = await readInput(request, createSchema);
   if (!input.ok) return input.response;
 
+  const { callbackOrigin, ...params } = input.data;
+
   try {
-    return Response.json(await createRequest(input.data), { status: 201 });
+    // Checked before calling JUDIT: otherwise the webhook route would answer
+    // 404 to every delivery of this (billable) request.
+    const webhookProblem = !callbackOrigin
+      ? null
+      : !getWebhookToken()
+        ? "JUDIT_WEBHOOK_TOKEN não configurado"
+        : getServerEnv("DATA_SOURCE") !== "db"
+          ? 'o webhook só grava com DATA_SOURCE="db"'
+          : null;
+    if (webhookProblem) {
+      return Response.json(
+        {
+          error: {
+            kind: "invalid_input",
+            issues: [`callbackOrigin: ${webhookProblem}`],
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    const callbackUrl = callbackOrigin
+      ? buildJuditCallbackUrl(callbackOrigin)
+      : undefined;
+    return Response.json(await createRequest({ ...params, callbackUrl }), {
+      status: 201,
+    });
   } catch (error) {
     return errorResponse(error);
   }
