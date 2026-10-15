@@ -378,3 +378,12 @@ Registradas em vez de escolhidas em silêncio.
     `payload`, `savedResponseId` dentro do processo, e a `callback_url`
     ecoada na resposta 201 de `POST /requests` (o client mascara o token).
     Bastou o `callback_url` por requisição, sem cadastro com o suporte.
+42. **Onde está o nome do `application_error`.** A página
+    [errors](https://docs.judit.io/resource/errors) manda chavear o
+    tratamento pela `response_data.message` ("ex.: `LAWSUIT_NOT_FOUND`"),
+    mas o exemplo da mesma página traz `LAWSUIT_NOT_FOUND` no `code` e uma
+    frase na `message`; o OpenAPI de `/responses` declara `code` numérico
+    (item 5), e a página de callbacks lista `{ code, message, details }`. O
+    processamento dos webhooks (`src/features/webhooks/delivery.ts`) guarda
+    os dois como texto e não decide nada pelo valor: só os mostra na nota do
+    evento e no alerta.

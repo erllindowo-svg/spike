@@ -1,6 +1,6 @@
 # Relatório de progresso: Raio-X Jurídico
 
-Última atualização: 2026-10-15 (etapa 5 testada com entrega real; falta o commit). Registros detalhados:
+Última atualização: 2026-10-15, noite (etapa 6 implementada; etapa 7 redefinida como etapa de produto). Registros detalhados:
 [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md) e
 [`docs/logs/2026-10-14-sessao.md`](logs/2026-10-14-sessao.md).
 
@@ -13,8 +13,9 @@
 | 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                    |
 | 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                |
 | 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado. |
-| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15: entrega real gravada; falta o commit.       |
-| 6 e 7. Processamento, alerta, diagnóstico   | Não iniciadas.                                                           |
+| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                          |
+| 6. Processamento, alertas e diagnóstico     | **Implementada** em 2026-10-15; falta o teste manual (ver abaixo).       |
+| 7. Produto: fluxos e experiência            | Redefinida em 2026-10-15 (`docs/plano-etapas-6-7.md`). Não iniciada.     |
 | 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").              |
 
 ### Estado do Git
@@ -27,8 +28,10 @@
   `docs/diario-secao-unica`) e registro do fechamento da etapa 4, ambos
   levados para a `feat/judit-tracking`, que foi enviada com o PR da etapa 4.
   PR #4 mergeado em 2026-10-15 (`main` em `2881807`).
-- Etapa 5 na branch `feat/judit-webhooks` (a partir de `2881807`), ainda
-  sem commit.
+- Etapa 5 mergeada na `main` (PR #5, `2785610`).
+- Etapa 6 na branch `feat/judit-webhook-processing` (a partir de
+  `2785610`): um commit por fatia (6a a 6d) e um de documentação. **Não
+  enviada** ao GitHub.
 
 ## Etapa 3: o que existe
 
@@ -136,6 +139,44 @@ route.ts: token (401) → JSON (400) → envelope (400) → webhook_events (503 
   código 600), gravadas com o token mascarado. Pela URL do túnel, só a rota
   do webhook respondeu. Túnel encerrado. Falta: commit, push e PR.
 - Casos do catálogo: D6 e F1 a F6.
+
+## Etapa 6: processamento, alertas e diagnóstico (implementada em 2026-10-15)
+
+```
+JUDIT → route.ts: grava (pending) → 200
+                └─ after(): process.ts
+                     request  → judit_requests (600 → completed)
+                     tracking → trackings (700–703 → paused) + alerta (dedupeKey único)
+                     → processed | ignored | failed (+ nota ou erro)
+/webhooks e /alertas leem o banco; "Reprocessar" e "marcar como lido" por server action
+Card da empresa: callback_url quando JUDIT_WEBHOOK_PUBLIC_ORIGIN está preenchida
+```
+
+- Regras e tabela: `src/features/webhooks/README.md`. Catálogo: G1 a G6.
+  Pergunta nova: IK11 (entregas de monitoramento). README: item 42.
+- 219 testes, lint, typecheck, formatação e build. Fumaça: `/webhooks` e
+  `/alertas` respondem 200 lendo o Atlas.
+- Itens 8 e 9 da revisão corrigidos (6d).
+
+### Teste manual da etapa 6 (você)
+
+1. **Reinicie o `pnpm dev`.** Sem isso, o índice único de alertas não é
+   criado no Atlas (catálogo, G4). Depois, confira em Atlas → `alerts` →
+   Indexes: `alerts_dedupe_key_unique`.
+2. `/webhooks`: abra as duas entregas da etapa 5 e clique em
+   "Reprocessar". Esperado: "Ignorado", com a nota "Consulta não encontrada
+   nesta aplicação" (G1). Clique de novo: deve reprocessar e dar o mesmo
+   resultado.
+3. Teste de ponta a ponta (gasta uma consulta do CNPJ fictício): ligue o
+   túnel (`cloudflared tunnel --url http://127.0.0.1:3000`), ponha a URL em
+   `JUDIT_WEBHOOK_PUBLIC_ORIGIN` no `.env.local`, confira com
+   `pnpm env:check` e crie uma consulta assíncrona no card da empresa.
+   Esperado: duas entregas em segundos, a de código 600 `processed` com
+   "Consulta marcada como concluída", e o card mostrando "Concluída" depois
+   de recarregar a página, sem clicar em "Verificar status". No terminal,
+   `[webhooks] processed: …`. Esvazie a variável e desligue o túnel ao fim.
+4. Uma segunda consulta igual, logo em seguida, só é aceita se a primeira
+   estiver concluída no banco (G5).
 
 ## Revisão técnica de 2026-10-14: o que corrigir nas próximas sessões
 
@@ -295,15 +336,14 @@ produto.
 
 ## Próxima sessão, em ordem
 
-1. Se ainda não foi feito: push e PR da etapa 5 (`feat/judit-webhooks`).
-2. **Etapas 6 e 7:** o plano completo está em
-   [`docs/plano-etapas-6-7.md`](plano-etapas-6-7.md), com o que já existe, o
-   que falta, o tamanho de cada parte, a proposta de juntar as duas etapas
-   (uma branch, quatro fatias) e as decisões a tomar no início.
+1. Teste manual da etapa 6 (seção acima), depois push e PR da
+   `feat/judit-webhook-processing` (você).
+2. **Etapa 7 (produto):** começar pelo uso guiado. Plano em
+   [`docs/plano-etapas-6-7.md`](plano-etapas-6-7.md), seção "Etapa 7
+   redefinida".
 3. **Auditoria completa do código**, no modo descrito no `AGENTS.md`.
 
 ## Como retomar com o agente
 
-> Leia `docs/plano-etapas-6-7.md` e `docs/relatorio-de-progresso.md`. Vamos
-> decidir os itens de "Decisões para o início da próxima sessão" e começar a
-> fatia 6a.
+> Leia `docs/relatorio-de-progresso.md` e a seção "Etapa 7 redefinida" de
+> `docs/plano-etapas-6-7.md`. Vamos começar a etapa 7 pelo uso guiado.

@@ -4,6 +4,56 @@ Escrito em 2026-10-15, ao fechar a etapa 5. Serve para retomar o trabalho do
 zero, numa conversa nova. Fatos do código têm caminho; o que é proposta ou
 hipótese está marcado como tal.
 
+## Atualização de 2026-10-15 (noite): decisões e etapa 6 feita
+
+As seis decisões do fim deste documento foram tomadas, com uma mudança de
+escopo proposta pelo usuário:
+
+- **Etapa 6 = back-end completo.** Feita na branch
+  `feat/judit-webhook-processing`, um commit por fatia: 6a processamento e
+  alertas, 6b telas lendo o banco (sem mudar layout), 6c `callback_url` nas
+  consultas assíncronas, 6d correções da consulta assíncrona (itens 8 e 9 da
+  revisão). Detalhes no diário, entrada "Etapa 6: processamento, alertas e
+  diagnóstico", e em `src/features/webhooks/README.md`.
+- **Etapa 7 = produto.** Não é mais "correções pequenas": é usar o app como
+  cliente, com tarefas concretas, anotar onde trava, desenhar o fluxo
+  desejado antes do código e implementar em fatias. A lista fecha depois do
+  uso guiado (proposta abaixo, em "Etapa 7 redefinida").
+- Decisão 2: `after()` com reserva atômica (`pending → processing`) e
+  "Reprocessar" (aceita `pending`, `failed`, `ignored` e `processing` parado
+  há mais de 5 min).
+- Decisão 3: a tabela da 6a valeu, com `application_error` numa consulta
+  **sem** mudar o status dela (IK7). Achado: as duas entregas reais da etapa
+  5 serão `ignored`, porque a rota de dev não grava em `judit_requests`.
+- Decisão 4: em vez de "um alerta por monitoramento e CNJ", um `dedupeKey`
+  com índice único novo (`alerts_dedupe_key_unique`): por processo no
+  monitoramento por documento, por entrega nos demais (no monitoramento por
+  CNJ, o CNJ é sempre o mesmo). O índice antigo sem `unique` ficou como está;
+  nada a apagar no Atlas.
+- Decisão 5: webhook só nas consultas, com `JUDIT_WEBHOOK_PUBLIC_ORIGIN`
+  (vazia = polling). Como a pessoa vê o resultado chegar é decisão da
+  etapa 7.
+- O vocabulário da JUDIT continua na interface (decisão do usuário: mostra
+  que as modalidades foram entendidas).
+
+### Etapa 7 redefinida (proposta; a lista fecha depois do uso guiado)
+
+1. Uso guiado: você usa o app com tarefas ("essa empresa tem risco
+   jurídico?", "o que mudou desde a semana passada?") e anota onde travou.
+2. Fluxo desejado no papel (telas e caminho de cada tarefa), antes do código.
+3. Candidatos já conhecidos, para comparar com as anotações:
+   - como o resultado de uma consulta com webhook aparece (o card se
+     atualiza? aviso? "Verificar status" continua?);
+   - aviso do Next em `/empresas` (`<Suspense>`, catálogo D5);
+   - `/processos/[cnj]` dá 404 no modo `db` (`GET /lawsuits/{cnj}`);
+   - razão social vazia no modo `db` (`POST /entities`);
+   - card da consulta assíncrona sem `try/catch` (resto do item 6) e sem
+     resumo guardado na tela (resto do item 8);
+   - horário da execução em UTC mostrado como local (item 14, IK5);
+   - componentes grandes e rótulos montados com `toLowerCase` (itens 15, 16);
+   - opcional: conferência de entregas perdidas por `GET /responses` (IK10);
+   - monitoramentos com webhook, quando houver um endereço fixo.
+
 ## Onde estamos
 
 As etapas 1 a 5 do `AGENTS.md` (seção 6) estão feitas. A etapa 5 grava cada
