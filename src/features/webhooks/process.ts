@@ -16,6 +16,7 @@ import {
 import {
   claimWebhookEvent,
   finishWebhookEvent,
+  listUnprocessedEventIds,
   type ProcessingOutcome,
 } from "./db";
 import {
@@ -84,6 +85,21 @@ export async function processWebhookEvent(
       (outcome.status === "failed" ? outcome.error : outcome.note),
   );
   return outcome;
+}
+
+// Entregas que chegaram ANTES de o app gravar a referência: a JUDIT pode
+// entregar o primeiro evento enquanto o insert em judit_requests ainda não
+// terminou, e ele fica "ignored". Chamada logo depois de gravar a consulta.
+// Um evento que esteja no meio do processamento nesse instante é pulado e
+// pode terminar "ignored"; "Reprocessar" em /webhooks resolve.
+export async function processEventsForReference(
+  referenceId: string,
+): Promise<ProcessResult[]> {
+  const results: ProcessResult[] = [];
+  for (const id of await listUnprocessedEventIds(referenceId)) {
+    results.push(await processWebhookEvent(id));
+  }
+  return results;
 }
 
 async function applyRules(event: WebhookEvent): Promise<ProcessingOutcome> {
