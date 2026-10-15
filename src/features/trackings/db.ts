@@ -22,7 +22,7 @@ import { trackingModeFor } from "@/features/queries/modes";
 // Persistência de monitoramentos no MongoDB.
 //
 // Criar um monitoramento real tem dois passos (etapa 4):
-//   1. createTracking grava uma RESERVA (`creation: "pending"`). O índice
+//   1. reserveTracking grava uma RESERVA (`creation: "pending"`). O índice
 //      único barra um segundo monitoramento ativo para o mesmo identificador
 //      ANTES de qualquer chamada cobrada à JUDIT.
 //   2. A server action envia a reserva (claimReservation) e registra o
@@ -89,7 +89,7 @@ export async function listTrackings(): Promise<Tracking[]> {
   return docs.map(toTracking);
 }
 
-export async function createTracking(
+export async function reserveTracking(
   input: NewTrackingRequest,
 ): Promise<CreateTrackingResult> {
   const parsed = newTrackingSchema.safeParse(input);
@@ -146,7 +146,7 @@ export async function createTracking(
   }
 }
 
-export async function getTracking(id: string): Promise<Tracking | null> {
+export async function getStoredTracking(id: string): Promise<Tracking | null> {
   const { trackings } = collections(await getDb());
   const doc = await trackings.findOne({ _id: id });
   return doc ? toTracking(doc) : null;
@@ -218,6 +218,37 @@ export async function releaseReservation(
   return setCreation(id, "pending", reason);
 }
 
+// --- Conferência de um envio incerto -------------------------------------
+//
+// Depois de procurar o monitoramento em GET /tracking (reconcileTrackingAction),
+// o resultado da conferência substitui o estado incerto. Também vale para um
+// registro preso em "sending" (o servidor caiu no meio do envio).
+const UNRESOLVED: TrackingCreation[] = ["sending", "uncertain"];
+
+// Encontrado na JUDIT: o envio tinha dado certo.
+export async function confirmUncertainReservation(
+  id: string,
+  juditTrackingId: string,
+  remote: RemoteTrackingFields,
+): Promise<Tracking | null> {
+  return setCreation(
+    id,
+    "confirmed",
+    null,
+    { juditTrackingId, ...remoteFields(remote) },
+    UNRESOLVED,
+  );
+}
+
+// Não existe na JUDIT: nada foi criado. A reserva volta a ficar pendente,
+// como se nunca tivesse sido enviada; pode ser enviada de novo ou descartada.
+export async function reopenUncertainReservation(
+  id: string,
+  reason: string,
+): Promise<Tracking | null> {
+  return setCreation(id, "pending", reason, {}, UNRESOLVED);
+}
+
 // Apaga uma reserva que nunca foi enviada. Não existe nada na JUDIT, então
 // não há histórico a preservar.
 export async function discardReservation(id: string): Promise<boolean> {
@@ -259,18 +290,20 @@ function remoteFields(remote: RemoteTrackingFields) {
   };
 }
 
-// Só sai de "sending": quem chama acabou de reivindicar a reserva.
+// Por padrão, só sai de "sending": quem chama acabou de reivindicar a
+// reserva. A conferência de um envio incerto passa `from` explicitamente.
 async function setCreation(
   id: string,
   creation: TrackingCreation,
   creationError: string | null,
   extra: Partial<TrackingDoc> = {},
+  from: TrackingCreation[] = ["sending"],
 ): Promise<Tracking | null> {
   const { trackings } = collections(await getDb());
   const now = new Date();
   const status = extra.status ?? null;
   const doc = await trackings.findOneAndUpdate(
-    { _id: id, creation: "sending" },
+    { _id: id, creation: { $in: from } },
     {
       $set: {
         ...extra,

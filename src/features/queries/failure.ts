@@ -8,8 +8,9 @@ import {
 } from "@/lib/judit/errors";
 
 // Converte uma falha numa chamada à JUDIT em uma resposta para a interface.
-// Usada pelas server actions de consulta (síncrona e assíncrona), para que as
-// mensagens e o registro no log sejam iguais em todas.
+// Usada pelas server actions de consulta (síncrona e assíncrona) e de
+// monitoramento, para que as mensagens e o registro no log sejam iguais em
+// todas.
 
 export type JuditActionFailure = {
   ok: false;
@@ -41,7 +42,7 @@ export function juditActionFailure(
       ok: false,
       reason: "timeout",
       message:
-        "A JUDIT não respondeu a tempo. A consulta pode ter sido cobrada mesmo assim; espere antes de repetir.",
+        "A JUDIT não respondeu a tempo. A operação pode ter sido concluída (e cobrada) mesmo assim; confira o estado antes de repetir.",
     };
   }
 

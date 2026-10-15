@@ -21,7 +21,10 @@ import {
   type NewTrackingInput,
   type Tracking,
 } from "@/features/trackings/types";
-import { createTrackingAction } from "@/features/trackings/actions";
+import {
+  createTrackingAction,
+  type CreateTrackingActionResult,
+} from "@/features/trackings/actions";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
 import type { DataSource, DemoState } from "./data";
@@ -31,9 +34,12 @@ import type { DataSource, DemoState } from "./data";
 //
 // - "demo": tudo fica em memória; recarregar a página restaura os dados
 //   iniciais. Nada é persistido nem enviado à JUDIT.
-// - "db": o estado inicial vem do MongoDB e criar um monitoramento grava no
-//   banco por uma Server Action. Ações que dependem da JUDIT ou de dados ainda
-//   não persistidos (pausar, simular webhook, restaurar) ficam indisponíveis.
+// - "db": os monitoramentos vêm do MongoDB e são lidos direto do
+//   `initialState` do servidor, sem cópia no navegador. Cada server action
+//   que muda um monitoramento chama refresh(): o layout é renderizado de novo
+//   no servidor, relê o banco e entrega a lista nova. Ações que dependem de
+//   dados ainda não persistidos (simular webhook, restaurar) ficam
+//   indisponíveis.
 
 export type SimulationScenario =
   | "lawsuit_movement"
@@ -45,8 +51,7 @@ type Action =
   | { type: "reset"; state: DemoState }
   | { type: "addTracking"; tracking: Tracking; activity: ActivityItem }
   | { type: "setTrackingStatus"; id: string; status: string }
-  | { type: "replaceTracking"; tracking: Tracking }
-  | { type: "removeTracking"; id: string }
+  | { type: "addActivity"; activity: ActivityItem }
   | { type: "markAlertRead"; id: string }
   | { type: "markAllAlertsRead" }
   | { type: "receiveEvent"; event: WebhookEventView; activity: ActivityItem }
@@ -79,18 +84,8 @@ function reducer(state: DemoState, action: Action): DemoState {
             : t,
         ),
       };
-    case "replaceTracking":
-      return {
-        ...state,
-        trackings: state.trackings.map((t) =>
-          t.id === action.tracking.id ? action.tracking : t,
-        ),
-      };
-    case "removeTracking":
-      return {
-        ...state,
-        trackings: state.trackings.filter((t) => t.id !== action.id),
-      };
+    case "addActivity":
+      return { ...state, activity: [action.activity, ...state.activity] };
     case "markAlertRead":
       return {
         ...state,
@@ -146,6 +141,11 @@ function newId(): string {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 }
 
+// A server action não respondeu (servidor reiniciando, rede). A operação pode
+// ter sido concluída no servidor mesmo assim.
+export const SERVER_UNREACHABLE =
+  "Sem resposta do servidor da aplicação. A operação pode ter sido concluída: recarregue a página e confira antes de repetir.";
+
 const trackingErrorMessages = {
   duplicate: "Já existe um monitoramento ativo para este identificador.",
   invalid_input: "Os dados do monitoramento são inválidos.",
@@ -195,9 +195,6 @@ type DemoStore = DemoState & {
   getCompany: (id: string | null) => Company | null;
   addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
-  // Modo "db": aplica o monitoramento devolvido por uma server action.
-  replaceTracking: (tracking: Tracking) => void;
-  removeTracking: (id: string) => void;
   markAlertRead: (id: string) => void;
   markAllAlertsRead: () => void;
   simulateWebhookEvent: (scenario: SimulationScenario) => SimulationResult;
@@ -222,6 +219,10 @@ export function DemoStoreProvider({
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  // No modo "db", a lista é a do servidor (ver o comentário no topo). O
+  // reducer só guarda os monitoramentos da demonstração.
+  const trackings =
+    dataSource === "db" ? initialState.trackings : state.trackings;
 
   const companiesById = useMemo(
     () => new Map(companies.map((c) => [c.id, c])),
@@ -235,19 +236,24 @@ export function DemoStoreProvider({
   const addTracking = useCallback(
     async (input: NewTrackingInput): Promise<AddTrackingResult> => {
       if (dataSource === "db") {
-        // A regra de duplicidade e a validação ficam no servidor (banco).
-        const result = await createTrackingAction({
-          searchType: input.searchType,
-          searchKey: input.searchKey,
-          recurrenceDays: input.recurrenceDays,
-        });
+        // A regra de duplicidade e a validação ficam no servidor (banco). O
+        // monitoramento novo chega à lista pelo refresh() da action.
+        let result: CreateTrackingActionResult;
+        try {
+          result = await createTrackingAction({
+            searchType: input.searchType,
+            searchKey: input.searchKey,
+            recurrenceDays: input.recurrenceDays,
+          });
+        } catch {
+          return { ok: false, error: SERVER_UNREACHABLE };
+        }
         if (!result.ok) {
           return { ok: false, error: trackingErrorMessages[result.reason] };
         }
         const sent = result.outcome === "confirmed";
         dispatch({
-          type: "addTracking",
-          tracking: result.tracking,
+          type: "addActivity",
           activity: trackingActivity(
             result.tracking,
             getCompany(result.tracking.companyId),
@@ -322,15 +328,6 @@ export function DemoStoreProvider({
       });
     },
     [dataSource],
-  );
-
-  const replaceTracking = useCallback(
-    (tracking: Tracking) => dispatch({ type: "replaceTracking", tracking }),
-    [],
-  );
-  const removeTracking = useCallback(
-    (id: string) => dispatch({ type: "removeTracking", id }),
-    [],
   );
 
   const markAlertRead = useCallback(
@@ -529,14 +526,13 @@ export function DemoStoreProvider({
   const value = useMemo<DemoStore>(
     () => ({
       ...state,
+      trackings,
       dataSource,
       companies,
       lawsuits,
       getCompany,
       addTracking,
       setTrackingPaused,
-      replaceTracking,
-      removeTracking,
       markAlertRead,
       markAllAlertsRead,
       simulateWebhookEvent,
@@ -544,14 +540,13 @@ export function DemoStoreProvider({
     }),
     [
       state,
+      trackings,
       dataSource,
       companies,
       lawsuits,
       getCompany,
       addTracking,
       setTrackingPaused,
-      replaceTracking,
-      removeTracking,
       markAlertRead,
       markAllAlertsRead,
       simulateWebhookEvent,

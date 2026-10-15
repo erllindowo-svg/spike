@@ -21,6 +21,9 @@ import {
   deleteTrackingAction,
   discardTrackingAction,
   pauseTrackingAction,
+  reconcileTrackingAction,
+  refreshTrackingAction,
+  resumeTrackingAction,
   sendTrackingAction,
   trackingResultsAction,
 } from "./actions";
@@ -138,6 +141,26 @@ describe("createTrackingAction", () => {
     });
   });
 
+  it("warns when JUDIT stores a different recurrence (case C11)", async () => {
+    // The fixture answers recurrence 1 to a request for 30, as observed live.
+    mockFetch(createdCnpjTrackingBody);
+    const diverged = await createTrackingAction(input);
+    expect(diverged).toMatchObject({
+      outcome: "confirmed",
+      tracking: { recurrenceDays: 1 },
+      message: expect.stringContaining(
+        'pedimos a recorrência "A cada 30 dias" e a JUDIT gravou "Diária"',
+      ),
+    });
+
+    await trackingsCollection().deleteMany({});
+    mockFetch({ ...createdCnpjTrackingBody, recurrence: 30 });
+    expect(await createTrackingAction(input)).toMatchObject({
+      outcome: "confirmed",
+      message: expect.not.stringContaining("Atenção"),
+    });
+  });
+
   it("refuses a duplicate BEFORE calling JUDIT again", async () => {
     await createConfirmed();
     const fetchMock = mockFetch(createdCnpjTrackingBody);
@@ -191,6 +214,8 @@ describe("createTrackingAction", () => {
   it.each([
     ["a network failure", new Error("socket hang up")],
     ["a server error (5xx)", [502, { error: { name: "BadGateway" } }]],
+    // 201 without tracking_id: JUDIT may have created it, we cannot know.
+    ["a 201 in an unexpected format", { unexpected: true }],
   ])(
     "marks %s as uncertain and keeps the identifier blocked",
     async (_label, answer) => {
@@ -278,6 +303,45 @@ describe("reservations from stage 2", () => {
 });
 
 describe("confirmed trackings", () => {
+  it("refreshes the status, recurrence and run hour from JUDIT", async () => {
+    const tracking = await createConfirmed();
+    const fetchMock = mockFetch([
+      200,
+      { ...createdCnpjTrackingBody, status: "updated", hour_range: 6 },
+    ]);
+
+    const result = await refreshTrackingAction(tracking.id);
+
+    expect(call(fetchMock)).toMatchObject({
+      method: "GET",
+      url: expect.stringContaining(`/tracking/${TRACKING_ID}`),
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      message: "Status na JUDIT: updated.",
+      tracking: { status: "updated", hourRange: 6, recurrenceDays: 1 },
+    });
+    expect(result.ok && result.tracking.lastCheckedAt).toBeInstanceOf(Date);
+  });
+
+  it("resumes through JUDIT and stores the new status", async () => {
+    const tracking = await createConfirmed();
+    mockFetch([200, pausedTrackingBody]);
+    await pauseTrackingAction(tracking.id);
+    const fetchMock = mockFetch([
+      200,
+      { ...createdCnpjTrackingBody, status: "updated" },
+    ]);
+
+    const result = await resumeTrackingAction(tracking.id);
+
+    expect(call(fetchMock)).toMatchObject({
+      method: "POST",
+      url: expect.stringContaining(`/tracking/${TRACKING_ID}/resume`),
+    });
+    expect(result).toMatchObject({ ok: true, tracking: { status: "updated" } });
+  });
+
   it("pauses through JUDIT and stores the new status", async () => {
     const tracking = await createConfirmed();
     const fetchMock = mockFetch([200, pausedTrackingBody]);
@@ -342,5 +406,124 @@ describe("confirmed trackings", () => {
         lawsuits: [{ cnj: "99999999999999999999" }],
       },
     });
+  });
+});
+
+describe("reconcileTrackingAction", () => {
+  // An uncertain send, old enough to be checked (the action waits 2 min).
+  async function uncertainReservation(minutesAgo = 3) {
+    mockFetch(new Error("socket hang up"));
+    const result = await createTrackingAction(input);
+    if (!result.ok) throw new Error("setup failed");
+    await trackingsCollection().updateOne(
+      { _id: result.tracking.id },
+      { $set: { updatedAt: new Date(Date.now() - minutesAgo * 60_000) } },
+    );
+    return result.tracking;
+  }
+
+  // GET /tracking with the given items, all in a single page.
+  function listBody(...items: object[]) {
+    return {
+      page: 1,
+      page_count: items.length,
+      all_pages_count: 1,
+      all_count: items.length,
+      page_data: items,
+    };
+  }
+
+  // The same tracking as JUDIT would list it: masked key, created just now.
+  const remoteMatch = {
+    ...createdCnpjTrackingBody,
+    tracking_id: "found-at-judit",
+    search: { search_type: "cnpj", search_key: "A1.B2C.3D4/E5F6-68" },
+    created_at: new Date().toISOString(),
+  };
+
+  it("confirms the reservation when JUDIT has exactly one match", async () => {
+    const tracking = await uncertainReservation();
+    const fetchMock = mockFetch([
+      200,
+      listBody(
+        remoteMatch,
+        // Same key, but deleted, or from another identifier: not ours.
+        { ...remoteMatch, tracking_id: "old", status: "deleted" },
+        {
+          ...remoteMatch,
+          tracking_id: "other",
+          search: { search_type: "cnpj", search_key: "00000000000100" },
+        },
+      ),
+    ]);
+
+    const result = await reconcileTrackingAction(tracking.id);
+
+    expect(call(fetchMock)).toMatchObject({ method: "GET" });
+    expect(call(fetchMock).url).toContain("/tracking?");
+    expect(result).toMatchObject({
+      ok: true,
+      tracking: { creation: "confirmed", juditTrackingId: "found-at-judit" },
+    });
+  });
+
+  it("reopens the reservation when JUDIT has nothing, without resending", async () => {
+    const tracking = await uncertainReservation();
+    const fetchMock = mockFetch([200, listBody()]);
+
+    expect(await reconcileTrackingAction(tracking.id)).toMatchObject({
+      ok: true,
+      tracking: { creation: "pending", juditTrackingId: null },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Still a reservation: the identifier stays blocked until it is sent
+    // again or discarded.
+    expect(await createTrackingAction(input)).toEqual({
+      ok: false,
+      reason: "duplicate",
+    });
+  });
+
+  it("does not conclude anything with two matches or an incomplete list", async () => {
+    const tracking = await uncertainReservation();
+
+    mockFetch([
+      200,
+      listBody(remoteMatch, { ...remoteMatch, tracking_id: "b" }),
+    ]);
+    expect(await reconcileTrackingAction(tracking.id)).toMatchObject({
+      ok: false,
+      reason: "inconclusive",
+    });
+
+    mockFetch([200, { ...listBody(), all_pages_count: 2 }]);
+    expect(await reconcileTrackingAction(tracking.id)).toMatchObject({
+      ok: false,
+      reason: "inconclusive",
+    });
+
+    const stored = await trackingsCollection().findOne({ _id: tracking.id });
+    expect(stored?.creation).toBe("uncertain");
+  });
+
+  it("waits before checking and only checks unresolved sends", async () => {
+    const recent = await uncertainReservation(0);
+    const fetchMock = mockFetch();
+
+    expect(await reconcileTrackingAction(recent.id)).toMatchObject({
+      ok: false,
+      reason: "invalid",
+      message: expect.stringContaining("Espere"),
+    });
+
+    await trackingsCollection().deleteMany({});
+    const confirmed = await createConfirmed();
+    const afterSetup = mockFetch();
+    expect(await reconcileTrackingAction(confirmed.id)).toMatchObject({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(afterSetup).not.toHaveBeenCalled();
   });
 });

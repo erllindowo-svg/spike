@@ -10,7 +10,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -39,12 +39,13 @@ import type { Lawsuit } from "@/features/processes/types";
 import { ResponsesSummaryView } from "@/features/queries/components/responses-summary-view";
 import { TRACKING_MODES } from "@/features/queries/modes";
 import type { ResponsesSummary } from "@/features/queries/responses";
-import { useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE } from "@/lib/demo-store";
 
 import {
   deleteTrackingAction,
   discardTrackingAction,
   pauseTrackingAction,
+  reconcileTrackingAction,
   refreshTrackingAction,
   resumeTrackingAction,
   sendTrackingAction,
@@ -55,8 +56,12 @@ import { formatSearchKey } from "../format";
 import { getTrackingDisplayState, type Tracking } from "../types";
 
 // Ações sobre monitoramentos reais (modo "db"). Cada item chama uma server
-// action, que fala com a JUDIT e devolve o monitoramento atualizado; o
-// estado da tela é substituído pelo que ficou gravado no banco.
+// action, que fala com a JUDIT, grava o resultado no banco e chama
+// refresh(): a lista da tela é relida do MongoDB (ver demo-store.tsx).
+//
+// Toda chamada tem try/catch: se o servidor da aplicação não responder
+// (reiniciando, rede), a promessa rejeita. Sem o catch, o erro iria para a
+// tela de erro da rota e o aviso "Falando com a JUDIT…" ficaria preso.
 
 export function JuditTrackingMenuItems({
   tracking,
@@ -67,7 +72,6 @@ export function JuditTrackingMenuItems({
   onRequestDelete: (tracking: Tracking) => void;
   onRequestResults: (tracking: Tracking) => void;
 }) {
-  const { replaceTracking, removeTracking } = useDemoStore();
   const [, startTransition] = useTransition();
   const state = getTrackingDisplayState(tracking);
 
@@ -77,25 +81,38 @@ export function JuditTrackingMenuItems({
   ) {
     const toastId = toast.loading("Falando com a JUDIT…");
     startTransition(async () => {
-      const result = await action(tracking.id);
-      if (!result.ok) {
-        toast.error(errorTitle, { id: toastId, description: result.message });
-        return;
+      try {
+        const result = await action(tracking.id);
+        if (!result.ok) {
+          toast.error(errorTitle, { id: toastId, description: result.message });
+          return;
+        }
+        toast.success(result.message, { id: toastId });
+      } catch {
+        toast.error(errorTitle, {
+          id: toastId,
+          description: SERVER_UNREACHABLE,
+        });
       }
-      replaceTracking(result.tracking);
-      toast.success(result.message, { id: toastId });
     });
   }
 
   function discard() {
     startTransition(async () => {
-      const result = await discardTrackingAction(tracking.id);
-      if (!result.ok) {
-        toast.error("Reserva não descartada", { description: result.message });
-        return;
+      try {
+        const result = await discardTrackingAction(tracking.id);
+        if (!result.ok) {
+          toast.error("Reserva não descartada", {
+            description: result.message,
+          });
+          return;
+        }
+        toast.success("Reserva descartada. Nada foi enviado à JUDIT.");
+      } catch {
+        toast.error("Reserva não descartada", {
+          description: SERVER_UNREACHABLE,
+        });
       }
-      removeTracking(tracking.id);
-      toast.success("Reserva descartada. Nada foi enviado à JUDIT.");
     });
   }
 
@@ -121,9 +138,11 @@ export function JuditTrackingMenuItems({
     return (
       <>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem
+          onClick={() => run(reconcileTrackingAction, "Envio não conferido")}
+        >
           <TriangleAlertIcon />
-          Envio incerto: conferir na JUDIT
+          Conferir na JUDIT
         </DropdownMenuItem>
       </>
     );
@@ -185,22 +204,26 @@ export function DeleteTrackingDialog({
   tracking: Tracking | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { replaceTracking } = useDemoStore();
   const [deleting, startTransition] = useTransition();
 
   function confirm() {
     if (!tracking) return;
     startTransition(async () => {
-      const result = await deleteTrackingAction(tracking.id);
-      if (!result.ok) {
+      try {
+        const result = await deleteTrackingAction(tracking.id);
+        if (!result.ok) {
+          toast.error("Monitoramento não excluído", {
+            description: result.message,
+          });
+          return;
+        }
+        onOpenChange(false);
+        toast.success(result.message);
+      } catch {
         toast.error("Monitoramento não excluído", {
-          description: result.message,
+          description: SERVER_UNREACHABLE,
         });
-        return;
       }
-      replaceTracking(result.tracking);
-      onOpenChange(false);
-      toast.success(result.message);
     });
   }
 
@@ -231,40 +254,59 @@ export function DeleteTrackingDialog({
   );
 }
 
-// Resultados das execuções (GET /responses/tracking/{tracking_id}). Carrega
-// ao abrir; nada é gravado.
+// Resultados das execuções (GET /responses/tracking/{tracking_id}). Nada é
+// gravado.
+//
+// A busca sai do clique em "Ver resultados" (open), não de um useEffect ao
+// abrir o painel: em desenvolvimento, o Strict Mode roda cada efeito duas
+// vezes, o que daria duas chamadas à JUDIT, possivelmente cobradas.
+type ResultsView = {
+  tracking: Tracking;
+  results: ResponsesSummary | null;
+  error: string | null;
+};
+
+export function useTrackingResults() {
+  const [view, setView] = useState<ResultsView | null>(null);
+
+  async function open(tracking: Tracking) {
+    const opened: ResultsView = { tracking, results: null, error: null };
+    setView(opened);
+    // Só preenche o painel se ele ainda mostra esta abertura: o usuário pode
+    // ter fechado ou aberto outro monitoramento enquanto a JUDIT respondia.
+    const fill = (patch: Partial<ResultsView>) =>
+      setView((current) =>
+        current === opened ? { ...opened, ...patch } : current,
+      );
+    try {
+      const result = await trackingResultsAction(tracking.id);
+      fill(result.ok ? { results: result.results } : { error: result.message });
+    } catch {
+      fill({ error: SERVER_UNREACHABLE });
+    }
+  }
+
+  return { view, open, close: () => setView(null) };
+}
+
 export function TrackingResultsSheet({
-  tracking,
+  view,
   onOpenChange,
 }: {
-  tracking: Tracking | null;
+  view: ResultsView | null;
   onOpenChange: (open: boolean) => void;
 }) {
   return (
-    <Sheet open={!!tracking} onOpenChange={onOpenChange}>
+    <Sheet open={!!view} onOpenChange={onOpenChange}>
       <SheetContent className="w-full gap-0 data-[side=right]:sm:max-w-3xl">
-        {tracking && <TrackingResults key={tracking.id} tracking={tracking} />}
+        {view && <TrackingResults key={view.tracking.id} {...view} />}
       </SheetContent>
     </Sheet>
   );
 }
 
-function TrackingResults({ tracking }: { tracking: Tracking }) {
-  const [results, setResults] = useState<ResponsesSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function TrackingResults({ tracking, results, error }: ResultsView) {
   const [selected, setSelected] = useState<Lawsuit | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    trackingResultsAction(tracking.id).then((result) => {
-      if (cancelled) return;
-      if (result.ok) setResults(result.results);
-      else setError(result.message);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [tracking.id]);
 
   return (
     <>

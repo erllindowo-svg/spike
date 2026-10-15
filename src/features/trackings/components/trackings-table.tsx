@@ -46,6 +46,7 @@ import {
   DeleteTrackingDialog,
   JuditTrackingMenuItems,
   TrackingResultsSheet,
+  useTrackingResults,
 } from "./tracking-judit-actions";
 import { TrackingStatusBadge } from "./tracking-status-badge";
 
@@ -61,7 +62,7 @@ export function TrackingsTable({
   const lastEvents = getLastEventByReference(webhookEvents);
   const full = variant === "full";
   const [deleting, setDeleting] = useState<Tracking | null>(null);
-  const [resultsFor, setResultsFor] = useState<Tracking | null>(null);
+  const trackingResults = useTrackingResults();
 
   function identifierHref(tracking: Tracking): string | null {
     if (tracking.searchType === "cnpj") {
@@ -226,7 +227,7 @@ export function TrackingsTable({
                           <JuditTrackingMenuItems
                             tracking={tracking}
                             onRequestDelete={setDeleting}
-                            onRequestResults={setResultsFor}
+                            onRequestResults={trackingResults.open}
                           />
                         )}
                         {dataSource === "demo" &&
@@ -263,8 +264,8 @@ export function TrackingsTable({
         onOpenChange={(open) => !open && setDeleting(null)}
       />
       <TrackingResultsSheet
-        tracking={resultsFor}
-        onOpenChange={(open) => !open && setResultsFor(null)}
+        view={trackingResults.view}
+        onOpenChange={(open) => !open && trackingResults.close()}
       />
     </>
   );

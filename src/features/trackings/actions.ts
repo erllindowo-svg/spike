@@ -25,6 +25,7 @@ import {
   createTracking as createJuditTracking,
   deleteTracking as deleteJuditTracking,
   getTracking as getJuditTracking,
+  listTrackings as listJuditTrackings,
   pauseTracking as pauseJuditTracking,
   resumeTracking as resumeJuditTracking,
 } from "@/lib/judit/tracking";
@@ -34,15 +35,18 @@ import {
   applyRemoteTracking,
   claimReservation,
   confirmReservation,
-  createTracking,
+  confirmUncertainReservation,
   discardReservation,
   failReservation,
-  getTracking,
+  getStoredTracking,
   markReservationUncertain,
   releaseReservation,
+  reopenUncertainReservation,
+  reserveTracking,
   type CreateTrackingResult,
   type NewTrackingRequest,
 } from "./db";
+import { formatRecurrence } from "./types";
 
 // Server Actions de monitoramento. O navegador chama estas funções, mas elas
 // rodam no servidor. Por baixo, cada uma é um POST que qualquer pessoa pode
@@ -60,6 +64,9 @@ type Unavailable = {
   reason: "unavailable" | "invalid";
   message: string;
 };
+
+// A conferência não permitiu concluir nada: o registro continua como estava.
+type Inconclusive = { ok: false; reason: "inconclusive"; message: string };
 
 function unavailable(): Unavailable {
   return {
@@ -96,7 +103,7 @@ export async function createTrackingAction(
   try {
     // Passo 1: a reserva. O índice único recusa duplicatas aqui, antes de
     // qualquer chamada cobrada.
-    const reserved = await createTracking(input);
+    const reserved = await reserveTracking(input);
     if (!reserved.ok) return reserved;
 
     // Passo 2: o envio.
@@ -124,6 +131,7 @@ export async function createTrackingAction(
 export type TrackingActionResult =
   | { ok: true; tracking: Tracking; message: string }
   | Unavailable
+  | Inconclusive
   | JuditActionFailure;
 
 // Envia uma reserva pendente: a da etapa 2 ou uma que não saiu porque as
@@ -173,11 +181,12 @@ async function sendReservation(id: string): Promise<{
   const claimed = await claimReservation(id);
   if (!claimed) return null;
 
+  const requestedRecurrence = claimed.recurrenceDays ?? 30;
   try {
     const remote = await createJuditTracking({
-      searchType: claimed.searchType === "cnpj" ? "cnpj" : "lawsuit_cnj",
+      searchType: juditSearchType(claimed),
       searchKey: claimed.searchKey,
-      recurrence: claimed.recurrenceDays ?? 30,
+      recurrence: requestedRecurrence,
     });
     // O tracking_id não é segredo e é a única forma de achar o monitoramento
     // na JUDIT se a gravação abaixo falhar; por isso vai para o log antes.
@@ -192,10 +201,14 @@ async function sendReservation(id: string): Promise<{
     return {
       tracking: tracking ?? claimed,
       outcome: "confirmed",
-      message:
+      message: [
         remote.hour_range !== undefined
           ? `Criado na JUDIT. Primeira execução prevista para as ${remote.hour_range}h, em até 24 horas.`
           : "Criado na JUDIT. A primeira execução acontece em até 24 horas.",
+        recurrenceWarning(requestedRecurrence, remote.recurrence),
+      ]
+        .filter(Boolean)
+        .join(" "),
     };
   } catch (error) {
     const { outcome, reason } = classifySendError(error);
@@ -208,6 +221,18 @@ async function sendReservation(id: string): Promise<{
           : await markReservationUncertain(id, reason);
     return { tracking: tracking ?? claimed, outcome, message: reason };
   }
+}
+
+// A JUDIT já gravou uma recorrência diferente da pedida (30 virou 1 em
+// 2026-10-14; caso C11, README item 36). Como o PATCH não aceita
+// `recurrence`, o aviso precisa aparecer na criação, quando ainda dá para
+// pausar ou excluir.
+function recurrenceWarning(
+  requested: number,
+  stored: number | undefined,
+): string | null {
+  if (stored === undefined || stored === requested) return null;
+  return `Atenção: pedimos a recorrência "${formatRecurrence(requested)}" e a JUDIT gravou "${formatRecurrence(stored)}". Ela não pode ser alterada depois; se não servir, pause ou exclua o monitoramento.`;
 }
 
 // Decide o que um erro significa para a reserva. A pergunta é: "a JUDIT
@@ -254,6 +279,113 @@ function classifySendError(error: unknown): {
         ? `Sem resposta clara da JUDIT: ${error.message}`
         : "Sem resposta clara da JUDIT.",
   };
+}
+
+// --- Conferência de um envio incerto --------------------------------------
+
+// Tempo mínimo entre o envio e a conferência. O client desiste depois de
+// 15 s, mas a JUDIT pode terminar de criar o monitoramento depois disso:
+// conferir cedo demais poderia concluir "não existe" e liberar um segundo
+// envio. Valor escolhido por nós; a JUDIT não documenta esse prazo.
+const RECONCILE_AFTER_MS = 2 * 60 * 1000;
+
+// Procura em GET /tracking o monitoramento de um envio incerto (ou preso em
+// "sending") e registra o que encontrou. Nunca reenvia: se não existir, a
+// reserva volta a ficar pendente e a decisão de enviar de novo é do usuário.
+export async function reconcileTrackingAction(
+  id: string,
+): Promise<TrackingActionResult> {
+  if (getDataSource() !== "db") return unavailable();
+  const parsedId = idSchema.safeParse(id);
+  if (!parsedId.success) return invalid("Identificador inválido.");
+
+  try {
+    const stored = await getStoredTracking(parsedId.data);
+    if (stored?.creation !== "uncertain" && stored?.creation !== "sending") {
+      return invalid("Só envios incertos podem ser conferidos.");
+    }
+    const waitMs = stored.updatedAt.getTime() + RECONCILE_AFTER_MS - Date.now();
+    if (waitMs > 0) {
+      return invalid(
+        `Espere ${Math.ceil(waitMs / 60_000)} minuto(s) antes de conferir: a JUDIT pode ainda estar processando o envio.`,
+      );
+    }
+
+    // GET /tracking lista os monitoramentos da conta inteira. Os filtros do
+    // OpenAPI (search_key, created_at_gte...) não têm descrição e nunca
+    // foram testados, então a comparação é feita aqui, campo a campo.
+    const list = await listJuditTrackings({ page: 1, pageSize: 100 });
+    const matches = list.page_data.filter((remote) =>
+      isSameTracking(stored, remote),
+    );
+
+    if (matches.length > 1) {
+      return inconclusive(
+        `A JUDIT tem ${matches.length} monitoramentos para este identificador. Resolva pela rota de dev (GET /tracking) antes de continuar.`,
+      );
+    }
+    if (matches.length === 1) {
+      const [remote] = matches;
+      console.info(
+        `[trackings] conferência: tracking_id ${remote.tracking_id} encontrado na JUDIT`,
+      );
+      const tracking = await confirmUncertainReservation(
+        stored.id,
+        remote.tracking_id,
+        remoteFields(remote),
+      );
+      refresh();
+      return {
+        ok: true,
+        tracking: tracking ?? stored,
+        message:
+          "Encontrado na JUDIT: o envio tinha dado certo. Monitoramento confirmado.",
+      };
+    }
+    if (list.all_pages_count > 1) {
+      return inconclusive(
+        "A conta tem mais monitoramentos do que cabem numa página de GET /tracking; não dá para afirmar que este não existe.",
+      );
+    }
+    const tracking = await reopenUncertainReservation(
+      stored.id,
+      "Conferido na JUDIT: o monitoramento não existe. Envie de novo ou descarte a reserva.",
+    );
+    refresh();
+    return {
+      ok: true,
+      tracking: tracking ?? stored,
+      message:
+        "Não existe na JUDIT: nada foi criado. A reserva voltou a ficar pendente.",
+    };
+  } catch (error) {
+    return juditActionFailure(error, "trackings");
+  }
+}
+
+// O mesmo monitoramento: mesmo tipo e identificador (com ou sem máscara),
+// não excluído e criado depois da reserva. Um item sem `created_at` legível
+// conta como candidato: confirmar por engano custa menos que reenviar e
+// duplicar um monitoramento cobrado a cada recorrência.
+function isSameTracking(stored: Tracking, remote: JuditTracking): boolean {
+  const createdAt = remote.created_at ? Date.parse(remote.created_at) : NaN;
+  const clockSkewMs = 5 * 60 * 1000;
+  return (
+    remote.search?.search_type === juditSearchType(stored) &&
+    normalizeKey(remote.search?.search_key ?? "") ===
+      normalizeKey(stored.searchKey) &&
+    remote.status !== "deleted" &&
+    (Number.isNaN(createdAt) ||
+      createdAt >= stored.createdAt.getTime() - clockSkewMs)
+  );
+}
+
+function normalizeKey(key: string): string {
+  return key.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+}
+
+function juditSearchType(tracking: Pick<Tracking, "searchType">) {
+  return tracking.searchType === "cnpj" ? "cnpj" : "lawsuit_cnj";
 }
 
 // --- Monitoramentos confirmados -------------------------------------------
@@ -326,7 +458,7 @@ export async function trackingResultsAction(
   if (!parsedId.success) return invalid("Identificador inválido.");
 
   try {
-    const tracking = await getTracking(parsedId.data);
+    const tracking = await getStoredTracking(parsedId.data);
     if (!tracking?.juditTrackingId || tracking.creation !== "confirmed") {
       return invalid("Monitoramento não confirmado pela JUDIT.");
     }
@@ -366,7 +498,7 @@ async function withConfirmedTracking(
   if (!parsedId.success) return invalid("Identificador inválido.");
 
   try {
-    const tracking = await getTracking(parsedId.data);
+    const tracking = await getStoredTracking(parsedId.data);
     if (!tracking?.juditTrackingId || tracking.creation !== "confirmed") {
       return invalid("Monitoramento não confirmado pela JUDIT.");
     }
@@ -404,4 +536,8 @@ const idSchema = z.string().min(1).max(100);
 
 function invalid(message: string): Unavailable {
   return { ok: false, reason: "invalid", message };
+}
+
+function inconclusive(message: string): Inconclusive {
+  return { ok: false, reason: "inconclusive", message };
 }
