@@ -11,6 +11,7 @@ Depois de cada fatia importante:
 3. Tente responder às perguntas de verificação antes de pedir as respostas.
 4. Registre qualquer dúvida que ainda não saiba resolver sem ajuda.
 5. Se algo falhou (ou poderia falhar), registre o caso no **Catálogo de investigação de falhas**, logo abaixo.
+6. Dúvidas sobre o funcionamento interno da JUDIT vão para **Inside knowledge**, depois do catálogo; você as responde lá.
 
 Não é necessário registrar alterações triviais de CSS, nomes ou formatação.
 
@@ -172,6 +173,25 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Tentativa de correção: `PATCH /tracking/{id}` com `recurrence: 30` → `400`, `"unrecognized key: 'recurrence'"`. A recorrência não muda depois da criação (resolve a contradição 26 a favor do OpenAPI).
 - Efeito: monitoramento diário até ser pausado. O plano já era pausar depois da primeira execução.
 - Lição de suporte: gravar o que o fornecedor devolve, e não o que pedimos, foi o que tornou a divergência visível. "Aceito" (201) não quer dizer "aceito como pedido".
+- Prevenção (2026-10-14, noite): a mensagem de criação compara o pedido com o devolvido e avisa na hora (`recurrenceWarning` em `src/features/trackings/actions.ts`), enquanto ainda dá para pausar ou excluir. Pergunta ao tech lead: "Inside knowledge", IK1.
+
+**C12. Envio incerto na criação de um monitoramento.** _Previsto (testado com fetch simulado em 2026-10-14)._
+
+- Sinal: o monitoramento aparece como "Envio incerto", com o motivo na linha de apoio ("Sem resposta clara da JUDIT: …"). Acontece com timeout, falha de rede, 5xx ou um 201 em formato inesperado. Também com um registro preso em `sending`, quando o servidor cai no meio do envio.
+- Camada: entre o nosso servidor e a JUDIT. A pergunta não é "deu erro?", é "a JUDIT pode ter criado?".
+- Hipóteses: (1) a JUDIT criou e só a resposta se perdeu; (2) nada chegou a ser criado.
+- Teste que separa: "Conferir na JUDIT" (`reconcileTrackingAction`), no mínimo 2 minutos depois do envio. Ela lê `GET /tracking` e procura, no nosso código, o mesmo tipo e identificador (com ou sem máscara), não excluído e criado depois da reserva.
+- Correção: um resultado confirma a reserva com o `tracking_id` encontrado. Nenhum resultado (com a lista completa) volta a reserva para pendente, e você decide se envia de novo ou descarta. Dois ou mais resultados, ou uma lista com mais de uma página, não concluem nada: resolva pela rota de dev.
+- Prevenção: a reserva com índice único impede um segundo envio enquanto houver dúvida; a conferência nunca reenvia sozinha.
+- Pontos não confirmados: os filtros de `GET /tracking` não são usados (o OpenAPI não os descreve); o prazo de 2 minutos é escolha nossa; o formato em que a JUDIT guarda o `search_key` é desconhecido, por isso a comparação ignora a máscara.
+- Lição de suporte: diante de um timeout num POST que cria algo cobrado, não repita. Primeiro descubra se a operação aconteceu, por uma leitura, e só então decida.
+
+**C13. Um clique, duas chamadas à JUDIT no log.** _Previsto (identificado na revisão de 2026-10-14)._
+
+- Sinal: em `pnpm dev`, um único "Ver resultados" gerava duas linhas `GET /responses/tracking/…` no log.
+- Causa: a busca estava num `useEffect`. Em desenvolvimento, o Strict Mode do React monta, desmonta e monta de novo cada componente para revelar efeitos sem limpeza, e o efeito roda duas vezes. Em produção roda uma vez, por isso o problema some depois do build.
+- Correção: a busca saiu do efeito e foi para o clique (`useTrackingResults` em `tracking-judit-actions.tsx`).
+- Lição de suporte: quando uma chamada aparece em dobro só em desenvolvimento, suspeite do Strict Mode antes de suspeitar do fornecedor. Com uma API cobrada, efeitos não são lugar de chamada que custa.
 
 **Lacunas a confirmar nas próximas chamadas reais** (README da JUDIT, contradições):
 
@@ -226,6 +246,82 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Prevenção (teste, aviso, documentação):
 - Lição de suporte:
 ```
+
+---
+
+## Inside knowledge
+
+Dúvidas sobre o funcionamento interno da JUDIT que a documentação não responde e que não dá para resolver com uma chamada barata. O agente registra a dúvida, o que já foi observado e o impacto no código. **Você responde**, depois de falar com o tech lead da JUDIT. Ao preencher a resposta, mude o status para _Respondida_ e cite a fonte (pessoa e data).
+
+Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lacunas a confirmar".
+
+**IK0. Uma request assíncrona concluída atualiza o datalake?** _Respondida em 2026-10-14._
+
+- Contexto: a página [request-document](https://docs.judit.io/requests/request-document) se contradiz (README da JUDIT, item 35).
+- Resposta: sim, no mesmo fluxo em que os dados são entregues ao cliente. Fonte: tech lead da JUDIT, 2026-10-14.
+- Impacto: confirma o desenho híbrido (nenhuma cópia de processo no MongoDB).
+
+**IK1. Por que pedimos `recurrence: 30` e a JUDIT gravou 1?** _Aberta desde 2026-10-14._
+
+- Observado: `POST /tracking` por CNPJ (documento de teste) respondeu 201 com `recurrence: 1`, e o `GET` confirmou (README, item 36; caso C11). O exemplo do monitoramento customizado envia 2 e recebe 2.
+- Hipóteses: limite por modalidade, regra do plano ou tratamento especial do documento de teste.
+- Impacto: o `PATCH` não aceita `recurrence`; um valor errado só se corrige excluindo e recriando o monitoramento. Define as opções do diálogo (7, 15, 30).
+- Resposta:
+
+**IK2. O que exatamente é cobrado no monitoramento?** _Aberta desde 2026-10-14._
+
+- Observado: nenhuma das páginas de tracking tem selo de cobrança (README, item 31). Hoje tratamos tudo como cobrável.
+- Dúvidas: cada execução recorrente é cobrada como uma requisição? `GET /tracking/{id}`, `GET /responses/tracking/{id}`, pausar, reativar e excluir são cobrados?
+- Impacto: decide se "Atualizar status" e "Ver resultados" podem ser chamados livremente e quanto custa deixar um monitoramento diário ativo.
+- Resposta:
+
+**IK3. O que significa o status `suspended`?** _Aberta desde 2026-10-14._
+
+- Observado: as páginas listam `created`, `updating`, `updated`, `paused` e `deleted`; o OpenAPI acrescenta `suspended`, sem explicação (README, item 28). As páginas de tracking dizem que o monitoramento é "pausado automaticamente" quando a empresa atinge o teto de consumo ou fica sem créditos, com o motivo em `tags.pause_reason` e reativação manual por `resume` ([tracking-document](https://docs.judit.io/tracking/tracking-document#pausando-um-monitoramento)), mas não dizem qual valor de status aparece nesse caso.
+- Dúvidas: a pausa automática aparece como `paused` ou como `suspended`? Se não for isso, o que leva a `suspended`, e ele sai com `resume`?
+- Impacto: como a tela deve rotular e que ação oferecer.
+- Resposta:
+
+**IK4. Os resultados continuam disponíveis depois da pausa?** _Aberta desde 2026-10-14._
+
+- Observado: a pausa devolve o monitoramento com `status: "paused"` ([tracking](https://docs.judit.io/tracking/tracking#pausando-um-monitoramento)), mas a documentação não diz se `GET /responses/tracking/{id}` continua devolvendo as execuções anteriores.
+- Impacto: se não continuarem, é preciso ler os resultados antes de pausar (é a ordem que vamos seguir no teste de amanhã).
+- Resposta:
+
+**IK5. Em que fuso está o `hour_range`?** _Aberta desde 2026-10-14._
+
+- Observado: o monitoramento de teste voltou com `hour_range: 6`; a tela diz "às 6h", sem fuso (relatório, item 14).
+- Dúvida: UTC ou horário de Brasília? É a hora de início da execução ou uma janela?
+- Impacto: o texto da tela e o horário em que vale conferir os resultados. A primeira execução também pode responder isso.
+- Resposta:
+
+**IK6. O CNJ fictício serve para monitoramento?** _Aberta desde 2026-10-14._
+
+- Contexto: o Hot Storage devolveu `0000000-39.2026.8.26.0050` para o CNPJ fictício; ele já está na allowlist.
+- Dúvidas: um monitoramento por CNJ desse processo é aceito, gera execuções e é cobrado?
+- Impacto: sem isso, o fluxo de monitoramento por CNJ não será testado ao vivo.
+- Resposta:
+
+**IK7. Um request pode terminar em falha?** _Aberta desde 2026-10-14._
+
+- Observado: a documentação mostra `pending`, `started` e `completed`, mas nenhum status de falha (README, item 24).
+- Dúvida: o que acontece quando o tribunal está fora do ar ou o documento não existe: `completed` com zero respostas, um status não documentado, ou o request fica parado?
+- Impacto: hoje a tela não sabe distinguir "ainda processando" de "travado".
+- Resposta:
+
+**IK8. O que significa `limited` em `/lawsuits/count`?** _Aberta desde 2026-10-14._
+
+- Observado: `"limited": false` na resposta real, ausente da página e do OpenAPI (README, item 32).
+- Hipótese não confirmada: a contagem foi truncada por um teto.
+- Impacto: se for isso, a tela deveria dizer "pelo menos N processos" quando vier `true`.
+- Resposta:
+
+**IK9. Como o webhook é cadastrado para a nossa conta?** _Aberta desde 2026-10-14._
+
+- Contexto: a etapa 5 depende disso. Existe `callback_url` por monitoramento (`updateTrackingCallbackUrl` já está pronto), mas não sabemos se a conta também precisa de um cadastro feito pelo suporte.
+- Dúvidas: basta o `callback_url`, ou é preciso abrir um pedido ao suporte? Existe um ambiente ou um evento de teste para disparar uma entrega sem esperar uma execução real?
+- Ainda não pesquisado na documentação: autenticação das entregas, política de novas tentativas e ordem dos eventos. Isso será lido na etapa 5; o que a documentação não cobrir vira um novo item aqui.
+- Resposta:
 
 ---
 
@@ -1111,6 +1207,57 @@ Revisão do dia no relatório (18 itens). Os urgentes: `next dev` exposto na red
 - Por que o `refresh()` não atualiza a lista de monitoramentos na tela?
 - Por que buscar dados num `useEffect` é arriscado com uma API cobrada?
 
+### 2026-10-14 / Onde estamos
+
+**Resumo técnico**
+
+Etapas 1–3 na `main`; etapa 4 na `feat/judit-tracking`, não enviada. Às 22h33 (BRT), a primeira execução do monitoramento de teste ainda não tinha ocorrido. Ordem: conferir e pausar, corrigir os itens 1–3 da revisão, abrir o PR e definir com a JUDIT o cadastro do webhook (etapa 5).
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+### 2026-10-14 / `next dev` só em `127.0.0.1` e seção "Inside knowledge"
+
+**Resumo técnico**
+
+Script `dev` agora é `next dev -H 127.0.0.1` (item 1 da revisão). Verificado: socket em `127.0.0.1:3000`, `curl` local 200, pelo IP da rede recusado. Nova seção "Inside knowledge" (IK0–IK9): dúvidas sobre o funcionamento interno da JUDIT, respondidas por você.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Rede do servidor de dev")
+
+- Qual a diferença entre escutar em `0.0.0.0` e em `127.0.0.1`?
+- Por que um túnel para o webhook (etapa 5) continua funcionando com `-H 127.0.0.1`?
+
+### 2026-10-14 / Pontas soltas da etapa 4
+
+**Resumo técnico**
+
+Corrigidos os itens 2, 3, 4, 6, 7, 11 e parte do 17 da revisão: lista do servidor sem cópia, resultados buscados no clique, "Conferir na JUDIT", `try/catch` nos handlers, aviso de recorrência, funções do banco renomeadas e mais testes. 131 testes, lint, typecheck, build. Navegador não testado.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Pontas soltas da etapa 4")
+
+- Por que, se nada for encontrado, a conferência volta a reserva para pendente em vez de liberar o CNPJ?
+- Por que a conferência espera 2 minutos depois do envio?
+- Depois da correção do item 2, quem atualiza a linha da tabela quando você pausa um monitoramento?
+
+### 2026-10-14 / Commits das pontas soltas
+
+**Resumo técnico**
+
+Três commits na `feat/judit-tracking`, sem envio ao GitHub: `98085dc` (servidor de dev só local), `6e52e0a` (pontas soltas da etapa 4) e o de documentação (relatório, log da sessão e diário). Daqui em diante, o agente só acrescenta texto a este diário, sem alterar o que já está escrito.
+
+**Minha explicação em palavras próprias**
+
+> Preencha esta seção você mesmo.
+
 ---
 
 ## Perguntas e respostas
@@ -1561,3 +1708,22 @@ Porque o custo de um erro é diferente. Uma consulta assíncrona duplicada custa
 
 **Por que um timeout mantém o CNPJ bloqueado, mas um HTTP 400 o libera?**
 Com um 400, a JUDIT respondeu recusando: com certeza nada foi criado, então uma nova tentativa é segura. No timeout, a requisição pode ter chegado e sido processada sem a resposta voltar. Liberar o CNPJ permitiria criar um segundo monitoramento, possivelmente duplicado.
+
+### Rede do servidor de dev
+
+**Qual a diferença entre escutar em `0.0.0.0` e em `127.0.0.1`?**
+O endereço define por quais interfaces de rede o servidor aceita conexões. `0.0.0.0` significa "todas": a interface local e a placa de rede, então outro aparelho no mesmo Wi-Fi alcança `192.168.15.188:3000`. `127.0.0.1` é só a interface de loopback, que existe dentro da própria máquina; uma conexão vinda de fora é recusada pelo sistema operacional antes de chegar ao Next.
+
+**Por que um túnel para o webhook (etapa 5) continua funcionando com `-H 127.0.0.1`?**
+O programa do túnel roda na mesma máquina e abre a conexão até `127.0.0.1:3000` por dentro. A JUDIT fala com o servidor público do túnel, nunca diretamente com a sua placa de rede. A rota fica exposta só pelo túnel, por isso ela vai precisar de validação própria.
+
+### Pontas soltas da etapa 4
+
+**Por que, se nada for encontrado, a conferência volta a reserva para pendente em vez de liberar o CNPJ?**
+"Não existe na JUDIT" quer dizer que o envio nunca chegou, ou seja, a situação é a mesma de uma reserva que nunca foi enviada. Voltar para `pending` reaproveita um estado que já tem as ações certas ("Enviar à JUDIT", "Descartar reserva") e deixa a decisão de gastar com você. Liberar direto apagaria a intenção registrada; reenviar sozinho seria uma chamada cobrada sem pedido.
+
+**Por que a conferência espera 2 minutos depois do envio?**
+O nosso client desiste depois de 15 s, mas a requisição pode continuar sendo processada na JUDIT. Uma conferência logo depois poderia não achar nada, voltar a reserva para pendente e permitir um segundo envio: um monitoramento duplicado, cobrado a cada recorrência. O prazo é escolha nossa, não da documentação.
+
+**Depois da correção do item 2, quem atualiza a linha da tabela quando você pausa um monitoramento?**
+O servidor. A action grava o novo status no MongoDB e chama `refresh()`. O Next renderiza o layout de novo no servidor, que relê o banco e envia um `initialState` novo, e o provider usa essa lista diretamente. Antes, o navegador guardava uma cópia própria (`useReducer`) e precisava ser corrigido à mão com `replaceTracking`.
