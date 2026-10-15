@@ -18,16 +18,14 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import type { AsyncQueryMode, JuditRequest } from "@/db/models";
-import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import type { Lawsuit } from "@/features/processes/types";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 
-import {
-  checkAsyncQueryAction,
-  startAsyncQueryAction,
-  type AsyncQueryResults,
-} from "../actions";
+import { checkAsyncQueryAction, startAsyncQueryAction } from "../actions";
 import { ASYNC_QUERY_MODES, QUERY_MODES } from "../modes";
+import type { ResponsesSummary } from "../responses";
+
+import { ResponsesSummaryView } from "./responses-summary-view";
 
 // Status documentados de uma request (OpenAPI). Um status desconhecido
 // aparece como veio da JUDIT.
@@ -52,7 +50,7 @@ export function AsyncQueriesCard({
   const [startingMode, setStartingMode] = useState<AsyncQueryMode | null>(null);
   const [cacheTtl, setCacheTtl] = useState("");
   const [checkingId, setCheckingId] = useState<string | null>(null);
-  const [results, setResults] = useState<Record<string, AsyncQueryResults>>({});
+  const [results, setResults] = useState<Record<string, ResponsesSummary>>({});
 
   const cacheTtlValue = cacheTtl.trim() === "" ? undefined : Number(cacheTtl);
   const cacheTtlInvalid =
@@ -242,7 +240,7 @@ export function AsyncQueriesCard({
                     </div>
                   </div>
                   {loaded && (
-                    <AsyncQueryResultsView
+                    <ResponsesSummaryView
                       results={loaded}
                       onSelectLawsuit={onSelectLawsuit}
                     />
@@ -254,40 +252,6 @@ export function AsyncQueriesCard({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function AsyncQueryResultsView({
-  results,
-  onSelectLawsuit,
-}: {
-  results: AsyncQueryResults;
-  onSelectLawsuit: (lawsuit: Lawsuit) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3 rounded-lg bg-muted/40 p-3">
-      <p className="text-sm text-muted-foreground">
-        {formatNumber(results.totalResponses)} resposta(s) na JUDIT
-        {results.loadedResponses < results.totalResponses &&
-          `, ${formatNumber(results.loadedResponses)} carregada(s)`}
-        {` · ${formatNumber(results.cachedResponses)} do cache`}
-        {results.ignoredResponses > 0 &&
-          ` · ${formatNumber(results.ignoredResponses)} em formato não reconhecido`}
-        . Não fica salvo: recarregar a página limpa o resultado.
-      </p>
-      {results.applicationErrors.length > 0 && (
-        <ul className="text-sm text-warning">
-          {results.applicationErrors.map((text, index) => (
-            <li key={index}>{text}</li>
-          ))}
-        </ul>
-      )}
-      <LawsuitsTable
-        lawsuits={results.lawsuits}
-        onSelect={onSelectLawsuit}
-        emptyDescription="A consulta não retornou processos."
-      />
-    </div>
   );
 }
 

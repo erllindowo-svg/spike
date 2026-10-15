@@ -11,7 +11,7 @@ import {
 import {
   deleteTracking,
   getTracking,
-  updateTrackingRecurrence,
+  updateTrackingCallbackUrl,
 } from "@/lib/judit/tracking";
 
 // Development-only manual tests for GET, PATCH and DELETE
@@ -31,7 +31,13 @@ export async function GET(_request: NextRequest, ctx: Context) {
   }
 }
 
-const patchSchema = z.strictObject({ recurrence: z.int().min(1) });
+// Only callback_url: JUDIT rejects `recurrence` in a PATCH (README item 26).
+// HTTPS only, because each webhook delivery carries lawsuit data.
+const patchSchema = z.strictObject({
+  callbackUrl: z.url().refine((url) => url.startsWith("https://"), {
+    message: "Use uma URL https://",
+  }),
+});
 
 export async function PATCH(request: NextRequest, ctx: Context) {
   const { trackingId } = await ctx.params;
@@ -42,7 +48,7 @@ export async function PATCH(request: NextRequest, ctx: Context) {
 
   try {
     return Response.json(
-      await updateTrackingRecurrence(trackingId, input.data.recurrence),
+      await updateTrackingCallbackUrl(trackingId, input.data.callbackUrl),
     );
   } catch (error) {
     return errorResponse(error);

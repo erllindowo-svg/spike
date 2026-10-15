@@ -1,18 +1,24 @@
-# Diário de aprendizagem — Raio-X Jurídico
-
-Use este arquivo para registrar o que você aprendeu enquanto constrói o produto. Uma entrada curta e honesta vale mais que um texto extenso escrito pela IA.
+# Diário de aprendizagem — Raio-X
 
 ## Como usar
 
 Depois de cada fatia importante:
 
 1. Peça ao Claude um resumo técnico objetivo do que mudou e do fluxo de dados.
-2. Escreva você mesmo a seção **Minha explicação em palavras próprias** sem copiar a explicação do agente.
+2. Quando quiser, escreva na seção única **Minha explicação do projeto, em palavras próprias**, logo abaixo, sem copiar a explicação do agente. Ela cobre o projeto inteiro e só você escreve nela; as entradas não têm mais uma seção de explicação própria.
 3. Tente responder às perguntas de verificação antes de pedir as respostas.
 4. Registre qualquer dúvida que ainda não saiba resolver sem ajuda.
 5. Se algo falhou (ou poderia falhar), registre o caso no **Catálogo de investigação de falhas**, logo abaixo.
+6. Dúvidas sobre o funcionamento interno da JUDIT vão para **Inside knowledge**, depois do catálogo; você as responde lá.
 
 Não é necessário registrar alterações triviais de CSS, nomes ou formatação.
+
+---
+
+## Minha explicação do projeto, em palavras próprias
+
+protótipo: achei de boa etiqueta de git deixar o protótipo com mock data e etc com uma tag no github nesse primeiro commit, aí o projeto vai evoluindo e perdendo funcionalidades ao tentar construí-las de fato, mas sempre tem um norte no "protótipo finalizado".
+implementação da api key: tenho bastante insegurança com lidar com dados que devem ser protegidos então tomei as precauções corretas e li o que deveria ser feito/boas práticas de segurança
 
 ---
 
@@ -161,14 +167,69 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Teste que separou (gratuito): `POST /api/dev/judit/lawsuits/synthetic` com corpo `{}`, rota nunca acessada, que responde 400 **sem** chamar a JUDIT: 2,28 s na primeira vez e 0,014 s na segunda.
 - Causa provável: compilação no primeiro acesso, que sozinha já leva ~2 s. Sobra pouco ou nada para a JUDIT. Confirmação final: linhas do terminal (`next.js` × `application-code`) ou uma nova chamada a uma rota já compilada.
 - Lição de suporte: um número "redondo" e repetido sugere uma causa fixa, e havia uma, mas do nosso lado. Meça a latência em rota já aquecida (ou com `pnpm build && pnpm start`) antes de atribuí-la ao fornecedor.
+- **Revisão em 2026-10-14 (noite), com as linhas `next.js` × `application-code`:** no primeiro acesso à rota de `PATCH`, 0,74 s foi compilação (`next.js`) e 0,86 s foi código (a ida à JUDIT). Com as rotas aquecidas, as actions que chamam a JUDIT levaram 0,8–1,2 s, e as que só usam o MongoDB, 43–151 ms. Conclusão revista: a compilação explica só parte; a ida à JUDIT custa perto de 1 s. Foi uma boa lição: "provável" não é "confirmado", e uma medição melhor pode corrigir a primeira conclusão.
+
+**C11. Pedimos recorrência de 30 dias e a JUDIT gravou 1.** _Observado em 2026-10-14._
+
+- Sinal: `POST /tracking` (CNPJ fictício, `recurrence: 30`) respondeu 201 com `"recurrence": 1`; `GET /tracking/{id}` logo depois também trouxe 1.
+- Hipóteses: (1) só a resposta da criação estava errada; (2) a JUDIT impõe recorrência 1 (por modalidade, plano ou para o documento de teste); (3) nós enviamos 1.
+- Teste que separou: o `GET` derrubou a (1). A (3) é improvável: o teste automatizado confirma que a reserva com 30 gera um corpo com `"recurrence": 30` (o corpo real não vai para o log).
+- Causa: desconhecida; a documentação não fala em limite, e o exemplo do monitoramento customizado envia 2 e recebe 2. Pergunta aberta ao tech lead.
+- Tentativa de correção: `PATCH /tracking/{id}` com `recurrence: 30` → `400`, `"unrecognized key: 'recurrence'"`. A recorrência não muda depois da criação (resolve a contradição 26 a favor do OpenAPI).
+- Efeito: monitoramento diário até ser pausado. O plano já era pausar depois da primeira execução.
+- Lição de suporte: gravar o que o fornecedor devolve, e não o que pedimos, foi o que tornou a divergência visível. "Aceito" (201) não quer dizer "aceito como pedido".
+- Prevenção (2026-10-14, noite): a mensagem de criação compara o pedido com o devolvido e avisa na hora (`recurrenceWarning` em `src/features/trackings/actions.ts`), enquanto ainda dá para pausar ou excluir. Pergunta ao tech lead: "Inside knowledge", IK1.
+
+**C12. Envio incerto na criação de um monitoramento.** _Previsto (testado com fetch simulado em 2026-10-14)._
+
+- Sinal: o monitoramento aparece como "Envio incerto", com o motivo na linha de apoio ("Sem resposta clara da JUDIT: …"). Acontece com timeout, falha de rede, 5xx ou um 201 em formato inesperado. Também com um registro preso em `sending`, quando o servidor cai no meio do envio.
+- Camada: entre o nosso servidor e a JUDIT. A pergunta não é "deu erro?", é "a JUDIT pode ter criado?".
+- Hipóteses: (1) a JUDIT criou e só a resposta se perdeu; (2) nada chegou a ser criado.
+- Teste que separa: "Conferir na JUDIT" (`reconcileTrackingAction`), no mínimo 2 minutos depois do envio. Ela lê `GET /tracking` e procura, no nosso código, o mesmo tipo e identificador (com ou sem máscara), não excluído e criado depois da reserva.
+- Correção: um resultado confirma a reserva com o `tracking_id` encontrado. Nenhum resultado (com a lista completa) volta a reserva para pendente, e você decide se envia de novo ou descarta. Dois ou mais resultados, ou uma lista com mais de uma página, não concluem nada: resolva pela rota de dev.
+- Prevenção: a reserva com índice único impede um segundo envio enquanto houver dúvida; a conferência nunca reenvia sozinha.
+- Pontos não confirmados: os filtros de `GET /tracking` não são usados (o OpenAPI não os descreve); o prazo de 2 minutos é escolha nossa; o formato em que a JUDIT guarda o `search_key` é desconhecido, por isso a comparação ignora a máscara.
+- Lição de suporte: diante de um timeout num POST que cria algo cobrado, não repita. Primeiro descubra se a operação aconteceu, por uma leitura, e só então decida.
+
+**C13. Um clique, duas chamadas à JUDIT no log.** _Previsto (identificado na revisão de 2026-10-14)._
+
+- Sinal: em `pnpm dev`, um único "Ver resultados" gerava duas linhas `GET /responses/tracking/…` no log.
+- Causa: a busca estava num `useEffect`. Em desenvolvimento, o Strict Mode do React monta, desmonta e monta de novo cada componente para revelar efeitos sem limpeza, e o efeito roda duas vezes. Em produção roda uma vez, por isso o problema some depois do build.
+- Correção: a busca saiu do efeito e foi para o clique (`useTrackingResults` em `tracking-judit-actions.tsx`).
+- Lição de suporte: quando uma chamada aparece em dobro só em desenvolvimento, suspeite do Strict Mode antes de suspeitar do fornecedor. Com uma API cobrada, efeitos não são lugar de chamada que custa.
+
+**C14. Monitoramento por CNPJ sem nenhum resultado.** _Observado em 2026-10-15; é comportamento correto, não falha._
+
+- Sinal: a primeira execução terminou (`completed`) com `responses_count: 0`, e "Ver resultados" mostrou zero processos, embora o CNPJ fictício tenha um processo no datalake.
+- Camada: JUDIT (regra da modalidade).
+- Hipóteses, em ordem de probabilidade: a modalidade só procura processos novos; a execução falhou; o processo não foi encontrado.
+- Teste que separou: `GET /tracking/{id}` mostrou que a JUDIT acrescentou sozinha o filtro `distribution_date_gte` com a data de criação do monitoramento; `GET /requests/{request_id}` da execução mostrou `status: "completed"`.
+- Causa: o monitoramento por documento detecta o **nascimento** de processos que "ainda não existiam quando você começou a monitorar" ([tracking-document](https://docs.judit.io/tracking/tracking-document)). O processo fictício foi distribuído antes, então nunca vai aparecer. O "esperado: o processo fictício" do relatório de 2026-10-14 estava errado.
+- Prevenção: a tela pode explicar que zero é normal num monitoramento recente. Para testar webhooks, o CNPJ fictício monitorado não serve; é preciso outro gatilho.
+- Lição de suporte: "meu monitoramento não trouxe o processo que eu já conheço" é um ticket típico. Antes de investigar, confira a modalidade: por documento só avisa processos novos; para acompanhar um processo que já existe, o monitoramento é por CNJ.
+
+**C15. O ID usado não é do monitoramento.** _Observado em 2026-10-15._
+
+- Sinal: para conferir a execução das 6h, foram usados dois IDs que eram `request_id` de consultas assíncronas criadas na página da empresa, não do monitoramento.
+- Camada: pessoa (identificador trocado).
+- Teste que separou: o nome da action no log do `pnpm dev`: `└─ ƒ checkAsyncQueryAction(…)` em `POST /empresas/…`, e não `trackingResultsAction` em `POST /monitoramentos`.
+- Os quatro IDs desta integração: o id local (nosso; a JUDIT não conhece), o `tracking_id` (o monitoramento na JUDIT), o `request_id` de uma consulta assíncrona e o `request_id` de cada execução do monitoramento (`origin: "tracking"`, `origin_id` igual ao `tracking_id`; o `GET /tracking/{id}` aponta a última execução no campo `request_id`).
+- Lição de suporte: antes de investigar, pergunte de onde veio o ID e confira o tipo. Um `request_id` de consulta não diz nada sobre um monitoramento, e vice-versa.
+
+**C16. "Ver resultado" da consulta assíncrona chama a JUDIT a cada clique.** _Observado em 2026-10-15 (item 8 da revisão de 2026-10-14)._
+
+- Sinal: cada clique gerou uma linha `checkAsyncQueryAction` de 0,4 s a 1,4 s, mesmo com a consulta já `completed` no banco.
+- Causa: a action sempre faz `GET /requests/{id}` e, quando concluída, `GET /responses` (`src/features/queries/actions.ts:121-175`).
+- Correção prevista (etapa 7): não perguntar o status quando o banco já diz `completed` e guardar o resumo na tela.
+- Lição de suporte: um botão de "ver" que leva 1 s indica ida e volta a um serviço externo; se o serviço for cobrado, cada clique pode ter custo.
 
 **Lacunas a confirmar nas próximas chamadas reais** (README da JUDIT, contradições):
 
-- formato do corpo de erro: aninhado `{ error: { name, message } }` ou plano `{ error, message, code }` (1);
+- formato do corpo de erro: aninhado `{ error: { name, message } }` ou plano `{ error, message, code }` (1). O aninhado foi observado num 400 em 2026-10-14; falta ver um 403/429;
 - `code` do application_error como texto ou número (5);
 - lista de processos em `response_data` ou em `lawsuits` (10);
 - onde fica o indicador de cache (19);
-- campos aceitos no `PATCH /tracking` (26);
+- ~~campos aceitos no `PATCH /tracking` (26)~~: `recurrence` recusado em 2026-10-14; vale o OpenAPI;
 - significado do status `suspended` (28) e se existe status de falha num request (24).
 
 **Ao escalar para o suporte da JUDIT**, leve: método e caminho (`call.method`, `call.service`, `call.path`), status HTTP, `errorName`/`code`, horário aproximado e o `request_id` ou `tracking_id`, quando houver. Nunca a chave, nunca o payload com dados processuais.
@@ -184,7 +245,7 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 
 **D2. Mensagem de commit "engolida" no título.** _Observado em 2026-10-14._ Sem linha em branco entre título e corpo, o Git trata tudo como título. Corrigido com `--amend` antes do push.
 
-**D3. Comando do agente negado.** _Observado em 2026-10-14._ Pode vir da regra `deny` (só bloqueia a ferramenta `Read`) ou do classificador do modo automático (bloqueou `git diff .env.example` mesmo com o arquivo liberado). "Negado" é uma decisão de permissão, não um erro do projeto.
+**D3. Comando do agente negado.** _Observado em 2026-10-14._ Pode vir da regra `deny` (só bloqueia a ferramenta `Read`) ou do classificador do modo automático (bloqueou `git diff .env.example` mesmo com o arquivo liberado). "Negado" é uma decisão de permissão, não um erro do projeto. Em 2026-10-14, o classificador também bloqueou o agente de chamar uma server action de monitoramento (via `curl` com o cabeçalho `Next-Action`) como "transação no mundo real", mesmo com a permissão dada no chat: o chat não altera as regras do harness.
 
 **D4. Diário com 91 linhas no Cursor e 1233 no disco.** _Observado em 2026-10-14._
 
@@ -194,6 +255,15 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Causa: uma aba aberta desde 12/10 tinha uma edição acidental não salva. Com alterações pendentes, o editor não recarrega o arquivo quando o disco muda.
 - Correção: descartar a aba (Revert File), sem salvar. Salvar teria sobrescrito as 1233 linhas.
 - Lição de suporte: "o arquivo está vazio" pode ser verdade só na tela de quem está olhando. Compare a fonte (disco, Git) com o que o cliente exibe.
+
+**D5. `Next.js encountered uncached data during prerendering or a navigation` em `/empresas`.** _Observado em 2026-10-15._
+
+- Sinal: no terminal do `pnpm dev`, depois de `GET /empresas?q=monitoramentos` (a busca global leva para `/empresas?q=…`), um `Error: Route "/empresas"` apontando `connection()` em `src/lib/data.ts:41`. A página respondeu 200 e funcionou.
+- Camada: ferramenta (validação do Next.js em desenvolvimento).
+- Causa: com `cacheComponents: true`, o Next valida em desenvolvimento se a navegação para cada página pode ser instantânea. `src/app/(app)/empresas/page.tsx:15` espera `listLawsuits()` antes do próprio `<Suspense>`; no modo `db`, isso chama `connection()` ("espere a requisição real"). O `<Suspense>` do layout cobre o carregamento direto, mas não a navegação entre páginas, porque o layout continua montado (`node_modules/next/dist/docs/01-app/02-guides/instant-navigation.md`, "How validation simulates different navigations"). Ironia: no modo `db`, `listLawsuits()` devolve `[]`.
+- Por que `/monitoramentos` não avisa: a página não espera nada no servidor.
+- Correção prevista (etapa 7): mover a leitura para um componente dentro do `<Suspense>`. `export const instant = false` só cala o aviso.
+- Lição de suporte: um "Error" no terminal de desenvolvimento nem sempre é falha para o usuário final. Aqui o efeito em produção seria uma navegação mais lenta, e o ticket seria "a tela de empresas demora para abrir", não "deu erro".
 
 ### E. Segurança como falha operacional
 
@@ -218,6 +288,86 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 
 ---
 
+## Inside knowledge
+
+Dúvidas sobre o funcionamento interno da JUDIT que a documentação não responde e que não dá para resolver com uma chamada barata. O agente registra a dúvida, o que já foi observado e o impacto no código. **Você responde**, depois de falar com o tech lead da JUDIT. Ao preencher a resposta, mude o status para _Respondida_ e cite a fonte (pessoa e data).
+
+Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lacunas a confirmar".
+
+**IK0. Uma request assíncrona concluída atualiza o datalake?** _Respondida em 2026-10-14._
+
+- Contexto: a página [request-document](https://docs.judit.io/requests/request-document) se contradiz (README da JUDIT, item 35).
+- Resposta: sim, no mesmo fluxo em que os dados são entregues ao cliente. Fonte: tech lead da JUDIT, 2026-10-14.
+- Impacto: confirma o desenho híbrido (nenhuma cópia de processo no MongoDB).
+
+**IK1. Por que pedimos `recurrence: 30` e a JUDIT gravou 1?** _Aberta desde 2026-10-14._
+
+- Observado: `POST /tracking` por CNPJ (documento de teste) respondeu 201 com `recurrence: 1`, e o `GET` confirmou (README, item 36; caso C11). O exemplo do monitoramento customizado envia 2 e recebe 2.
+- Hipóteses: limite por modalidade, regra do plano ou tratamento especial do documento de teste.
+- Impacto: o `PATCH` não aceita `recurrence`; um valor errado só se corrige excluindo e recriando o monitoramento. Define as opções do diálogo (7, 15, 30).
+- Resposta:
+
+**IK2. O que exatamente é cobrado no monitoramento?** _Aberta desde 2026-10-14._
+
+- Observado: nenhuma das páginas de tracking tem selo de cobrança (README, item 31). Hoje tratamos tudo como cobrável.
+- Dúvidas: cada execução recorrente é cobrada como uma requisição? `GET /tracking/{id}`, `GET /responses/tracking/{id}`, pausar, reativar e excluir são cobrados?
+- Impacto: decide se "Atualizar status" e "Ver resultados" podem ser chamados livremente e quanto custa deixar um monitoramento diário ativo.
+- Observado em 2026-10-15: cada execução gera uma request própria (`origin: "tracking"`, `origin_id` igual ao `tracking_id`, `cache_ttl_in_days: 1`), como no exemplo de [consumption/history](https://docs.judit.io/resource/consumption/history). Se a cobrança for por request, cada execução diária conta, mesmo sem resultado (a de hoje teve `responses_count: 0`).
+- Resposta:
+
+**IK3. O que significa o status `suspended`?** _Aberta desde 2026-10-14._
+
+- Observado: as páginas listam `created`, `updating`, `updated`, `paused` e `deleted`; o OpenAPI acrescenta `suspended`, sem explicação (README, item 28). As páginas de tracking dizem que o monitoramento é "pausado automaticamente" quando a empresa atinge o teto de consumo ou fica sem créditos, com o motivo em `tags.pause_reason` e reativação manual por `resume` ([tracking-document](https://docs.judit.io/tracking/tracking-document#pausando-um-monitoramento)), mas não dizem qual valor de status aparece nesse caso.
+- Dúvidas: a pausa automática aparece como `paused` ou como `suspended`? Se não for isso, o que leva a `suspended`, e ele sai com `resume`?
+- Impacto: como a tela deve rotular e que ação oferecer.
+- Resposta:
+
+**IK4. Os resultados continuam disponíveis depois da pausa?** _Aberta desde 2026-10-14._
+
+- Observado: a pausa devolve o monitoramento com `status: "paused"` ([tracking](https://docs.judit.io/tracking/tracking#pausando-um-monitoramento)), mas a documentação não diz se `GET /responses/tracking/{id}` continua devolvendo as execuções anteriores.
+- Impacto: se não continuarem, é preciso ler os resultados antes de pausar (é a ordem que vamos seguir no teste de amanhã).
+- Observado em 2026-10-15: depois da pausa, `GET /tracking/{id}`, `GET /responses/tracking/{id}` e a action "Ver resultados" responderam normalmente (200). Como a execução não teve resultados, isso prova que a leitura continua funcionando, mas não que resultados antigos continuam lá.
+- Resposta:
+
+**IK5. Em que fuso está o `hour_range`?** _Aberta desde 2026-10-14._
+
+- Observado: o monitoramento de teste voltou com `hour_range: 6`; a tela diz "às 6h", sem fuso (relatório, item 14).
+- Dúvida: UTC ou horário de Brasília? É a hora de início da execução ou uma janela?
+- Impacto: o texto da tela e o horário em que vale conferir os resultados. A primeira execução também pode responder isso.
+- Observado em 2026-10-15: com `hour_range: 6`, a execução começou às 06:55:25 UTC (03:55 em Brasília) e terminou às 07:01:07 UTC. Indício forte de UTC, com um minuto definido pela JUDIT (`execution_minute: 55`, campo fora da documentação). É uma observação só; falta a confirmação.
+- Resposta:
+
+**IK6. O CNJ fictício serve para monitoramento?** _Aberta desde 2026-10-14._
+
+- Contexto: o Hot Storage devolveu `0000000-39.2026.8.26.0050` para o CNPJ fictício; ele já está na allowlist.
+- Dúvidas: um monitoramento por CNJ desse processo é aceito, gera execuções e é cobrado?
+- Impacto: sem isso, o fluxo de monitoramento por CNJ não será testado ao vivo.
+- Resposta:
+
+**IK7. Um request pode terminar em falha?** _Aberta desde 2026-10-14._
+
+- Observado: a documentação mostra `pending`, `started` e `completed`, mas nenhum status de falha (README, item 24).
+- Dúvida: o que acontece quando o tribunal está fora do ar ou o documento não existe: `completed` com zero respostas, um status não documentado, ou o request fica parado?
+- Impacto: hoje a tela não sabe distinguir "ainda processando" de "travado".
+- Resposta:
+
+**IK8. O que significa `limited` em `/lawsuits/count`?** _Aberta desde 2026-10-14._
+
+- Observado: `"limited": false` na resposta real, ausente da página e do OpenAPI (README, item 32).
+- Hipótese não confirmada: a contagem foi truncada por um teto.
+- Impacto: se for isso, a tela deveria dizer "pelo menos N processos" quando vier `true`.
+- Resposta:
+
+**IK9. Como o webhook é cadastrado para a nossa conta?** _Aberta desde 2026-10-14._
+
+- Contexto: a etapa 5 depende disso. Existe `callback_url` por monitoramento (`updateTrackingCallbackUrl` já está pronto), mas não sabemos se a conta também precisa de um cadastro feito pelo suporte.
+- Dúvidas: basta o `callback_url`, ou é preciso abrir um pedido ao suporte? Existe um ambiente ou um evento de teste para disparar uma entrega sem esperar uma execução real?
+- Ainda não pesquisado na documentação: autenticação das entregas, política de novas tentativas e ordem dos eventos. Isso será lido na etapa 5; o que a documentação não cobrir vira um novo item aqui.
+- Encontrado na documentação em 2026-10-15 ([webhook/callbacks](https://docs.judit.io/webhook/callbacks)): há duas formas de cadastro, uma URL para a conta inteira, pedida ao suporte (recomendada), ou `callback_url` em cada requisição. Entrega por `POST` JSON numa URL HTTPS pública; resposta 2xx em menos de 10 s; em 5xx ou timeout, novas tentativas com backoff exponencial; indisponibilidade longa perde eventos. Segurança: só HTTPS e allowlist de IPs da JUDIT, pedidos ao suporte; nenhuma assinatura documentada. Idempotência: a página manda usar `callback_id` e, em outro trecho, `request_id` + `cached_response` (README da integração, item 39). Continuam abertos: um evento de teste e a lista de IPs.
+- Resposta:
+
+---
+
 ## Modelo de entrada
 
 ### Data / funcionalidade
@@ -233,11 +383,6 @@ O agente pode ajudar a listar os arquivos e as responsabilidades alteradas.
 **Fluxo de dados**
 
 Registre o caminho desde a ação do usuário até a resposta visível, incluindo servidor, APIs externas e banco de dados quando aplicável.
-
-**Minha explicação em palavras próprias**
-
-protótipo: achei de boa etiqueta de git deixar o protótipo com mock data e etc com uma tag no github nesse primeiro commit, aí o projeto vai evoluindo e perdendo funcionalidades ao tentar construí-las de fato, mas sempre tem um norte no "protótipo finalizado".
-implementação da api key: tenho bastante insegurança com lidar com dados que devem ser protegidos então tomei as precauções corretas e li o que deveria ser feito/boas práticas de segurança
 
 **Como testei**
 
@@ -268,10 +413,6 @@ Adicione novas entradas abaixo. Não é necessário preencher tudo perfeitamente
 
 Primeiro commit (`2af39e6`) na branch `main`, com o protótipo de mock data. Antes do commit: arquivos revisados, varredura de segredos, regra `.claude/settings.local.json` no `.gitignore` e lint, typecheck, format e build passando. Criada a tag anotada `prototype-v0.1.0` e a GitHub Release correspondente, como referência fixa para comparar a evolução do produto.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação**
 
 - Pergunta 1: O que acontece com a tag `prototype-v0.1.0` quando novos commits entram em `main`?
@@ -282,10 +423,6 @@ Primeiro commit (`2af39e6`) na branch `main`, com o protótipo de mock data. Ant
 **Resumo técnico**
 
 Criados `.env.local` (ignorado pelo Git, permissão `600`) e `.claude/settings.local.json`, que bloqueia a leitura de `.env*` pelo Claude Code. A chave foi colada localmente, sem passar pelo chat. Ela é lida apenas via `getServerEnv` (`src/lib/env.ts`, server-only). A checagem com `@next/env` confirmou só a presença do valor. A JUDIT não foi chamada, então a chave ainda não foi validada.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação**
 
@@ -298,19 +435,11 @@ Criados `.env.local` (ignorado pelo Git, permissão `600`) e `.claude/settings.l
 
 O repositório não tinha `CLAUDE.md`, mas o `AGENTS.md` já era carregado automaticamente pelo Claude Code. `CLAUDE.md` é só o nome tradicional. O comando `/memory` mostra quais arquivos de instrução estão ativos na sessão.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-12 / Criação do `CLAUDE.md`
 
 **Resumo técnico**
 
 Criado `CLAUDE.md` com a única linha `@AGENTS.md`, que importa as instruções sem duplicá-las. Não houve commit.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-12 / Custo e velocidade do agente
 
@@ -318,19 +447,11 @@ Criado `CLAUDE.md` com a única linha `@AGENTS.md`, que importa as instruções 
 
 Mais tokens não significa mais rapidez. `/fast` acelera a saída do mesmo modelo, com custo maior; `/model` escolhe o modelo e o esforço de raciocínio. Subagentes em paralelo foram desaconselhados porque contrariam o trabalho em incrementos pequenos e acompanháveis.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Fase 0: client JUDIT, erros e guarda de custo
 
 **Resumo técnico**
 
 Criado `juditRequest` (`src/lib/judit/client.ts`), único ponto de contato com a JUDIT: header `api-key`, timeout de 15s, erros tipados (`errors.ts`) e validação Zod tolerante. `guard.ts` bloqueia chamadas sem `JUDIT_LIVE_CALLS=enabled` e fora da allowlist. Vitest adicionado; 21 testes com `fetch` simulado, sem rede.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -342,10 +463,6 @@ Criado `juditRequest` (`src/lib/judit/client.ts`), único ponto de contato com a
 **Resumo técnico**
 
 Criadas cinco funções síncronas em `src/lib/judit/lawsuits.ts` (dados cadastrais, lista, contagem, sintética e processo por CNJ), lidas do datalake da JUDIT. As rotas `src/app/api/dev/judit/...` só respondem em desenvolvimento com o kill switch ligado. Um teste revelou um bug (404 de erro aceito como lista vazia), já corrigido.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -360,10 +477,6 @@ Criadas cinco funções síncronas em `src/lib/judit/lawsuits.ts` (dados cadastr
 
 Criadas seis funções em `src/lib/judit/requests.ts` para o fluxo assíncrono: criar requisição, consultar status, listar histórico e buscar respostas (inclusive de monitoramentos). Sem polling automático. `responseCameFromCache` lê o indicador de cache em quatro lugares possíveis. Cinco rotas de dev novas, 51 testes, build ok. Diário ganhou resumos e seção Q/A.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Depois de criar uma requisição, por que receber `status: "pending"` não significa que há algum dado pronto?
@@ -375,10 +488,6 @@ Criadas seis funções em `src/lib/judit/requests.ts` para o fluxo assíncrono: 
 **Resumo técnico**
 
 Criadas sete funções em `src/lib/judit/tracking.ts`: criar, listar, consultar, alterar recorrência, pausar, reativar e excluir monitoramentos. Por CNJ, vigia andamentos; por CPF/CNPJ/OAB, detecta processos novos. Primeira execução em até 24h. `recurrence` sem padrão; o DELETE de dev exige `?confirm=delete`. 61 testes, build ok.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -392,29 +501,17 @@ Criadas sete funções em `src/lib/judit/tracking.ts`: criar, listar, consultar,
 
 Commit da branch `feat/judit-client` com o client JUDIT, os serviços lawsuits, requests e tracking, as rotas de dev, 61 testes e o diário. O resumo da sessão e as pendências manuais ficaram na memória local do Claude Code, para serem apresentados no início da próxima sessão.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Retomada: leitura do relatório da sessão anterior
 
 **Resumo técnico**
 
 Relido o relatório da sessão anterior (commit `5423aa5`, fases 0–3 do client JUDIT, 61 testes, nenhuma chamada real feita). Confirmado que a allowlist ainda só contém o CNPJ fictício e a branch não foi enviada ao remoto. Pendências manuais apresentadas para decidir o próximo passo.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / CNJs de teste, chamada real adiada e revisão do commit
 
 **Resumo técnico**
 
 Não usaremos CNJs reais buscados na web: envolvem dados de terceiros e geram cobrança. A documentação oferece o CNPJ fictício `A1B2C3D4/E5F6-68` e uma chave de sandbox via comercial@judit.io. Chamada real adiada. Proposto roteiro de revisão do commit `5423aa5`.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -425,10 +522,6 @@ Não usaremos CNJs reais buscados na web: envolvem dados de terceiros e geram co
 **Resumo técnico**
 
 Revisado `guard.ts`: kill switch em toda chamada e allowlist só com o CNPJ fictício. Achado: a allowlist não cobre chamadas por ID nem listagens da conta (`listRequests`, `listTrackings`, `deleteTracking`), que passam só pelo kill switch. O comentário do arquivo promete mais do que entrega. Decisão pendente: opções A, B ou C.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -441,19 +534,11 @@ Revisado `guard.ts`: kill switch em toda chamada e allowlist só com o CNPJ fict
 
 Explicado que o commit `5423aa5` é o estado atual da branch `feat/judit-client`: os arquivos já estão na pasta e podem ser abertos no editor. `git log`, `git show` e `git show <hash> -- <arquivo>` mostram o histórico e o que cada commit mudou.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Encerramento da revisão do commit `5423aa5`
 
 **Resumo técnico**
 
 Revisão encerrada pela opção A: o comentário de `guard.ts` e o README agora dizem que a allowlist não cobre chamadas por ID nem listagens da conta. A correção definitiva fica para quando houver banco. Adicionadas ao Q/A 14 perguntas de entrevista sobre o repositório, com respostas.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-13 / Push e pull request
 
@@ -461,19 +546,11 @@ Revisão encerrada pela opção A: o comentário de `guard.ts` e o README agora 
 
 Explicada a diferença: `git push` copia os commits da branch local para o GitHub; o pull request é um pedido, feito no GitHub, para juntar essa branch à `main`, com espaço para revisão e discussão. O push vem antes do PR. Confirmado que `JUDIT_LIVE_CALLS=` já está no `.env.example`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Push da branch e quando fazer merge
 
 **Resumo técnico**
 
 Commitadas as mudanças da revisão e feito o push de `feat/judit-client` para o GitHub; PR não aberto. Discutido que "produto inacabado" é diferente de "fatia inacabada": a `main` pode receber fatias pequenas, testadas e isoladas. O `.env.example` ficou fora do commit.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-13 / Pull request #1
 
@@ -481,29 +558,17 @@ Commitadas as mudanças da revisão e feito o push de `feat/judit-client` para o
 
 Aberto o PR #1 (`feat/judit-client` → `main`), com descrição, limitações conhecidas (nenhuma chamada real feita, lacuna da allowlist) e verificações. O merge fica com você, no GitHub. Depois dele, a fase 2 (banco) começa numa branch nova a partir da `main` atualizada.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Onde está cada versão do código
 
 **Resumo técnico**
 
 Conferido com `git fetch`, `git status` e `gh pr view`: a `main` do GitHub continua no protótipo (`2af39e6`); a branch `feat/judit-client` no GitHub tem os dois commits do client; o PR #1 está aberto e sem conflitos. Localmente, `.env.example` e o diário têm mudanças não commitadas.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Fase 2a: persistência de empresas e monitoramentos
 
 **Resumo técnico**
 
 Na branch `feat/persistence`: índice único parcial impede dois monitoramentos ativos do mesmo identificador (migration `0001`). `ensureCompany`, `createTracking` e listagens validam no servidor. Testes usam PostgreSQL real em processo (PGlite). 80 testes passando. Telas ainda não usam o banco; migration não aplicada.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -517,10 +582,6 @@ Na branch `feat/persistence`: índice único parcial impede dois monitoramentos 
 
 Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migrations e PGlite removidos; tipos agora em `src/db/models.ts`. Índices em `ensureIndexes`, chamado na conexão. A regra anti-duplicata virou índice parcial sobre o campo `active`. Testes usam `mongod` real temporário. 78 testes passando.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que o documento de monitoramento precisa de um campo `active`, se o `status` já diz se ele foi excluído?
@@ -531,10 +592,6 @@ Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migra
 **Resumo técnico**
 
 `DATA_SOURCE=demo|db` escolhe a origem dos dados do app inteiro em `src/lib/data.ts`. No modo `db`, as páginas leem o MongoDB na requisição (`connection()` + `Suspense`), e criar monitoramento grava via Server Action. Testado por HTTP contra um MongoDB temporário. 83 testes; build ok nos dois modos.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -547,10 +604,6 @@ Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migra
 
 O travamento corrompeu o commit da Fase 2b: a branch apontava para objetos vazios. O working tree estava íntegro (hashes conferidos com o índice). Com backup do `.git`, os objetos vazios foram removidos, a branch voltou para `87f9ccc` e o commit foi recriado (`8cb096f`). Testes, lint, typecheck, format e build passaram.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que o código não se perdeu, embora o commit tenha sido corrompido?
@@ -562,10 +615,6 @@ O travamento corrompeu o commit da Fase 2b: a branch apontava para objetos vazio
 
 No diálogo "Connect" do Atlas, o método certo é "Drivers" (Node.js), porque quem conecta é o servidor Next.js, usando o driver oficial `mongodb`. A string `mongodb+srv://` vai para `MONGODB_URI` no `.env.local`, com a senha do usuário do banco, nunca no código nem no chat.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que a senha da string de conexão é a do usuário do banco, e não a da sua conta no Atlas?
@@ -576,19 +625,11 @@ No diálogo "Connect" do Atlas, o método certo é "Drivers" (Node.js), porque q
 
 A string colada no chat ainda tinha o marcador `<db_password>`, então nenhuma senha foi exposta. Ela não traz `retryWrites` nem `w=majority`, mas o driver e o servidor atuais já usam esses padrões. Próximo passo: colar a string, com a senha real, no `.env.local` e subir o app no modo `db`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Onde fica a senha do usuário do banco
 
 **Resumo técnico**
 
 O Atlas mostra a senha do usuário do banco só uma vez, na criação, e não deixa consultá-la depois. Se ela não foi guardada, a saída é gerar uma nova em "Database Access" > "Edit" > "Edit Password". Senha autogerada evita caracteres especiais que quebram a URI.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-13 / Variáveis do `.env.local`
 
@@ -596,19 +637,11 @@ O Atlas mostra a senha do usuário do banco só uma vez, na criação, e não de
 
 O código lê cinco variáveis, todas validadas em `src/lib/env.ts`: `MONGODB_URI`, `MONGODB_DB`, `DATA_SOURCE`, `JUDIT_API_KEY` e `JUDIT_LIVE_CALLS`. `NODE_ENV` é definida pelo Next. Para testar o banco, `JUDIT_LIVE_CALLS` pode ficar vazia, sem chamadas reais à JUDIT.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Primeiro teste no modo `db`: app continuou em `demo`
 
 **Resumo técnico**
 
 A página mostrava "Dados de demonstração". O `loadEnvConfig` do Next revelou nomes errados no `.env.local` (`MONGO_URI`, `MONGO_DB_NAME`, `DATA_SOURCE=mongodb`) em vez de `MONGODB_URI`, `MONGODB_DB` e `DATA_SOURCE=db`. O MongoDB nem foi contatado. Lição: perguntar ao carregador o que ele leu.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -620,19 +653,11 @@ A página mostrava "Dados de demonstração". O `loadEnvConfig` do Next revelou 
 
 Criados `docs/relatorio-de-progresso.md` (estado, pendências em ordem, checklist do teste `db`, tabela de falhas) e `docs/logs/2026-10-13-sessao.md` (log sanitizado). Servidor encerrado. O `.env.local` ainda tem os nomes errados. Nada foi commitado nesta etapa.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Diagnóstico do modelo de segurança do `.env`
 
 **Resumo técnico**
 
 Repositório público. `.env.local` nunca entrou no Git. `.env.example` está em `2af39e6` (publicado) e `8cb096f` (local), com conteúdo não revisado. O bloqueio do agente cobre só a ferramenta `Read`, não o terminal. Nenhuma URI do Mongo com senha no histórico rastreado.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -645,19 +670,11 @@ Repositório público. `.env.local` nunca entrou no Git. `.env.example` está em
 
 O `deny` agora lista só arquivos de segredo (`.env`, `.env.local`, `.env.*.local`, `.env.development|production|test`). Conferência: `.env.example` vazio nas três versões, sem vazamento. Ele ainda descrevia o PostgreSQL (`DATABASE_URL`); foi reescrito com as cinco variáveis de `src/lib/env.ts`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Procedimento de segredos e primeiro ping no Atlas
 
 **Resumo técnico**
 
 Criados `pnpm env:check [--db]` (nomes, tamanhos, ping só leitura, sem valores) e `src/lib/env.test.ts` (`.env.example` vazio e sincronizado com `env.ts`). README ganhou o procedimento. Ping: rede ok, `bad auth`; a URI ainda contém `<db_password>`.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -669,19 +686,11 @@ Criados `pnpm env:check [--db]` (nomes, tamanhos, ping só leitura, sem valores)
 
 O `bad auth` tinha duas causas em sequência: a senha ficou entre `<` e `>` (sobra do marcador do Atlas) e, depois, a senha não era a do usuário do banco. Com uma senha nova gerada no Atlas, `pnpm env:check --db` conectou ao banco `raio_x`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / O que é o `.env.example`
 
 **Resumo técnico**
 
 O `.env.example` não protege nada sozinho: é a documentação versionada das variáveis. A proteção vem de manter valores fora do Git (`.gitignore`), seguindo o princípio "configuração no ambiente" do Twelve-Factor App. Convenção comum, não padrão formal; em produção, variáveis vêm da plataforma ou de um cofre de segredos.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-14 / Quem lê o `.env.local` e como o segredo chega aos serviços
 
@@ -689,19 +698,11 @@ O `.env.example` não protege nada sozinho: é a documentação versionada das v
 
 O servidor Next lê o `.env.local` ao iniciar e coloca os valores em `process.env`. Git, navegador e agente não leem. A chave vai à JUDIT no cabeçalho `api-key` via HTTPS; a URI conecta ao Atlas via TLS. Em produção, os valores vêm do painel da plataforma, não do arquivo.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Balanço da segurança do `.env`
 
 **Resumo técnico**
 
 Resolvido: nenhum segredo no Git, `.env.example` sincronizado e testado, `env:check`, senha do Mongo nova. Aberto: trocar a `JUDIT_API_KEY` (prefixo vazado), commitar o procedimento, conferir Network Access e papel do usuário no Atlas, `JUDIT_LIVE_CALLS` ligado. Webhook e demo pública ficam para depois.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-14 / Commit do procedimento e barreira técnica possível
 
@@ -709,19 +710,11 @@ Resolvido: nenhum segredo no Git, `.env.example` sincronizado e testado, `env:ch
 
 Commits locais `561a05f` (procedimento de segredos) e `6532c05` (documentos). Chave JUDIT mantida; `0.0.0.0/0` no Atlas aceito por ora. Barreira técnica possível: sandbox do Claude Code, que aplica as regras `deny` de leitura também ao terminal. O `env:check` lê o `.env.local`, mas só exibe valores não secretos.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Roteiro do teste do modo `db`
 
 **Resumo técnico**
 
 Roteiro em seis passos: subir `pnpm dev`, conferir o selo "Banco de dados", ver as coleções criadas pelo `ensureIndexes`, gravar o CNPJ fictício `A1B2C3D4/E5F6-68`, recarregar (persistência), repetir (duplicado barrado pelo índice `trackings_active_search_key_unique`) e conferir no Atlas.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -733,19 +726,11 @@ Roteiro em seis passos: subir `pnpm dev`, conferir o selo "Banco de dados", ver 
 
 O app criou as quatro coleções ao conectar. O CNPJ fictício gerou um documento em `companies` e um em `trackings`, sem ID da JUDIT. A repetição mostrou "Já existe um monitoramento ativo…", e o banco seguiu com um documento: o índice único parcial barrou a duplicata. Etapa 2 concluída.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Catálogo de investigação de falhas
 
 **Resumo técnico**
 
 Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e de `errors.ts`/`dev-route.ts`: mapa de camadas, triagem por sinal e casos de ambiente, Atlas, JUDIT (classe → status da rota dev → hipótese), Git e segurança. Cada caso marcado como observado, previsto ou documentado.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -758,29 +743,17 @@ Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e d
 
 `git switch main` e `git pull` fizeram fast-forward de `2af39e6` para `c8e84b8` (merge do PR #2, `feat/persistence`). A `main` agora tem MongoDB, `DATA_SOURCE`, client da JUDIT, rotas de dev e `check-env`. Nenhum conflito: a `main` local não tinha commits próprios.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Plano da etapa 3 e preparo da primeira chamada real
 
 **Resumo técnico**
 
 `pnpm env:check` mostrou `JUDIT_LIVE_CALLS="enabled"` e chave definida, com o `next dev` rodando na porta 3000. A página `/cache-judit/count` confere com `countLawsuits`. Plano: `count`, depois `POST /lawsuits` (lacuna 10) e só então a fatia vertical na página da empresa.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Primeira chamada real à JUDIT
 
 **Resumo técnico**
 
 `curl` na rota de dev `lawsuits/count` com o CNPJ fictício: HTTP 200, `{"total":1,"limited":false}`, 2,0 s. Contrato confirmado; `response_type` aceito. `limited` não está documentado: registrado como contradição 32 no README e no catálogo. Schema tolerante evitou um falso 502.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -793,10 +766,6 @@ Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e d
 
 `POST /lawsuits` devolveu um processo fictício (TJSP, CNJ válido). Confirmou partes no formato do OpenAPI e campos `phase`/`status` ausentes. A lacuna 10 continua aberta: o `transform` renomeia a lista para `lawsuits` antes da rota responder. Os 2,0 s nas duas chamadas ainda não foram explicados.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que a saída da rota de dev não prova se a JUDIT usa `lawsuits` ou `response_data`?
@@ -808,10 +777,6 @@ Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e d
 
 Não há atraso programado: o único `setTimeout` em `client.ts` é um teto de 15 s que aborta a chamada, não uma espera. A JUDIT também não documenta atraso proposital. Hipóteses abertas: compilação da rota no `next dev`, latência de rede/TLS ou demora da JUDIT. As linhas do terminal separam essas hipóteses.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Qual a diferença entre um tempo limite (timeout) e um atraso (delay)?
@@ -822,19 +787,11 @@ Não há atraso programado: o único `setTimeout` em `client.ts` é um teto de 1
 
 `0000000-39.2026.8.26.0050` entrou na allowlist (`guard.ts`) com teste; 86 testes, lint, typecheck e format ok. Lacuna 10 mantida aberta. Teste gratuito: rota nunca compilada, sem chamar a JUDIT, levou 2,28 s e depois 0,014 s. Os 2 s são compilação do `next dev`, não da JUDIT (catálogo C10).
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / A rota está mal otimizada?
 
 **Resumo técnico**
 
 Não. O `next dev` compila cada rota no primeiro acesso (guia `local-development.md` do Next); o `next build` compila tudo antes. Já aquecida, a rota respondeu em 14 ms. Os 2 s são custo do ambiente de desenvolvimento, não do nosso código; em produção, o tempo relevante será o da JUDIT.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -846,10 +803,6 @@ Não. O `next dev` compila cada rota no primeiro acesso (guia `local-development
 
 Decisão sua: não copiar processos para o MongoDB. A tela lê o datalake (`POST /lawsuits`) e, para dados frescos, dispara `POST /requests`. Lacuna: a documentação não diz que um request concluído atualiza o datalake, então o resultado novo é lido em `GET /responses`. Proposto guardar só o ponteiro (`request_id`).
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que guardar o `request_id` não é "replicar a JUDIT", mas guardar a lista de processos seria?
@@ -859,10 +812,6 @@ Decisão sua: não copiar processos para o MongoDB. A tela lê o datalake (`POST
 **Resumo técnico**
 
 Botão "Consultar datalake JUDIT" (modo `db`) chama `searchCompanyLawsuitsAction`, que valida o CNPJ, exige a empresa cadastrada e chama `searchLawsuits`. `fromJuditLawsuit` converte o processo para o modelo da tela. Nada é gravado. 99 testes, lint, typecheck e build ok; clique real ainda não testado.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -875,10 +824,6 @@ Botão "Consultar datalake JUDIT" (modo `db`) chama `searchCompanyLawsuitsAction
 
 Log em `docs/logs/2026-10-14-sessao.md` e relatório atualizado. Branch `feat/judit-datalake` criada a partir da `main`, com dois commits (código da 3a e documentação), não enviada ao GitHub. Um commit é um retrato, não uma entrega: o que está pendente fica escrito na mensagem e no relatório.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Como commitar um trabalho que ainda não terminou sem atrapalhar a `main`?
@@ -888,10 +833,6 @@ Log em `docs/logs/2026-10-14-sessao.md` e relatório atualizado. Branch `feat/ju
 **Resumo técnico**
 
 O diário parecia ter 91 linhas porque uma aba do Cursor guardava, desde 12/10, uma edição acidental não salva, e por isso não recarregava o arquivo do disco. O arquivo real tem mais de 1200 linhas. Primeiro palpite errado: a cópia em `~/Downloads`. Caso D4 no catálogo.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -904,29 +845,17 @@ O diário parecia ter 91 linhas porque uma aba do Cursor guardava, desde 12/10, 
 
 Comportamento esperado. `ensureCompany` (`src/features/companies/db.ts`) cria a empresa só com o CNPJ (`legalName: null`), e nenhuma fatia busca dados cadastrais. O texto vem do cabeçalho em `company-detail.tsx`, não do botão do datalake. O resultado do clique ainda não foi relatado.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Teste manual da fatia 3a concluído
 
 **Resumo técnico**
 
 O clique em "Consultar datalake JUDIT" (modo `db`, CNPJ fictício) funcionou: a server action chamou `POST /lawsuits` e mostrou o resultado. Nova observação: a JUDIT aceitou o CNPJ **sem máscara** (`A1B2C3D4E5F668`). Fatia 3a validada de ponta a ponta. Próxima: 3b.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / `on_demand`: custo por uso, não por funcionalidade
 
 **Resumo técnico**
 
 A JUDIT cobra por requisição. Ter `on_demand` no código não custa nada, só o envio com `true` custa. Docs: "força a busca em tempo real nos tribunais" (request-document) e "custo maior" (glossário), sem valores publicados. Proposta para a 3b: uma opção desmarcada por padrão e `onDemand` gravado em `judit_requests`.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -938,19 +867,11 @@ A JUDIT cobra por requisição. Ter `on_demand` no código não custa nada, só 
 
 Decisão sua: cada consulta e monitoramento deve declarar a modalidade JUDIT usada (endpoint, sync/async, datalake/tribunal, polling/webhook). Nada implícito, como uma caixa `on_demand` escondida. Os rótulos da interface ficam para depois. Proposta: um catálogo tipado de modalidades e um campo `mode` gravado. Aguardando aprovação.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Request assíncrona atualiza o datalake
 
 **Resumo técnico**
 
 Você confirmou que uma request assíncrona concluída atualiza o datalake da JUDIT (fonte: tech lead da JUDIT). Isso reforça o desenho híbrido: depois da request, um `POST /lawsuits` barato já lê dado fresco, sem cópia no MongoDB. Banco próprio de processos só compensa com muitas consultas repetidas. A atualização chega junto com a entrega (também confirmado).
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -961,10 +882,6 @@ Você confirmou que uma request assíncrona concluída atualiza o datalake da JU
 **Resumo técnico**
 
 Três camadas: `src/lib/judit` (como chamar cada endpoint, sem decisões de produto), `src/features/<domínio>` (regras, persistência, actions, mapeamento) e `src/app` (páginas e rotas de dev). `src/lib/data.ts` escolhe demo ou MongoDB. O catálogo de modalidades ficaria entre features e o client.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -977,10 +894,6 @@ Três camadas: `src/lib/judit` (como chamar cada endpoint, sem decisões de prod
 
 Catálogo `modes.ts`, coleção `judit_requests` (índice único em `requestId`) e duas actions: criar a consulta (comum ou on-demand, com `cache_ttl_in_days`) e verificar o status e as respostas. O `request_id` vai para o log antes de gravar. 111 testes, lint, typecheck, format e build passando. Falta o teste manual.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que `checkAsyncQueryAction` procura o `request_id` no nosso banco antes de perguntar à JUDIT?
@@ -992,19 +905,11 @@ Catálogo `modes.ts`, coleção `judit_requests` (índice único em `requestId`)
 
 Você revisou o código da 3b e aprovou sem pedir mudanças. Ainda pendente: o teste manual com a JUDIT (reiniciar o `pnpm dev` antes, para criar o índice de `judit_requests`) e o commit.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Teste manual da fatia 3b concluído
 
 **Resumo técnico**
 
 Teste manual feito por você com o CNPJ fictício: criar, verificar status e ler o resultado funcionaram. Com isso, a JUDIT também aceitou o CNPJ sem máscara em `POST /requests`. Fatia 3b validada de ponta a ponta; falta o commit.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-14 / Encerramento da etapa 3
 
@@ -1012,9 +917,148 @@ Teste manual feito por você com o CNPJ fictício: criar, verificar status e ler
 
 Textos da consulta síncrona sem "datalake", usando o rótulo do catálogo. Etapa 3 concluída: consulta síncrona e assíncrona (comum e on-demand), testadas com a JUDIT real. Relatório e log atualizados. Próxima sessão: merge da branch e desenho da etapa 4, monitoramento real com cobrança recorrente.
 
-**Minha explicação em palavras próprias**
+### 2026-10-14 / Desenho da etapa 4: proposta
 
-> Preencha esta seção você mesmo.
+**Resumo técnico**
+
+Proposta para o monitoramento real: modalidades explícitas (`tracking_document` e `tracking_lawsuit`), reserva no MongoDB antes do `POST /tracking` para impedir monitoramento duplicado (cobrança recorrente em dobro), status e resultados verificados à mão, pausa disponível desde a primeira fatia. Aguardando decisões.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que desligar `JUDIT_LIVE_CALLS` não interrompe a cobrança de um monitoramento ativo?
+
+### 2026-10-14 / Etapa 4: monitoramento real implementado
+
+**Resumo técnico**
+
+Monitoramento real com reserva no MongoDB antes do `POST /tracking`, envio atômico, classificação do erro (`failed` libera o CNPJ, `uncertain` bloqueia), `mode` explícito, pausar, reativar, excluir com confirmação e resultados. 123 testes, lint, typecheck, format e build passando. Falta o teste com a JUDIT, que atravessa 24 h.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas")
+
+- Por que aqui a reserva vem antes da chamada à JUDIT, se na 3b a chamada vinha antes da gravação?
+- Por que um timeout mantém o CNPJ bloqueado, mas um HTTP 400 o libera?
+
+### 2026-10-14 / Teste da etapa 4 pelo agente: bloqueado
+
+**Resumo técnico**
+
+O agente subiu o `pnpm dev` e conferiu, sem custo: a página `/monitoramentos` mostra o registro da etapa 2 como "Não enviado à JUDIT" (recorrência diária) e as oito actions existem. A chamada às actions foi bloqueada pelo classificador do modo automático (caso D3). O teste segue com você.
+
+### 2026-10-14 / Teste real da etapa 4 (passos 2 a 4)
+
+**Resumo técnico**
+
+Você rodou as actions pelo terminal: reserva antiga descartada; monitoramento criado na JUDIT (`tracking_id c8ac8528…`, primeira execução às 6h, CNPJ sem máscara aceito); duplicata recusada em 47 ms sem chamar a JUDIT. Divergência: pedimos recorrência 30 e a JUDIT gravou 1 (caso C11).
+
+### 2026-10-14 / Teste do `PATCH /tracking`
+
+**Resumo técnico**
+
+`PATCH` com `{ "recurrence": 30 }` no monitoramento de teste: a JUDIT respondeu 400, `"unrecognized key: 'recurrence'"`. O OpenAPI estava certo (contradição 26) e o corpo de erro veio aninhado, com `data` (lacuna 1). A recorrência não muda depois de criada; o monitoramento continua diário até ser pausado.
+
+### 2026-10-14 / `PATCH` passa a enviar `callback_url`
+
+**Resumo técnico**
+
+`updateTrackingRecurrence` virou `updateTrackingCallbackUrl` (`src/lib/judit/tracking.ts`), seguindo o OpenAPI. A rota de dev aceita só `{ callbackUrl }` com `https://` e recusou localmente `recurrence` e uma URL `http`. Será usada na etapa 5, para apontar o webhook de um monitoramento para o nosso endpoint. 123 testes passando.
+
+### 2026-10-14 / Revisão técnica e encerramento da sessão
+
+**Resumo técnico**
+
+Revisão do dia no relatório (18 itens). Os urgentes: `next dev` exposto na rede, estado duplicado dos monitoramentos, chamada dupla em desenvolvimento e `uncertain` sem conferência. Caso C10 revisto. Novas perguntas de entrevista sobre as etapas 3 e 4. Commits na `feat/judit-tracking`; falta pausar o monitoramento.
+
+**Perguntas de verificação** (respostas em "Perguntas de entrevista sobre este repositório")
+
+- Por que o `refresh()` não atualiza a lista de monitoramentos na tela?
+- Por que buscar dados num `useEffect` é arriscado com uma API cobrada?
+
+### 2026-10-14 / Onde estamos
+
+**Resumo técnico**
+
+Etapas 1–3 na `main`; etapa 4 na `feat/judit-tracking`, não enviada. Às 22h33 (BRT), a primeira execução do monitoramento de teste ainda não tinha ocorrido. Ordem: conferir e pausar, corrigir os itens 1–3 da revisão, abrir o PR e definir com a JUDIT o cadastro do webhook (etapa 5).
+
+### 2026-10-14 / `next dev` só em `127.0.0.1` e seção "Inside knowledge"
+
+**Resumo técnico**
+
+Script `dev` agora é `next dev -H 127.0.0.1` (item 1 da revisão). Verificado: socket em `127.0.0.1:3000`, `curl` local 200, pelo IP da rede recusado. Nova seção "Inside knowledge" (IK0–IK9): dúvidas sobre o funcionamento interno da JUDIT, respondidas por você.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Rede do servidor de dev")
+
+- Qual a diferença entre escutar em `0.0.0.0` e em `127.0.0.1`?
+- Por que um túnel para o webhook (etapa 5) continua funcionando com `-H 127.0.0.1`?
+
+### 2026-10-14 / Pontas soltas da etapa 4
+
+**Resumo técnico**
+
+Corrigidos os itens 2, 3, 4, 6, 7, 11 e parte do 17 da revisão: lista do servidor sem cópia, resultados buscados no clique, "Conferir na JUDIT", `try/catch` nos handlers, aviso de recorrência, funções do banco renomeadas e mais testes. 131 testes, lint, typecheck, build. Navegador não testado.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Pontas soltas da etapa 4")
+
+- Por que, se nada for encontrado, a conferência volta a reserva para pendente em vez de liberar o CNPJ?
+- Por que a conferência espera 2 minutos depois do envio?
+- Depois da correção do item 2, quem atualiza a linha da tabela quando você pausa um monitoramento?
+
+### 2026-10-14 / Commits das pontas soltas
+
+**Resumo técnico**
+
+Três commits na `feat/judit-tracking`, sem envio ao GitHub: `98085dc` (servidor de dev só local), `6e52e0a` (pontas soltas da etapa 4) e o de documentação (relatório, log da sessão e diário). Daqui em diante, o agente só acrescenta texto a este diário, sem alterar o que já está escrito.
+
+### 2026-10-15 / Seção única de explicação
+
+**Resumo técnico**
+
+A pedido, removidas as 72 seções "Minha explicação em palavras próprias" que só tinham o placeholder, e a do "Modelo de entrada". O texto já escrito foi movido, sem alteração, para a seção única perto do topo, que só você escreve. A seção 4 de `AGENTS.md` e `docs/AGENTS.md` descreve a nova regra.
+
+### 2026-10-15 / Auditoria / client.ts
+
+**Resumo técnico**
+
+Auditado na conversa do Claude (chat), fora deste repositório. `juditRequest` (`src/lib/judit/client.ts:61`) é a única porta para a JUDIT. Pontos discutidos:
+
+- sem novas tentativas automáticas: a JUDIT não documenta chave de idempotência, então repetir um `POST` que ela já recebeu poderia criar e cobrar em dobro;
+- três hosts separados (requests, tracking e lawsuits), montados em `buildUrl`;
+- `acceptErrorBody`: deixa o serviço aceitar um corpo de erro como resultado, caso do 404 com `has_lawsuits: false` em `POST /lawsuits`;
+- o kill switch (`assertLiveCallsEnabled`) roda antes de ler a chave;
+- tempo limite com `AbortController`; a flag `timedOut` separa o nosso timeout (`JuditTimeoutError`) de uma falha de rede (`JuditNetworkError`), e o corpo também é lido dentro do prazo;
+- a árvore de decisão da resposta é a tabela C do catálogo;
+- HTTP 200 não é sucesso de negócio: `findApplicationError` procura o `application_error`;
+- o 429 é separado (`JuditRateLimitError`), com `Retry-After` e `X-RateLimit-*` guardados como vieram;
+- schema tolerante: campos novos não quebram a validação;
+- auxiliares: `toHttpError` (corpo de erro aninhado ou plano), `parseJson` com o `Symbol` `INVALID_JSON` para JSON inválido, e `redact`, que tira a chave de qualquer texto de erro.
+
+### 2026-10-15 / Modo auditoria adiado
+
+**Resumo técnico**
+
+A auditoria completa do código passou para o fim do projeto, depois da etapa 7. As regras e a ordem dos arquivos estão no `AGENTS.md`, seção 6, "Modo auditoria". Até lá, o trabalho segue o modo padrão (construir e ensinar).
+
+### 2026-10-15 / Primeira execução do monitoramento e pausa
+
+**Resumo técnico**
+
+O agente conferiu o monitoramento de teste pelas rotas de dev e pela action "Ver resultados". A execução rodou às 06:55 UTC e terminou sem resultados, o que é correto para a modalidade. O monitoramento está pausado na JUDIT e no MongoDB. Etapa 4 encerrada.
+
+**O que o teste mostrou**
+
+- Pausa: `pauseTrackingAction` às 21:58 UTC. A JUDIT devolve `status: "paused"` com `paused_at`, e o MongoDB também registra `paused`. As execuções diárias param por aqui.
+- Execução: uma request com `origin: "tracking"`, criada às 06:55:25 UTC e concluída às 07:01:07 UTC (quase 6 minutos), com `responses_count: 0`.
+- Zero resultados é o esperado: a JUDIT gravou o filtro `distribution_date_gte` igual à data de criação do monitoramento, porque o monitoramento por documento só avisa processos novos (catálogo, C14).
+- Formato de data (item 14 da revisão): `GET /responses/tracking` aceitou `2026-10-14T00:00:00`, o formato que a tela usa, e também o ISO com `Z`. O formato dos campos das respostas continua sem verificação, porque não houve resposta.
+- A JUDIT devolve o CNPJ com máscara (`A1.B2C.3D4/E5F6-68`), embora tenhamos enviado sem. A conferência do envio incerto (C12) já compara a chave normalizada.
+- Campos fora da documentação: `execution_minute`, `updating_at`, `plan_config_type`, `tracked_items_count`, `origin_created_at` e `tags.ip`, o IP de quem criou o monitoramento. É dado pessoal: não deve ir para log nem para o banco.
+- Chamadas feitas pelo agente: 5 leituras na JUDIT (`GET /tracking`, dois `GET /responses/tracking`, `GET /requests/{id}` e `GET /responses`), todas do monitoramento fictício.
+- Não verificado: no navegador, se "Ver resultados" gera uma chamada só (item 3); a chamada de hoje foi feita por `curl`.
+
+**O que isso significa**
+
+- Para o produto: monitorado, o CNPJ fictício nunca vai gerar um webhook. A etapa 5 precisa de outro gatilho para o teste real.
+- Para o suporte: um monitoramento "vazio" não é defeito, e todo diagnóstico começa por identificar o tipo de ID (C15).
+- O que foi observado entrou nos itens IK2, IK4, IK5 e IK9 de "Inside knowledge"; as respostas continuam com você.
 
 ---
 
@@ -1220,6 +1264,8 @@ Um 403 confirma que a rota existe e só está bloqueada. O 404 não revela nada 
 
 Com Vitest e `fetch` simulado: cada teste define o que o "servidor" responde (sucesso, 404, 429, 200 com `application_error`, JSON inválido, timeout) e verifica o erro ou o resultado. As fixtures foram montadas a partir dos exemplos da documentação. A limitação, assumida, é que os testes provam o comportamento do nosso código contra a _documentação_, não contra a API real. As 31 contradições do README mostram por que isso ainda precisa ser confirmado ao vivo.
 
+_Atualização (2026-10-14):_ desde então houve chamadas reais, sempre com o documento fictício, e elas confirmaram ou corrigiram vários pontos (contradições 26, 32 a 36). Os testes de monitoramento também passaram a usar um MongoDB real e temporário: só o `fetch` continua simulado.
+
 **Um teste encontrou um bug real. Qual foi?**
 
 Em `POST /lawsuits`, um 404 com `has_lawsuits: false` significa "nada encontrado" e deve virar lista vazia. A primeira versão aceitava _qualquer_ 404 como lista vazia, inclusive um 404 de erro. A correção (`acceptErrorBody`) só aceita o corpo exato documentado; o resto continua sendo erro.
@@ -1228,9 +1274,65 @@ Em `POST /lawsuits`, um 404 com `has_lawsuits: false` significa "nada encontrado
 
 Autenticação de usuários e autorização por dono dos dados; persistência (banco) dos IDs criados pelo app; webhook para não depender de consulta manual de status; limite de uso por usuário; monitoramento e logs sem dados sensíveis; e confirmar contra a API real as contradições documentadas.
 
+_Atualização (2026-10-14):_ a persistência dos IDs já existe (`judit_requests` e `trackings`), e as actions só agem sobre IDs gravados pelo app. Continuam faltando autenticação, limite de uso, webhooks e uma forma de conferir envios incertos. Também falta não expor o servidor de desenvolvimento na rede (item 1 da revisão técnica no relatório).
+
 **Este código foi escrito com ajuda de IA. Como o entrevistador sabe que você o entende?**
 
 Não há atalho: a resposta é conseguir explicar as decisões acima, apontar onde cada uma está no código e dizer o que mudaria. Um bom sinal é saber explicar os _limites_ (o que a allowlist não cobre, por que o mock não prova a API real) e não só o que funciona.
+
+#### Perguntas sobre as etapas 3 e 4 (2026-10-14)
+
+**Por que o monitoramento grava uma reserva antes de chamar a JUDIT, enquanto a consulta assíncrona chama primeiro e grava depois?**
+
+Porque o custo de um erro é diferente. Uma consulta assíncrona duplicada é cobrada uma vez. Um monitoramento duplicado é cobrado a cada recorrência, até alguém perceber. Por isso, no monitoramento, a reserva (`creation: "pending"`) passa primeiro pelo índice único do MongoDB, que recusa uma duplicata antes de qualquer chamada cobrada. Na consulta assíncrona, a escolha foi mais simples: chamar, registrar o `request_id` no log e gravar. Um bom complemento da resposta é admitir o limite: a consulta assíncrona ainda depende do botão desabilitado contra clique duplo (item 9 da revisão).
+
+**Como você impede que dois cliques criem dois monitoramentos?**
+
+Com duas barreiras no banco, não no código. A primeira é o índice único parcial `trackings_active_search_key_unique`: só pode existir um monitoramento ativo por identificador. A segunda vale para enviar uma reserva que já existe: `claimReservation` usa um `findOneAndUpdate` que só troca `pending` por `sending` se o documento ainda estiver `pending`. Duas requisições simultâneas não passam juntas, porque a troca é atômica. O teste "only sends a reservation once" dispara os dois cliques ao mesmo tempo e verifica uma única chamada à JUDIT.
+
+**O que acontece se a criação do monitoramento der timeout?**
+
+O registro fica `uncertain` e o CNPJ continua bloqueado. No timeout, a JUDIT pode ter recebido e criado o monitoramento sem a resposta voltar. Repetir arriscaria um segundo monitoramento com cobrança recorrente, e a documentação não oferece chave de idempotência. Já um HTTP 4xx significa que a JUDIT recusou, então nada foi criado e o CNPJ é liberado (`failed`). A pergunta que decide é: "a JUDIT pode ter criado?" A limitação a admitir: ainda não existe a ação "Conferir na JUDIT" para resolver um `uncertain` (item 4 da revisão).
+
+**Por que a action de pausar consulta o MongoDB antes de chamar a JUDIT?**
+
+Porque a allowlist só protege chamadas que levam um documento ou CNJ. Pausar, excluir e consultar recebem um ID e passariam direto: alguém poderia mexer em monitoramentos criados com a mesma chave por outro sistema. `withConfirmedTracking` exige que o ID exista no nosso banco como monitoramento confirmado, e o banco vira a barreira de autorização para o que o app criou. A consulta assíncrona faz o mesmo com `judit_requests`.
+
+**O que é "modalidade explícita" e onde ela aparece?**
+
+Cada consulta e cada monitoramento grava qual modalidade da JUDIT usou (`mode`: `datalake_sync`, `historical_async`, `historical_on_demand`, `tracking_document`, `tracking_lawsuit`), em vez de deixar isso implícito num parâmetro como `on_demand`. O catálogo `src/features/queries/modes.ts` descreve endpoint, fluxo, fontes, uso e custo de cada uma, e a tela usa os rótulos de lá. O identificador gravado não muda; o rótulo pode mudar. O limite a admitir: o índice de unicidade ainda não inclui `mode` (item 5 da revisão).
+
+**Por que os processos não são gravados no seu banco?**
+
+Porque o datalake da JUDIT já funciona como cache. O tech lead confirmou que uma consulta assíncrona concluída atualiza o datalake no mesmo fluxo da entrega. Assim, uma consulta síncrona logo depois já traz o dado novo. Copiar processos para o MongoDB criaria duas fontes de verdade, exigiria saber quando o dado envelheceu e aumentaria o volume de dado processual sensível a proteger (LGPD). Mudaria de ideia com sinais concretos: muitas consultas repetidas ao mesmo CNPJ, necessidade de funcionar com a JUDIT fora do ar ou de comparar versões antigas.
+
+**A documentação dizia que o `PATCH /tracking` aceitava `recurrence`. Como você descobriu que não?**
+
+A divergência já estava anotada no README como contradição 26: as páginas diziam uma coisa, o OpenAPI outra. Em vez de escolher um lado, fiz uma chamada real e controlada: `PATCH` com `{ "recurrence": 30 }` no monitoramento de teste. A JUDIT respondeu 400 com `data: ["unrecognized key: 'recurrence'"]`. O OpenAPI estava certo; troquei a função por `updateTrackingCallbackUrl`. A lição: quando prosa e especificação divergem, registre, teste com algo barato e reversível e grave a evidência.
+
+**A JUDIT respondeu 201, mas com recorrência diferente da pedida. Como o sistema percebeu?**
+
+Porque o código grava o que a JUDIT devolve, e não o que pedimos. Pedimos 30 dias, a resposta trouxe `recurrence: 1`, e o registro local passou a mostrar "Diária". Um `GET` logo depois confirmou o valor. Se o código gravasse o valor pedido, a tela diria "30 dias" enquanto a JUDIT rodava todo dia. A lição: 201 quer dizer "aceito", não "aceito exatamente como pedido". A melhoria pendente é avisar quando os dois valores divergirem (item 7 da revisão).
+
+**Como você testou o fluxo de monitoramento?**
+
+Em três camadas. Nos testes automatizados, com um MongoDB real e temporário (`mongodb-memory-server`) e o client JUDIT real, só com o `fetch` simulado. As regras importantes (índice único, troca atômica) vivem no banco, e mocks do banco não as testariam. Depois, ao vivo: as mesmas server actions que os botões chamam, disparadas por `curl` com o cabeçalho `Next-Action`, com o documento fictício. Por fim, a parte que depende do tempo da JUDIT (a primeira execução, em até 24 h) ficou para a sessão seguinte, e isso foi dito, não escondido.
+
+**Como chamar uma server action sem a interface, e o que isso ensina sobre segurança?**
+
+Uma server action é um `POST` para a página com o cabeçalho `Next-Action: <id>`; o ID está no manifesto gerado pelo Next. Qualquer cliente que alcance o servidor pode fazer isso, sem passar pela tela. Por isso cada action valida tudo de novo no servidor: modo, entrada, existência do registro. E por isso um servidor sem autenticação não deveria escutar na rede local com chamadas reais ligadas. O `next dev` escuta em `0.0.0.0` por padrão (item 1 da revisão).
+
+**Desligar `JUDIT_LIVE_CALLS` interrompe a cobrança dos monitoramentos?**
+
+Não. O kill switch só impede o nosso servidor de fazer chamadas. O monitoramento roda na JUDIT, que executa cada recorrência por conta própria. Para parar, é preciso pedir à JUDIT: pausar ou excluir.
+
+**Por que a tela chamaria a JUDIT duas vezes em desenvolvimento?**
+
+Porque o painel de resultados busca os dados num `useEffect`. No App Router, o Strict Mode vem ligado por padrão e, em desenvolvimento, monta cada efeito duas vezes para revelar efeitos colaterais. O `cancelled` só ignora o primeiro resultado: a chamada já saiu. Com uma API cobrada, buscar dados num efeito é um risco real. A correção é buscar no clique (item 3 da revisão).
+
+**Se você pudesse refatorar uma coisa agora, o que seria?**
+
+O estado duplicado dos monitoramentos. No modo `db`, a lista vive num `useReducer` iniciado uma vez com dados do servidor. O `refresh()` relê o banco, mas o reducer ignora o resultado, e por isso precisamos de `replaceTracking`. Isso desperdiça leituras e deixa a tela desatualizada quando algo muda por outro caminho, como os webhooks da etapa 5. Saber apontar o ponto fraco do próprio desenho, com consequência e correção, é exatamente o que essa pergunta quer ver.
 
 ### Fase 2a: persistência
 
@@ -1397,3 +1499,33 @@ A allowlist só protege chamadas com documento ou CNJ. Uma chamada por ID passar
 
 **Por que o `request_id` é registrado no log antes de ser gravado no MongoDB?**
 Quando a JUDIT responde 201, a consulta já foi aceita e cobrada. Se a gravação falhar logo depois, o ID se perderia, e com ele o resultado pago. O log guarda o ID para recuperá-lo. Ele não é segredo: sem a chave da API, não dá acesso a nada.
+
+### Monitoramento real
+
+**Por que desligar `JUDIT_LIVE_CALLS` não interrompe a cobrança de um monitoramento ativo?**
+O kill switch só impede o nosso servidor de fazer chamadas. O monitoramento roda na JUDIT, que executa cada recorrência por conta própria, sem depender do nosso app estar ligado. A única forma de parar é pedir à JUDIT: pausar ou excluir o monitoramento.
+
+**Por que aqui a reserva vem antes da chamada à JUDIT, se na 3b a chamada vinha antes da gravação?**
+Porque o custo de um erro é diferente. Uma consulta assíncrona duplicada custa uma vez. Um monitoramento duplicado custa a cada recorrência, até alguém perceber. A reserva faz o índice único do banco recusar a duplicata antes de qualquer chamada cobrada.
+
+**Por que um timeout mantém o CNPJ bloqueado, mas um HTTP 400 o libera?**
+Com um 400, a JUDIT respondeu recusando: com certeza nada foi criado, então uma nova tentativa é segura. No timeout, a requisição pode ter chegado e sido processada sem a resposta voltar. Liberar o CNPJ permitiria criar um segundo monitoramento, possivelmente duplicado.
+
+### Rede do servidor de dev
+
+**Qual a diferença entre escutar em `0.0.0.0` e em `127.0.0.1`?**
+O endereço define por quais interfaces de rede o servidor aceita conexões. `0.0.0.0` significa "todas": a interface local e a placa de rede, então outro aparelho no mesmo Wi-Fi alcança `192.168.15.188:3000`. `127.0.0.1` é só a interface de loopback, que existe dentro da própria máquina; uma conexão vinda de fora é recusada pelo sistema operacional antes de chegar ao Next.
+
+**Por que um túnel para o webhook (etapa 5) continua funcionando com `-H 127.0.0.1`?**
+O programa do túnel roda na mesma máquina e abre a conexão até `127.0.0.1:3000` por dentro. A JUDIT fala com o servidor público do túnel, nunca diretamente com a sua placa de rede. A rota fica exposta só pelo túnel, por isso ela vai precisar de validação própria.
+
+### Pontas soltas da etapa 4
+
+**Por que, se nada for encontrado, a conferência volta a reserva para pendente em vez de liberar o CNPJ?**
+"Não existe na JUDIT" quer dizer que o envio nunca chegou, ou seja, a situação é a mesma de uma reserva que nunca foi enviada. Voltar para `pending` reaproveita um estado que já tem as ações certas ("Enviar à JUDIT", "Descartar reserva") e deixa a decisão de gastar com você. Liberar direto apagaria a intenção registrada; reenviar sozinho seria uma chamada cobrada sem pedido.
+
+**Por que a conferência espera 2 minutos depois do envio?**
+O nosso client desiste depois de 15 s, mas a requisição pode continuar sendo processada na JUDIT. Uma conferência logo depois poderia não achar nada, voltar a reserva para pendente e permitir um segundo envio: um monitoramento duplicado, cobrado a cada recorrência. O prazo é escolha nossa, não da documentação.
+
+**Depois da correção do item 2, quem atualiza a linha da tabela quando você pausa um monitoramento?**
+O servidor. A action grava o novo status no MongoDB e chama `refresh()`. O Next renderiza o layout de novo no servidor, que relê o banco e envia um `initialState` novo, e o provider usa essa lista diretamente. Antes, o navegador guardava uma cópia própria (`useReducer`) e precisava ser corrigido à mão com `replaceTracking`.

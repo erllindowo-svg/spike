@@ -101,20 +101,22 @@ export async function getTracking(trackingId: string) {
   });
 }
 
-// PATCH /tracking/{tracking_id}. The pages say recurrence, tags and search
-// can be updated; the OpenAPI spec only lists notification_emails and
-// callback_url. Only recurrence is exposed until a live call confirms it
-// (see README). Changing `search` is not exposed: it would bypass the
-// allowlist check done at creation.
-export async function updateTrackingRecurrence(
+// PATCH /tracking/{tracking_id}. The OpenAPI spec lists only
+// notification_emails and callback_url, and that is what JUDIT enforces: a
+// real call with `recurrence` got 400 "unrecognized key: 'recurrence'"
+// (2026-10-14, README item 26). So the recurrence can only be set at
+// creation. Only callback_url is exposed: it points JUDIT's webhook for this
+// tracking at our endpoint (stage 5). It must be a public HTTPS URL that we
+// control, because every delivery carries lawsuit data.
+export async function updateTrackingCallbackUrl(
   trackingId: string,
-  recurrence: number,
+  callbackUrl: string,
 ) {
   return juditRequest({
     service: "tracking",
     method: "PATCH",
     path: trackingPath(trackingId),
-    body: { recurrence },
+    body: { callback_url: callbackUrl },
     schema: trackingSchema,
   });
 }

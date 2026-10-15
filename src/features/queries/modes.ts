@@ -1,4 +1,9 @@
-import type { AsyncQueryMode, QueryMode } from "@/db/models";
+import type {
+  AsyncQueryMode,
+  QueryMode,
+  TrackingMode,
+  TrackingSearchType,
+} from "@/db/models";
 
 // Catálogo das modalidades de consulta à JUDIT usadas pela aplicação. Cada
 // consulta declara a sua modalidade pelo identificador (`QueryMode`), que é
@@ -11,7 +16,8 @@ import type { AsyncQueryMode, QueryMode } from "@/db/models";
 export type QueryModeInfo = {
   label: string;
   endpoint: string;
-  flow: "sync" | "async";
+  // "recurring": roda na JUDIT a cada N dias, até ser pausado ou excluído.
+  flow: "sync" | "async" | "recurring";
   // De onde a JUDIT tira os dados, segundo a documentação.
   sources: string;
   purpose: string;
@@ -57,3 +63,31 @@ export const ASYNC_QUERY_MODES = [
   "historical_async",
   "historical_on_demand",
 ] as const satisfies readonly AsyncQueryMode[];
+
+export const TRACKING_MODES = {
+  tracking_document: {
+    label: "Monitoramento por documento",
+    endpoint: "POST /tracking (search_type cnpj)",
+    flow: "recurring",
+    sources: "Tribunais, consultados pela JUDIT a cada N dias (on-demand).",
+    purpose:
+      "Detecta o nascimento de novos processos ligados ao CNPJ, que não existiam quando o monitoramento começou.",
+    cost: "Recorrente enquanto ativo. A documentação pede para verificar as condições de custo; valores não publicados.",
+    docsUrl: "https://docs.judit.io/tracking/tracking-document",
+  },
+  tracking_lawsuit: {
+    label: "Monitoramento processual",
+    endpoint: "POST /tracking (search_type lawsuit_cnj)",
+    flow: "recurring",
+    sources: "Tribunal do processo, consultado pela JUDIT a cada N dias.",
+    purpose:
+      "Acompanha as movimentações de um processo já conhecido, pelo número CNJ.",
+    cost: "Recorrente enquanto ativo; a documentação não informa o preço.",
+    docsUrl: "https://docs.judit.io/tracking/tracking",
+  },
+} as const satisfies Record<TrackingMode, QueryModeInfo>;
+
+// Hoje cada tipo de identificador tem uma só modalidade de monitoramento.
+export function trackingModeFor(searchType: TrackingSearchType): TrackingMode {
+  return searchType === "cnpj" ? "tracking_document" : "tracking_lawsuit";
+}

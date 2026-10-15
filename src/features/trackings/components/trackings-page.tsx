@@ -36,9 +36,18 @@ const summaryStates: TrackingDisplayState[] = [
   "completed",
 ];
 
+// O filtro também alcança os estados da criação na JUDIT, que não têm
+// cartão de resumo.
+const filterStates: TrackingDisplayState[] = [
+  ...summaryStates,
+  "not_sent",
+  "uncertain",
+  "rejected",
+];
+
 const stateItems = [
   { value: "all", label: "Todos os status" },
-  ...summaryStates.map((s) => ({ value: s, label: trackingDisplayLabels[s] })),
+  ...filterStates.map((s) => ({ value: s, label: trackingDisplayLabels[s] })),
 ];
 
 export function TrackingsPage() {
@@ -51,7 +60,7 @@ export function TrackingsPage() {
   const counts = Object.fromEntries(
     summaryStates.map((s) => [
       s,
-      trackings.filter((t) => getTrackingDisplayState(t.status) === s).length,
+      trackings.filter((t) => getTrackingDisplayState(t) === s).length,
     ]),
   ) as Record<TrackingDisplayState, number>;
 
@@ -59,7 +68,7 @@ export function TrackingsPage() {
   const digits = term.replace(/[^0-9a-z]/g, "");
   const filtered = trackings.filter((t) => {
     if (type !== "all" && t.searchType !== type) return false;
-    if (state !== "all" && getTrackingDisplayState(t.status) !== state) {
+    if (state !== "all" && getTrackingDisplayState(t) !== state) {
       return false;
     }
     if (!term) return true;

@@ -38,6 +38,7 @@ import {
   normalizeCnpj,
 } from "@/features/companies/cnpj";
 import { cnjSchema, formatCnj, normalizeCnj } from "@/features/processes/cnj";
+import { TRACKING_MODES, trackingModeFor } from "@/features/queries/modes";
 import {
   formatRecurrence,
   recurrenceOptions,
@@ -123,7 +124,8 @@ function NewTrackingForm({
         ? formatCnj(defaults.searchKey)
         : "",
   });
-  const [recurrence, setRecurrence] = useState("1");
+  // Padrão de 30 dias: no modo "db", cada execução na JUDIT pode ser cobrada.
+  const [recurrence, setRecurrence] = useState("30");
   const [error, setError] = useState<string | null>(null);
 
   const value = values[searchType];
@@ -167,21 +169,27 @@ function NewTrackingForm({
     }
 
     onDone();
-    toast.success(
-      dataSource === "db"
-        ? "Monitoramento salvo no banco"
-        : "Monitoramento adicionado em modo de demonstração",
-      {
-        description:
-          dataSource === "db"
-            ? "Registrado no MongoDB. Nenhum monitoramento foi criado na JUDIT ainda."
-            : "Nenhum monitoramento foi criado na JUDIT. O item existe apenas nesta sessão do navegador.",
-        action: {
-          label: "Ver lista",
-          onClick: () => router.push("/monitoramentos"),
-        },
-      },
-    );
+    const action = {
+      label: "Ver lista",
+      onClick: () => router.push("/monitoramentos"),
+    };
+    if (result.notice) {
+      // Modo "db": a reserva foi gravada; o envio à JUDIT pode ter dado certo
+      // ou não, e a mensagem diz o que aconteceu.
+      const show = result.notice.sent ? toast.success : toast.warning;
+      show(
+        result.notice.sent
+          ? "Monitoramento criado na JUDIT"
+          : "Monitoramento reservado, mas não criado na JUDIT",
+        { description: result.notice.message, action },
+      );
+      return;
+    }
+    toast.success("Monitoramento adicionado em modo de demonstração", {
+      description:
+        "Nenhum monitoramento foi criado na JUDIT. O item existe apenas nesta sessão do navegador.",
+      action,
+    });
   }
 
   return (
@@ -297,8 +305,7 @@ function NewTrackingForm({
             </SelectContent>
           </Select>
           <FieldDescription>
-            Intervalo entre execuções. Os valores aceitos serão confirmados na
-            integração.
+            Intervalo, em dias, entre as execuções na JUDIT.
           </FieldDescription>
         </Field>
       </FieldGroup>
@@ -307,7 +314,7 @@ function NewTrackingForm({
         <InfoIcon />
         <AlertDescription>
           {dataSource === "db"
-            ? "O monitoramento é gravado no banco de dados. Nenhuma requisição é enviada à JUDIT."
+            ? `${TRACKING_MODES[trackingModeFor(searchType)].label}: cria um monitoramento real na JUDIT (POST /tracking), que roda a cada N dias e gera cobrança recorrente até ser pausado ou excluído. A primeira execução acontece em até 24 horas.`
             : "Modo de demonstração: o item é adicionado apenas à lista local. Nenhuma requisição é enviada à JUDIT."}
         </AlertDescription>
       </Alert>
@@ -318,7 +325,7 @@ function NewTrackingForm({
         </Button>
         <Button type="submit" disabled={saving}>
           {saving && <Spinner data-icon="inline-start" />}
-          Adicionar monitoramento
+          {dataSource === "db" ? "Criar na JUDIT" : "Adicionar monitoramento"}
         </Button>
       </DialogFooter>
     </form>

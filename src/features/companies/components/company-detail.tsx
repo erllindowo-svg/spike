@@ -49,10 +49,7 @@ import { useNewTrackingDialog } from "@/features/trackings/components/new-tracki
 import { SearchTypeBadge } from "@/features/trackings/components/search-type-badge";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
 import { formatSearchKey } from "@/features/trackings/format";
-import {
-  formatRecurrence,
-  getTrackingDisplayState,
-} from "@/features/trackings/types";
+import { formatRecurrence, isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 
@@ -113,9 +110,7 @@ export function CompanyDetail({
       (t.searchType === "cnj" && lawsuitCnjs.has(t.searchKey)),
   );
   const cnpjTracking = linkedTrackings.find(
-    (t) =>
-      t.searchType === "cnpj" &&
-      getTrackingDisplayState(t.status) !== "completed",
+    (t) => t.searchType === "cnpj" && !isTrackingClosed(t),
   );
   const companyActivity = activity.filter((a) => a.companyId === company.id);
   const activeCount = lawsuits.filter((l) => l.status === "active").length;
@@ -160,7 +155,7 @@ export function CompanyDetail({
               <span className="inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 text-sm">
                 <CheckCircle2Icon className="size-4 text-success" aria-hidden />
                 Monitorado por CNPJ
-                <TrackingStatusBadge status={cnpjTracking.status} />
+                <TrackingStatusBadge tracking={cnpjTracking} />
               </span>
             ) : (
               <Button
@@ -250,7 +245,7 @@ export function CompanyDetail({
                         {formatDate(t.createdAt)}
                       </span>
                     </div>
-                    <TrackingStatusBadge status={t.status} />
+                    <TrackingStatusBadge tracking={t} />
                   </li>
                 ))}
               </ul>

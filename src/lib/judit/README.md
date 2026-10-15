@@ -11,20 +11,20 @@ Regras:
 
 ## Arquivos
 
-| Arquivo               | Responsabilidade                                                                                                                                    |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `client.ts`           | `juditRequest`: URL base, header `api-key`, timeout, mapeamento de erros, validação                                                                 |
-| `errors.ts`           | Classes de erro tipadas (rede, timeout, HTTP, 429, application_error, resposta)                                                                     |
-| `guard.ts`            | Kill switch (`JUDIT_LIVE_CALLS`) e allowlist de chaves de busca                                                                                     |
-| `schemas/common.ts`   | Schemas Zod tolerantes para corpos de erro                                                                                                          |
-| `lawsuits.ts`         | Serviço lawsuits: `getEntity`, `searchLawsuits`, `countLawsuits`, `getLawsuitsSynthetic`, `getLawsuitByCnj`                                         |
-| `schemas/lawsuits.ts` | Schemas das respostas de lawsuits e do filtro de busca                                                                                              |
-| `dev-route.ts`        | Regras das rotas de teste manual (404 fora de dev, mapeamento de erros para HTTP)                                                                   |
-| `requests.ts`         | Serviço requests: `createRequest`, `getRequest`, `listRequests`, `listResponses`, `getResponse`, `listTrackingResponses`                            |
-| `schemas/requests.ts` | Schemas de request, resposta e paginação; `responseCameFromCache`                                                                                   |
-| `tracking.ts`         | Serviço tracking: `createTracking`, `listTrackings`, `getTracking`, `updateTrackingRecurrence`, `pauseTracking`, `resumeTracking`, `deleteTracking` |
-| `schemas/tracking.ts` | Schemas de tracking e da lista paginada                                                                                                             |
-| `__fixtures__/`       | Corpos de exemplo copiados da documentação (dados fictícios)                                                                                        |
+| Arquivo               | Responsabilidade                                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client.ts`           | `juditRequest`: URL base, header `api-key`, timeout, mapeamento de erros, validação                                                                  |
+| `errors.ts`           | Classes de erro tipadas (rede, timeout, HTTP, 429, application_error, resposta)                                                                      |
+| `guard.ts`            | Kill switch (`JUDIT_LIVE_CALLS`) e allowlist de chaves de busca                                                                                      |
+| `schemas/common.ts`   | Schemas Zod tolerantes para corpos de erro                                                                                                           |
+| `lawsuits.ts`         | Serviço lawsuits: `getEntity`, `searchLawsuits`, `countLawsuits`, `getLawsuitsSynthetic`, `getLawsuitByCnj`                                          |
+| `schemas/lawsuits.ts` | Schemas das respostas de lawsuits e do filtro de busca                                                                                               |
+| `dev-route.ts`        | Regras das rotas de teste manual (404 fora de dev, mapeamento de erros para HTTP)                                                                    |
+| `requests.ts`         | Serviço requests: `createRequest`, `getRequest`, `listRequests`, `listResponses`, `getResponse`, `listTrackingResponses`                             |
+| `schemas/requests.ts` | Schemas de request, resposta e paginação; `responseCameFromCache`                                                                                    |
+| `tracking.ts`         | Serviço tracking: `createTracking`, `listTrackings`, `getTracking`, `updateTrackingCallbackUrl`, `pauseTracking`, `resumeTracking`, `deleteTracking` |
+| `schemas/tracking.ts` | Schemas de tracking e da lista paginada                                                                                                              |
+| `__fixtures__/`       | Corpos de exemplo copiados da documentação (dados fictícios)                                                                                         |
 
 ## Rotas de teste manual (somente desenvolvimento)
 
@@ -47,7 +47,7 @@ Respondem 404 a menos que `NODE_ENV === "development"` **e**
 | `POST /api/dev/judit/tracking`                                                     | `POST /tracking`                              |
 | `GET /api/dev/judit/tracking?page&page_size`                                       | `GET /tracking`                               |
 | `GET /api/dev/judit/tracking/{trackingId}`                                         | `GET /tracking/{tracking_id}`                 |
-| `PATCH /api/dev/judit/tracking/{trackingId}` (`{ recurrence }`)                    | `PATCH /tracking/{tracking_id}`               |
+| `PATCH /api/dev/judit/tracking/{trackingId}` (`{ callbackUrl }`, só https)         | `PATCH /tracking/{tracking_id}`               |
 | `POST /api/dev/judit/tracking/{trackingId}/pause`                                  | `POST /tracking/{tracking_id}/pause`          |
 | `POST /api/dev/judit/tracking/{trackingId}/resume`                                 | `POST /tracking/{tracking_id}/resume`         |
 | `DELETE /api/dev/judit/tracking/{trackingId}?confirm=delete`                       | `DELETE /tracking/{tracking_id}` (definitivo) |
@@ -90,9 +90,18 @@ Fonte: <https://docs.judit.io/introduction/authentication>.
 (`getRequest`, `getTracking`, `pauseTracking`, `deleteTracking`...) e listagens
 da conta inteira (`listRequests`, `listResponses`, `listTrackings`) passam só
 pelo kill switch. Elas podem ler ou alterar trabalho criado fora deste app com a
-mesma chave. Correção prevista: quando houver banco, registrar os IDs criados
-pelo app e só permitir esses. Até lá, essas rotas só são chamadas por decisão
-explícita.
+mesma chave. **Corrigido nas telas:** as server actions de consulta
+assíncrona (`src/features/queries/actions.ts`) e de monitoramento
+(`src/features/trackings/actions.ts`) só agem sobre IDs gravados pelo app no
+MongoDB. As rotas de dev continuam sem essa barreira e só são chamadas por
+decisão explícita.
+
+**Monitoramento ativo não obedece ao kill switch.** Desligar
+`JUDIT_LIVE_CALLS` só impede o nosso servidor de chamar a JUDIT. Um
+monitoramento confirmado continua rodando (e possivelmente cobrando) na
+JUDIT até ser pausado ou excluído. A rota de dev `POST /api/dev/judit/tracking`
+cria monitoramentos **sem** a reserva no banco, então fica fora da proteção
+contra duplicatas da tela.
 
 **Limite da guarda:** ela protege apenas as chamadas feitas por esta
 aplicação. A mesma chave usada no Postman, no curl ou em outro sistema passa
@@ -150,7 +159,10 @@ Registradas em vez de escolhidas em silêncio.
 1. **Formato do corpo de erro HTTP.** A página de erros diz que o corpo
    "sempre" segue `{ error: { name, message, data } }`, mas os exemplos de
    403 (autenticação) e 429 (rate limits) usam um formato plano
-   `{ error: "...", message, code }`. O client aceita os dois.
+   `{ error: "...", message, code }`. O client aceita os dois. _Observado
+   em 2026-10-14:_ um 400 real do `PATCH /tracking` veio no formato aninhado,
+   com o detalhe em `data` (`["unrecognized key: 'recurrence'"]`). O formato
+   plano de 403 e 429 continua sem observação real.
 2. **`USER_NOT_FOUND`.** A tabela de erros o lista como `error.name`; o
    exemplo de 401 da página de autenticação o coloca em `error.data`, com
    `name: "HttpUnauthorizedError"`.
@@ -248,8 +260,12 @@ Registradas em vez de escolhidas em silêncio.
     (`...76afffc75849393`). Por isso os IDs não são validados como UUID.
 26. **Campos do `PATCH /tracking/{id}`.** As páginas dizem que aceitam
     `recurrence`, `tags` e `search`; o OpenAPI só lista
-    `notification_emails` e `callback_url`. Expomos só `recurrence`, a
-    confirmar na primeira chamada real.
+    `notification_emails` e `callback_url`. **Resolvido em 2026-10-14: o
+    OpenAPI está certo.** `PATCH` com `{ "recurrence": 30 }` respondeu
+    `400 HttpBadRequestError`, `data: ["unrecognized key: 'recurrence'"]`.
+    A recorrência não pode ser alterada depois da criação. A função
+    `updateTrackingRecurrence` foi trocada por `updateTrackingCallbackUrl`
+    (o `callback_url` será usado na etapa 5).
 27. **`fixed_time`.** A página por CNJ o marca como obrigatório, mas os
     exemplos não o enviam; o OpenAPI o exige com padrão `false`. Enviamos
     sempre `false`.
@@ -295,3 +311,43 @@ Registradas em vez de escolhidas em silêncio.
     atualiza o datalake, no mesmo fluxo em que os dados são entregues ao
     cliente. Quando a request fica `completed`, um `POST /lawsuits` já lê o
     dado atualizado.
+36. **`recurrence` ignorada na criação?** _Observado em 2026-10-14._
+    `POST /tracking` por CNPJ (documento de teste) com `"recurrence": 30`
+    respondeu 201 com `"recurrence": 1`, e `GET /tracking/{id}` confirmou 1.
+    A documentação não cita limite; o exemplo do monitoramento customizado
+    envia 2 e recebe 2. Causa desconhecida (modalidade, plano ou documento de
+    teste). Também observado: `POST /tracking` aceita o CNPJ sem máscara e
+    devolve `hour_range` (6). A aplicação grava a recorrência devolvida pela
+    JUDIT, não a pedida. Como o `PATCH` não aceita `recurrence` (item 26),
+    não há como corrigir o valor depois de criado.
+37. **Monitoramento por documento só vê processos novos.** _Observado em
+    2026-10-15._ Na criação, a JUDIT acrescenta sozinha
+    `search_params.filter.distribution_date_gte` com o `created_at` do
+    monitoramento (o campo não é citado nas páginas de tracking). Coerente com
+    [tracking-document](https://docs.judit.io/tracking/tracking-document):
+    a modalidade detecta processos que "ainda não existiam" quando o
+    monitoramento começou. A primeira execução do CNPJ de teste terminou
+    `completed` com `responses_count: 0`; o processo fictício, distribuído
+    antes, nunca aparece. Por isso o CNPJ de teste monitorado não serve para
+    disparar um webhook.
+38. **Execução do monitoramento e campos fora da documentação.** _Observado
+    em 2026-10-15._ Cada execução cria uma request com `origin: "tracking"`,
+    `origin_id` (o `tracking_id`), `origin_created_at` e
+    `cache_ttl_in_days: 1`; o `GET /tracking/{id}` aponta a última no campo
+    `request_id`. Com `hour_range: 6`, a execução começou às 06:55:25 UTC
+    (`execution_minute: 55`), indício de que `hour_range` está em UTC (uma
+    observação só; diário, IK5). Também vieram, sem documentação:
+    `updating_at`, `plan_config_type`, `tracked_items_count`,
+    `tracked_items_steps_count` e `tags.ip` (IP de quem criou; dado pessoal,
+    não registrar). A JUDIT devolve `search_key` com máscara
+    (`A1.B2C.3D4/E5F6-68`) mesmo quando recebe sem. `GET /responses/tracking`
+    aceitou `created_at_gte` tanto como `2026-10-14T00:00:00` quanto com `Z`.
+39. **Chave de idempotência do webhook.** A página
+    [webhook/callbacks](https://docs.judit.io/webhook/callbacks) diz, no
+    resumo do padrão de entrega, para implementar idempotência por
+    `request_id` + `cached_response`; mais abaixo, nas boas práticas, manda
+    usar `callback_id` ("em retries, o mesmo `callback_id` é reentregue"), e
+    [errors](https://docs.judit.io/resource/errors) repete o `callback_id`.
+    `request_id` + `cached_response` não identifica uma entrega: uma request
+    gera várias respostas. Vamos usar `callback_id`, que já tem índice único
+    em `webhook_events` desde a etapa 2.

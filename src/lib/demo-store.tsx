@@ -14,12 +14,17 @@ import { formatCnpj } from "@/features/companies/cnpj";
 import type { Company } from "@/features/companies/types";
 import { formatCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
+import { trackingModeFor } from "@/features/queries/modes";
 import {
   getTrackingDisplayState,
+  isTrackingClosed,
   type NewTrackingInput,
   type Tracking,
 } from "@/features/trackings/types";
-import { createTrackingAction } from "@/features/trackings/actions";
+import {
+  createTrackingAction,
+  type CreateTrackingActionResult,
+} from "@/features/trackings/actions";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
 import type { DataSource, DemoState } from "./data";
@@ -29,9 +34,12 @@ import type { DataSource, DemoState } from "./data";
 //
 // - "demo": tudo fica em memória; recarregar a página restaura os dados
 //   iniciais. Nada é persistido nem enviado à JUDIT.
-// - "db": o estado inicial vem do MongoDB e criar um monitoramento grava no
-//   banco por uma Server Action. Ações que dependem da JUDIT ou de dados ainda
-//   não persistidos (pausar, simular webhook, restaurar) ficam indisponíveis.
+// - "db": os monitoramentos vêm do MongoDB e são lidos direto do
+//   `initialState` do servidor, sem cópia no navegador. Cada server action
+//   que muda um monitoramento chama refresh(): o layout é renderizado de novo
+//   no servidor, relê o banco e entrega a lista nova. Ações que dependem de
+//   dados ainda não persistidos (simular webhook, restaurar) ficam
+//   indisponíveis.
 
 export type SimulationScenario =
   | "lawsuit_movement"
@@ -43,6 +51,7 @@ type Action =
   | { type: "reset"; state: DemoState }
   | { type: "addTracking"; tracking: Tracking; activity: ActivityItem }
   | { type: "setTrackingStatus"; id: string; status: string }
+  | { type: "addActivity"; activity: ActivityItem }
   | { type: "markAlertRead"; id: string }
   | { type: "markAllAlertsRead" }
   | { type: "receiveEvent"; event: WebhookEventView; activity: ActivityItem }
@@ -75,6 +84,8 @@ function reducer(state: DemoState, action: Action): DemoState {
             : t,
         ),
       };
+    case "addActivity":
+      return { ...state, activity: [action.activity, ...state.activity] };
     case "markAlertRead":
       return {
         ...state,
@@ -130,6 +141,11 @@ function newId(): string {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 }
 
+// A server action não respondeu (servidor reiniciando, rede). A operação pode
+// ter sido concluída no servidor mesmo assim.
+export const SERVER_UNREACHABLE =
+  "Sem resposta do servidor da aplicação. A operação pode ter sido concluída: recarregue a página e confira antes de repetir.";
+
 const trackingErrorMessages = {
   duplicate: "Já existe um monitoramento ativo para este identificador.",
   invalid_input: "Os dados do monitoramento são inválidos.",
@@ -159,8 +175,14 @@ function trackingActivity(
   };
 }
 
+// `notice` resume o que aconteceu com o envio à JUDIT (só no modo "db").
 export type AddTrackingResult =
-  { ok: true; tracking: Tracking } | { ok: false; error: string };
+  | {
+      ok: true;
+      tracking: Tracking;
+      notice?: { sent: boolean; message: string };
+    }
+  | { ok: false; error: string };
 
 export type SimulationResult =
   | { ok: true; eventId: string; duplicate: boolean }
@@ -197,6 +219,10 @@ export function DemoStoreProvider({
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  // No modo "db", a lista é a do servidor (ver o comentário no topo). O
+  // reducer só guarda os monitoramentos da demonstração.
+  const trackings =
+    dataSource === "db" ? initialState.trackings : state.trackings;
 
   const companiesById = useMemo(
     () => new Map(companies.map((c) => [c.id, c])),
@@ -210,32 +236,44 @@ export function DemoStoreProvider({
   const addTracking = useCallback(
     async (input: NewTrackingInput): Promise<AddTrackingResult> => {
       if (dataSource === "db") {
-        // A regra de duplicidade e a validação ficam no servidor (banco).
-        const result = await createTrackingAction({
-          searchType: input.searchType,
-          searchKey: input.searchKey,
-          recurrenceDays: input.recurrenceDays,
-        });
+        // A regra de duplicidade e a validação ficam no servidor (banco). O
+        // monitoramento novo chega à lista pelo refresh() da action.
+        let result: CreateTrackingActionResult;
+        try {
+          result = await createTrackingAction({
+            searchType: input.searchType,
+            searchKey: input.searchKey,
+            recurrenceDays: input.recurrenceDays,
+          });
+        } catch {
+          return { ok: false, error: SERVER_UNREACHABLE };
+        }
         if (!result.ok) {
           return { ok: false, error: trackingErrorMessages[result.reason] };
         }
+        const sent = result.outcome === "confirmed";
         dispatch({
-          type: "addTracking",
-          tracking: result.tracking,
+          type: "addActivity",
           activity: trackingActivity(
             result.tracking,
             getCompany(result.tracking.companyId),
-            "Monitoramento salvo no banco",
+            sent
+              ? "Monitoramento criado na JUDIT"
+              : "Monitoramento reservado no banco",
           ),
         });
-        return { ok: true, tracking: result.tracking };
+        return {
+          ok: true,
+          tracking: result.tracking,
+          notice: { sent, message: result.message },
+        };
       }
 
       const duplicate = state.trackings.find(
         (t) =>
           t.searchType === input.searchType &&
           t.searchKey === input.searchKey &&
-          getTrackingDisplayState(t.status) !== "completed",
+          !isTrackingClosed(t),
       );
       if (duplicate) {
         return {
@@ -247,15 +285,22 @@ export function DemoStoreProvider({
       const now = new Date();
       const tracking: Tracking = {
         id: newId(),
-        // Sem ID da JUDIT: nenhum monitoramento real foi criado.
+        // Sem ID da JUDIT: nenhum monitoramento real foi criado. A criação
+        // "confirmada" e o status "created" são simulados.
         juditTrackingId: null,
         companyId: input.companyId ?? null,
+        mode: trackingModeFor(input.searchType),
         searchType: input.searchType,
         searchKey: input.searchKey,
+        creation: "confirmed",
+        creationError: null,
         status: "created",
         recurrenceDays: input.recurrenceDays,
+        hourRange: null,
+        delivery: "webhook",
         createdAt: now,
         updatedAt: now,
+        lastCheckedAt: null,
       };
       dispatch({
         type: "addTracking",
@@ -271,7 +316,8 @@ export function DemoStoreProvider({
     [dataSource, state.trackings, getCompany],
   );
 
-  // Pausar de verdade exige a JUDIT (etapa 4); no modo "db", não faz nada.
+  // Só para a demonstração. No modo "db", pausar chama a JUDIT
+  // (pauseTrackingAction em src/features/trackings/actions.ts).
   const setTrackingPaused = useCallback(
     (id: string, paused: boolean) => {
       if (dataSource === "db") return;
@@ -323,7 +369,7 @@ export function DemoStoreProvider({
           (t) =>
             t.searchType === wantedType &&
             t.juditTrackingId &&
-            getTrackingDisplayState(t.status) === "active",
+            getTrackingDisplayState(t) === "active",
         ) ?? null;
 
       const referenceId =
@@ -480,6 +526,7 @@ export function DemoStoreProvider({
   const value = useMemo<DemoStore>(
     () => ({
       ...state,
+      trackings,
       dataSource,
       companies,
       lawsuits,
@@ -493,6 +540,7 @@ export function DemoStoreProvider({
     }),
     [
       state,
+      trackings,
       dataSource,
       companies,
       lawsuits,

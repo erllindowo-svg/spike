@@ -18,7 +18,7 @@ import {
   listCompanies,
 } from "@/features/companies/db";
 
-import { createTracking, listTrackings } from "./db";
+import { reserveTracking, listTrackings } from "./db";
 
 // The app's getDb() is replaced by a temporary real MongoDB server
 // (mongodb-memory-server) with the app's indexes. vi.hoisted makes `testDb`
@@ -77,9 +77,9 @@ describe("ensureCompany", () => {
   });
 });
 
-describe("createTracking", () => {
+describe("reserveTracking", () => {
   it("stores a CNPJ tracking linked to its company, not sent to JUDIT", async () => {
-    const result = await createTracking({
+    const result = await reserveTracking({
       searchType: "cnpj",
       searchKey: "A1B2C3D4/E5F6-68",
       recurrenceDays: 7,
@@ -102,7 +102,7 @@ describe("createTracking", () => {
   });
 
   it("stores a CNJ tracking without a company", async () => {
-    const result = await createTracking({
+    const result = await reserveTracking({
       searchType: "cnj",
       searchKey: "0001234-03.2026.8.26.0100",
       recurrenceDays: 1,
@@ -141,7 +141,7 @@ describe("createTracking", () => {
       { searchType: "cpf", searchKey: "12345678909", recurrenceDays: 7 },
     ],
   ])("rejects %s without touching the database", async (_, input) => {
-    const result = await createTracking(input as never);
+    const result = await reserveTracking(input as never);
 
     expect(result).toMatchObject({ ok: false, reason: "invalid_input" });
     expect(await listTrackings()).toHaveLength(0);
@@ -149,12 +149,12 @@ describe("createTracking", () => {
   });
 
   it("refuses a second active tracking for the same identifier", async () => {
-    await createTracking({
+    await reserveTracking({
       searchType: "cnpj",
       searchKey: CNPJ,
       recurrenceDays: 7,
     });
-    const again = await createTracking({
+    const again = await reserveTracking({
       searchType: "cnpj",
       searchKey: "A1B2C3D4/E5F6-68",
       recurrenceDays: 30,
@@ -167,7 +167,7 @@ describe("createTracking", () => {
   it("lets the database decide between simultaneous requests", async () => {
     const results = await Promise.all(
       Array.from({ length: 5 }, () =>
-        createTracking({
+        reserveTracking({
           searchType: "cnpj",
           searchKey: CNPJ,
           recurrenceDays: 7,
@@ -182,7 +182,7 @@ describe("createTracking", () => {
   });
 
   it("allows the same identifier again once the old tracking is deleted", async () => {
-    const first = await createTracking({
+    const first = await reserveTracking({
       searchType: "cnpj",
       searchKey: CNPJ,
       recurrenceDays: 7,
@@ -194,7 +194,7 @@ describe("createTracking", () => {
       { $set: { status: "deleted", active: activeFor("deleted") } },
     );
 
-    const second = await createTracking({
+    const second = await reserveTracking({
       searchType: "cnpj",
       searchKey: CNPJ,
       recurrenceDays: 7,
@@ -205,12 +205,12 @@ describe("createTracking", () => {
   });
 
   it("keeps different identifiers independent", async () => {
-    const a = await createTracking({
+    const a = await reserveTracking({
       searchType: "cnpj",
       searchKey: CNPJ,
       recurrenceDays: 7,
     });
-    const b = await createTracking({
+    const b = await reserveTracking({
       searchType: "cnpj",
       searchKey: OTHER_CNPJ,
       recurrenceDays: 7,
@@ -221,12 +221,12 @@ describe("createTracking", () => {
   });
 
   it("allows many trackings not yet sent to JUDIT (null juditTrackingId)", async () => {
-    await createTracking({
+    await reserveTracking({
       searchType: "cnpj",
       searchKey: CNPJ,
       recurrenceDays: 7,
     });
-    const b = await createTracking({
+    const b = await reserveTracking({
       searchType: "cnj",
       searchKey: CNJ,
       recurrenceDays: 7,
@@ -242,7 +242,7 @@ describe("createTracking", () => {
       .mockRejectedValueOnce(new Error("connection lost"));
     try {
       await expect(
-        createTracking({
+        reserveTracking({
           searchType: "cnj",
           searchKey: CNJ,
           recurrenceDays: 7,
