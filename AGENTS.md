@@ -102,7 +102,7 @@ Ao concluir uma fatia significativa, forneça uma nota curta com estas seções:
 
 **Confira seu entendimento:** proponha uma ou duas perguntas breves quando a entrega trouxer um conceito novo importante. Não forneça imediatamente as respostas junto das perguntas, a menos que eu peça. Não faça quizzes em toda alteração trivial.
 
-Ajude-me a manter `docs/diario-de-aprendizado.md`. Você pode registrar o resumo técnico objetivo e sugerir perguntas, mas **não escreva em meu nome a seção “Minha explicação em palavras próprias”**. Deixe esse espaço para eu preencher. Não bloqueie trabalho útil esperando que eu complete o diário; use-o como apoio, não como burocracia.
+Ajude-me a manter `docs/diario-de-aprendizado.md`. Você pode registrar o resumo técnico objetivo e sugerir perguntas. **Não crie uma seção de explicação pessoal em cada entrada.** O diário tem uma única seção, “Minha explicação do projeto, em palavras próprias”, perto do topo e sobre o projeto inteiro, e só eu escrevo nela: não escreva, resuma, corrija nem mova o texto dessa seção, e não me cobre para preenchê-la. Não bloqueie trabalho útil esperando que eu complete o diário; use-o como apoio, não como burocracia.
 
 ## 5. Use documentação e evidências, especialmente para a JUDIT
 

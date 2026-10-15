@@ -1,19 +1,24 @@
-# Diário de aprendizagem — Raio-X Jurídico
-
-Use este arquivo para registrar o que você aprendeu enquanto constrói o produto. Uma entrada curta e honesta vale mais que um texto extenso escrito pela IA.
+# Diário de aprendizagem — Raio-X
 
 ## Como usar
 
 Depois de cada fatia importante:
 
 1. Peça ao Claude um resumo técnico objetivo do que mudou e do fluxo de dados.
-2. Escreva você mesmo a seção **Minha explicação em palavras próprias** sem copiar a explicação do agente.
+2. Quando quiser, escreva na seção única **Minha explicação do projeto, em palavras próprias**, logo abaixo, sem copiar a explicação do agente. Ela cobre o projeto inteiro e só você escreve nela; as entradas não têm mais uma seção de explicação própria.
 3. Tente responder às perguntas de verificação antes de pedir as respostas.
 4. Registre qualquer dúvida que ainda não saiba resolver sem ajuda.
 5. Se algo falhou (ou poderia falhar), registre o caso no **Catálogo de investigação de falhas**, logo abaixo.
 6. Dúvidas sobre o funcionamento interno da JUDIT vão para **Inside knowledge**, depois do catálogo; você as responde lá.
 
 Não é necessário registrar alterações triviais de CSS, nomes ou formatação.
+
+---
+
+## Minha explicação do projeto, em palavras próprias
+
+protótipo: achei de boa etiqueta de git deixar o protótipo com mock data e etc com uma tag no github nesse primeiro commit, aí o projeto vai evoluindo e perdendo funcionalidades ao tentar construí-las de fato, mas sempre tem um norte no "protótipo finalizado".
+implementação da api key: tenho bastante insegurança com lidar com dados que devem ser protegidos então tomei as precauções corretas e li o que deveria ser feito/boas práticas de segurança
 
 ---
 
@@ -341,11 +346,6 @@ O agente pode ajudar a listar os arquivos e as responsabilidades alteradas.
 
 Registre o caminho desde a ação do usuário até a resposta visível, incluindo servidor, APIs externas e banco de dados quando aplicável.
 
-**Minha explicação em palavras próprias**
-
-protótipo: achei de boa etiqueta de git deixar o protótipo com mock data e etc com uma tag no github nesse primeiro commit, aí o projeto vai evoluindo e perdendo funcionalidades ao tentar construí-las de fato, mas sempre tem um norte no "protótipo finalizado".
-implementação da api key: tenho bastante insegurança com lidar com dados que devem ser protegidos então tomei as precauções corretas e li o que deveria ser feito/boas práticas de segurança
-
 **Como testei**
 
 Inclua o comando ou os passos manuais, o resultado observado e o que o teste não cobre.
@@ -375,10 +375,6 @@ Adicione novas entradas abaixo. Não é necessário preencher tudo perfeitamente
 
 Primeiro commit (`2af39e6`) na branch `main`, com o protótipo de mock data. Antes do commit: arquivos revisados, varredura de segredos, regra `.claude/settings.local.json` no `.gitignore` e lint, typecheck, format e build passando. Criada a tag anotada `prototype-v0.1.0` e a GitHub Release correspondente, como referência fixa para comparar a evolução do produto.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação**
 
 - Pergunta 1: O que acontece com a tag `prototype-v0.1.0` quando novos commits entram em `main`?
@@ -389,10 +385,6 @@ Primeiro commit (`2af39e6`) na branch `main`, com o protótipo de mock data. Ant
 **Resumo técnico**
 
 Criados `.env.local` (ignorado pelo Git, permissão `600`) e `.claude/settings.local.json`, que bloqueia a leitura de `.env*` pelo Claude Code. A chave foi colada localmente, sem passar pelo chat. Ela é lida apenas via `getServerEnv` (`src/lib/env.ts`, server-only). A checagem com `@next/env` confirmou só a presença do valor. A JUDIT não foi chamada, então a chave ainda não foi validada.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação**
 
@@ -405,19 +397,11 @@ Criados `.env.local` (ignorado pelo Git, permissão `600`) e `.claude/settings.l
 
 O repositório não tinha `CLAUDE.md`, mas o `AGENTS.md` já era carregado automaticamente pelo Claude Code. `CLAUDE.md` é só o nome tradicional. O comando `/memory` mostra quais arquivos de instrução estão ativos na sessão.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-12 / Criação do `CLAUDE.md`
 
 **Resumo técnico**
 
 Criado `CLAUDE.md` com a única linha `@AGENTS.md`, que importa as instruções sem duplicá-las. Não houve commit.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-12 / Custo e velocidade do agente
 
@@ -425,19 +409,11 @@ Criado `CLAUDE.md` com a única linha `@AGENTS.md`, que importa as instruções 
 
 Mais tokens não significa mais rapidez. `/fast` acelera a saída do mesmo modelo, com custo maior; `/model` escolhe o modelo e o esforço de raciocínio. Subagentes em paralelo foram desaconselhados porque contrariam o trabalho em incrementos pequenos e acompanháveis.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Fase 0: client JUDIT, erros e guarda de custo
 
 **Resumo técnico**
 
 Criado `juditRequest` (`src/lib/judit/client.ts`), único ponto de contato com a JUDIT: header `api-key`, timeout de 15s, erros tipados (`errors.ts`) e validação Zod tolerante. `guard.ts` bloqueia chamadas sem `JUDIT_LIVE_CALLS=enabled` e fora da allowlist. Vitest adicionado; 21 testes com `fetch` simulado, sem rede.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -449,10 +425,6 @@ Criado `juditRequest` (`src/lib/judit/client.ts`), único ponto de contato com a
 **Resumo técnico**
 
 Criadas cinco funções síncronas em `src/lib/judit/lawsuits.ts` (dados cadastrais, lista, contagem, sintética e processo por CNJ), lidas do datalake da JUDIT. As rotas `src/app/api/dev/judit/...` só respondem em desenvolvimento com o kill switch ligado. Um teste revelou um bug (404 de erro aceito como lista vazia), já corrigido.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -467,10 +439,6 @@ Criadas cinco funções síncronas em `src/lib/judit/lawsuits.ts` (dados cadastr
 
 Criadas seis funções em `src/lib/judit/requests.ts` para o fluxo assíncrono: criar requisição, consultar status, listar histórico e buscar respostas (inclusive de monitoramentos). Sem polling automático. `responseCameFromCache` lê o indicador de cache em quatro lugares possíveis. Cinco rotas de dev novas, 51 testes, build ok. Diário ganhou resumos e seção Q/A.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Depois de criar uma requisição, por que receber `status: "pending"` não significa que há algum dado pronto?
@@ -482,10 +450,6 @@ Criadas seis funções em `src/lib/judit/requests.ts` para o fluxo assíncrono: 
 **Resumo técnico**
 
 Criadas sete funções em `src/lib/judit/tracking.ts`: criar, listar, consultar, alterar recorrência, pausar, reativar e excluir monitoramentos. Por CNJ, vigia andamentos; por CPF/CNPJ/OAB, detecta processos novos. Primeira execução em até 24h. `recurrence` sem padrão; o DELETE de dev exige `?confirm=delete`. 61 testes, build ok.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -499,29 +463,17 @@ Criadas sete funções em `src/lib/judit/tracking.ts`: criar, listar, consultar,
 
 Commit da branch `feat/judit-client` com o client JUDIT, os serviços lawsuits, requests e tracking, as rotas de dev, 61 testes e o diário. O resumo da sessão e as pendências manuais ficaram na memória local do Claude Code, para serem apresentados no início da próxima sessão.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Retomada: leitura do relatório da sessão anterior
 
 **Resumo técnico**
 
 Relido o relatório da sessão anterior (commit `5423aa5`, fases 0–3 do client JUDIT, 61 testes, nenhuma chamada real feita). Confirmado que a allowlist ainda só contém o CNPJ fictício e a branch não foi enviada ao remoto. Pendências manuais apresentadas para decidir o próximo passo.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / CNJs de teste, chamada real adiada e revisão do commit
 
 **Resumo técnico**
 
 Não usaremos CNJs reais buscados na web: envolvem dados de terceiros e geram cobrança. A documentação oferece o CNPJ fictício `A1B2C3D4/E5F6-68` e uma chave de sandbox via comercial@judit.io. Chamada real adiada. Proposto roteiro de revisão do commit `5423aa5`.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -532,10 +484,6 @@ Não usaremos CNJs reais buscados na web: envolvem dados de terceiros e geram co
 **Resumo técnico**
 
 Revisado `guard.ts`: kill switch em toda chamada e allowlist só com o CNPJ fictício. Achado: a allowlist não cobre chamadas por ID nem listagens da conta (`listRequests`, `listTrackings`, `deleteTracking`), que passam só pelo kill switch. O comentário do arquivo promete mais do que entrega. Decisão pendente: opções A, B ou C.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -548,19 +496,11 @@ Revisado `guard.ts`: kill switch em toda chamada e allowlist só com o CNPJ fict
 
 Explicado que o commit `5423aa5` é o estado atual da branch `feat/judit-client`: os arquivos já estão na pasta e podem ser abertos no editor. `git log`, `git show` e `git show <hash> -- <arquivo>` mostram o histórico e o que cada commit mudou.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Encerramento da revisão do commit `5423aa5`
 
 **Resumo técnico**
 
 Revisão encerrada pela opção A: o comentário de `guard.ts` e o README agora dizem que a allowlist não cobre chamadas por ID nem listagens da conta. A correção definitiva fica para quando houver banco. Adicionadas ao Q/A 14 perguntas de entrevista sobre o repositório, com respostas.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-13 / Push e pull request
 
@@ -568,19 +508,11 @@ Revisão encerrada pela opção A: o comentário de `guard.ts` e o README agora 
 
 Explicada a diferença: `git push` copia os commits da branch local para o GitHub; o pull request é um pedido, feito no GitHub, para juntar essa branch à `main`, com espaço para revisão e discussão. O push vem antes do PR. Confirmado que `JUDIT_LIVE_CALLS=` já está no `.env.example`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Push da branch e quando fazer merge
 
 **Resumo técnico**
 
 Commitadas as mudanças da revisão e feito o push de `feat/judit-client` para o GitHub; PR não aberto. Discutido que "produto inacabado" é diferente de "fatia inacabada": a `main` pode receber fatias pequenas, testadas e isoladas. O `.env.example` ficou fora do commit.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-13 / Pull request #1
 
@@ -588,29 +520,17 @@ Commitadas as mudanças da revisão e feito o push de `feat/judit-client` para o
 
 Aberto o PR #1 (`feat/judit-client` → `main`), com descrição, limitações conhecidas (nenhuma chamada real feita, lacuna da allowlist) e verificações. O merge fica com você, no GitHub. Depois dele, a fase 2 (banco) começa numa branch nova a partir da `main` atualizada.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Onde está cada versão do código
 
 **Resumo técnico**
 
 Conferido com `git fetch`, `git status` e `gh pr view`: a `main` do GitHub continua no protótipo (`2af39e6`); a branch `feat/judit-client` no GitHub tem os dois commits do client; o PR #1 está aberto e sem conflitos. Localmente, `.env.example` e o diário têm mudanças não commitadas.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Fase 2a: persistência de empresas e monitoramentos
 
 **Resumo técnico**
 
 Na branch `feat/persistence`: índice único parcial impede dois monitoramentos ativos do mesmo identificador (migration `0001`). `ensureCompany`, `createTracking` e listagens validam no servidor. Testes usam PostgreSQL real em processo (PGlite). 80 testes passando. Telas ainda não usam o banco; migration não aplicada.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -624,10 +544,6 @@ Na branch `feat/persistence`: índice único parcial impede dois monitoramentos 
 
 Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migrations e PGlite removidos; tipos agora em `src/db/models.ts`. Índices em `ensureIndexes`, chamado na conexão. A regra anti-duplicata virou índice parcial sobre o campo `active`. Testes usam `mongod` real temporário. 78 testes passando.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que o documento de monitoramento precisa de um campo `active`, se o `status` já diz se ele foi excluído?
@@ -638,10 +554,6 @@ Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migra
 **Resumo técnico**
 
 `DATA_SOURCE=demo|db` escolhe a origem dos dados do app inteiro em `src/lib/data.ts`. No modo `db`, as páginas leem o MongoDB na requisição (`connection()` + `Suspense`), e criar monitoramento grava via Server Action. Testado por HTTP contra um MongoDB temporário. 83 testes; build ok nos dois modos.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -654,10 +566,6 @@ Banco trocado para MongoDB (Atlas, driver oficial, sem Mongoose). Drizzle, migra
 
 O travamento corrompeu o commit da Fase 2b: a branch apontava para objetos vazios. O working tree estava íntegro (hashes conferidos com o índice). Com backup do `.git`, os objetos vazios foram removidos, a branch voltou para `87f9ccc` e o commit foi recriado (`8cb096f`). Testes, lint, typecheck, format e build passaram.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que o código não se perdeu, embora o commit tenha sido corrompido?
@@ -669,10 +577,6 @@ O travamento corrompeu o commit da Fase 2b: a branch apontava para objetos vazio
 
 No diálogo "Connect" do Atlas, o método certo é "Drivers" (Node.js), porque quem conecta é o servidor Next.js, usando o driver oficial `mongodb`. A string `mongodb+srv://` vai para `MONGODB_URI` no `.env.local`, com a senha do usuário do banco, nunca no código nem no chat.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que a senha da string de conexão é a do usuário do banco, e não a da sua conta no Atlas?
@@ -683,19 +587,11 @@ No diálogo "Connect" do Atlas, o método certo é "Drivers" (Node.js), porque q
 
 A string colada no chat ainda tinha o marcador `<db_password>`, então nenhuma senha foi exposta. Ela não traz `retryWrites` nem `w=majority`, mas o driver e o servidor atuais já usam esses padrões. Próximo passo: colar a string, com a senha real, no `.env.local` e subir o app no modo `db`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Onde fica a senha do usuário do banco
 
 **Resumo técnico**
 
 O Atlas mostra a senha do usuário do banco só uma vez, na criação, e não deixa consultá-la depois. Se ela não foi guardada, a saída é gerar uma nova em "Database Access" > "Edit" > "Edit Password". Senha autogerada evita caracteres especiais que quebram a URI.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-13 / Variáveis do `.env.local`
 
@@ -703,19 +599,11 @@ O Atlas mostra a senha do usuário do banco só uma vez, na criação, e não de
 
 O código lê cinco variáveis, todas validadas em `src/lib/env.ts`: `MONGODB_URI`, `MONGODB_DB`, `DATA_SOURCE`, `JUDIT_API_KEY` e `JUDIT_LIVE_CALLS`. `NODE_ENV` é definida pelo Next. Para testar o banco, `JUDIT_LIVE_CALLS` pode ficar vazia, sem chamadas reais à JUDIT.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-13 / Primeiro teste no modo `db`: app continuou em `demo`
 
 **Resumo técnico**
 
 A página mostrava "Dados de demonstração". O `loadEnvConfig` do Next revelou nomes errados no `.env.local` (`MONGO_URI`, `MONGO_DB_NAME`, `DATA_SOURCE=mongodb`) em vez de `MONGODB_URI`, `MONGODB_DB` e `DATA_SOURCE=db`. O MongoDB nem foi contatado. Lição: perguntar ao carregador o que ele leu.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -727,19 +615,11 @@ A página mostrava "Dados de demonstração". O `loadEnvConfig` do Next revelou 
 
 Criados `docs/relatorio-de-progresso.md` (estado, pendências em ordem, checklist do teste `db`, tabela de falhas) e `docs/logs/2026-10-13-sessao.md` (log sanitizado). Servidor encerrado. O `.env.local` ainda tem os nomes errados. Nada foi commitado nesta etapa.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Diagnóstico do modelo de segurança do `.env`
 
 **Resumo técnico**
 
 Repositório público. `.env.local` nunca entrou no Git. `.env.example` está em `2af39e6` (publicado) e `8cb096f` (local), com conteúdo não revisado. O bloqueio do agente cobre só a ferramenta `Read`, não o terminal. Nenhuma URI do Mongo com senha no histórico rastreado.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -752,19 +632,11 @@ Repositório público. `.env.local` nunca entrou no Git. `.env.example` está em
 
 O `deny` agora lista só arquivos de segredo (`.env`, `.env.local`, `.env.*.local`, `.env.development|production|test`). Conferência: `.env.example` vazio nas três versões, sem vazamento. Ele ainda descrevia o PostgreSQL (`DATABASE_URL`); foi reescrito com as cinco variáveis de `src/lib/env.ts`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Procedimento de segredos e primeiro ping no Atlas
 
 **Resumo técnico**
 
 Criados `pnpm env:check [--db]` (nomes, tamanhos, ping só leitura, sem valores) e `src/lib/env.test.ts` (`.env.example` vazio e sincronizado com `env.ts`). README ganhou o procedimento. Ping: rede ok, `bad auth`; a URI ainda contém `<db_password>`.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -776,19 +648,11 @@ Criados `pnpm env:check [--db]` (nomes, tamanhos, ping só leitura, sem valores)
 
 O `bad auth` tinha duas causas em sequência: a senha ficou entre `<` e `>` (sobra do marcador do Atlas) e, depois, a senha não era a do usuário do banco. Com uma senha nova gerada no Atlas, `pnpm env:check --db` conectou ao banco `raio_x`.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / O que é o `.env.example`
 
 **Resumo técnico**
 
 O `.env.example` não protege nada sozinho: é a documentação versionada das variáveis. A proteção vem de manter valores fora do Git (`.gitignore`), seguindo o princípio "configuração no ambiente" do Twelve-Factor App. Convenção comum, não padrão formal; em produção, variáveis vêm da plataforma ou de um cofre de segredos.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-14 / Quem lê o `.env.local` e como o segredo chega aos serviços
 
@@ -796,19 +660,11 @@ O `.env.example` não protege nada sozinho: é a documentação versionada das v
 
 O servidor Next lê o `.env.local` ao iniciar e coloca os valores em `process.env`. Git, navegador e agente não leem. A chave vai à JUDIT no cabeçalho `api-key` via HTTPS; a URI conecta ao Atlas via TLS. Em produção, os valores vêm do painel da plataforma, não do arquivo.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Balanço da segurança do `.env`
 
 **Resumo técnico**
 
 Resolvido: nenhum segredo no Git, `.env.example` sincronizado e testado, `env:check`, senha do Mongo nova. Aberto: trocar a `JUDIT_API_KEY` (prefixo vazado), commitar o procedimento, conferir Network Access e papel do usuário no Atlas, `JUDIT_LIVE_CALLS` ligado. Webhook e demo pública ficam para depois.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-14 / Commit do procedimento e barreira técnica possível
 
@@ -816,19 +672,11 @@ Resolvido: nenhum segredo no Git, `.env.example` sincronizado e testado, `env:ch
 
 Commits locais `561a05f` (procedimento de segredos) e `6532c05` (documentos). Chave JUDIT mantida; `0.0.0.0/0` no Atlas aceito por ora. Barreira técnica possível: sandbox do Claude Code, que aplica as regras `deny` de leitura também ao terminal. O `env:check` lê o `.env.local`, mas só exibe valores não secretos.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Roteiro do teste do modo `db`
 
 **Resumo técnico**
 
 Roteiro em seis passos: subir `pnpm dev`, conferir o selo "Banco de dados", ver as coleções criadas pelo `ensureIndexes`, gravar o CNPJ fictício `A1B2C3D4/E5F6-68`, recarregar (persistência), repetir (duplicado barrado pelo índice `trackings_active_search_key_unique`) e conferir no Atlas.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -840,19 +688,11 @@ Roteiro em seis passos: subir `pnpm dev`, conferir o selo "Banco de dados", ver 
 
 O app criou as quatro coleções ao conectar. O CNPJ fictício gerou um documento em `companies` e um em `trackings`, sem ID da JUDIT. A repetição mostrou "Já existe um monitoramento ativo…", e o banco seguiu com um documento: o índice único parcial barrou a duplicata. Etapa 2 concluída.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Catálogo de investigação de falhas
 
 **Resumo técnico**
 
 Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e de `errors.ts`/`dev-route.ts`: mapa de camadas, triagem por sinal e casos de ambiente, Atlas, JUDIT (classe → status da rota dev → hipótese), Git e segurança. Cada caso marcado como observado, previsto ou documentado.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -865,29 +705,17 @@ Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e d
 
 `git switch main` e `git pull` fizeram fast-forward de `2af39e6` para `c8e84b8` (merge do PR #2, `feat/persistence`). A `main` agora tem MongoDB, `DATA_SOURCE`, client da JUDIT, rotas de dev e `check-env`. Nenhum conflito: a `main` local não tinha commits próprios.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Plano da etapa 3 e preparo da primeira chamada real
 
 **Resumo técnico**
 
 `pnpm env:check` mostrou `JUDIT_LIVE_CALLS="enabled"` e chave definida, com o `next dev` rodando na porta 3000. A página `/cache-judit/count` confere com `countLawsuits`. Plano: `count`, depois `POST /lawsuits` (lacuna 10) e só então a fatia vertical na página da empresa.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Primeira chamada real à JUDIT
 
 **Resumo técnico**
 
 `curl` na rota de dev `lawsuits/count` com o CNPJ fictício: HTTP 200, `{"total":1,"limited":false}`, 2,0 s. Contrato confirmado; `response_type` aceito. `limited` não está documentado: registrado como contradição 32 no README e no catálogo. Schema tolerante evitou um falso 502.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -900,10 +728,6 @@ Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e d
 
 `POST /lawsuits` devolveu um processo fictício (TJSP, CNJ válido). Confirmou partes no formato do OpenAPI e campos `phase`/`status` ausentes. A lacuna 10 continua aberta: o `transform` renomeia a lista para `lawsuits` antes da rota responder. Os 2,0 s nas duas chamadas ainda não foram explicados.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que a saída da rota de dev não prova se a JUDIT usa `lawsuits` ou `response_data`?
@@ -915,10 +739,6 @@ Criado o catálogo no topo do diário, a partir dos logs, do README da JUDIT e d
 
 Não há atraso programado: o único `setTimeout` em `client.ts` é um teto de 15 s que aborta a chamada, não uma espera. A JUDIT também não documenta atraso proposital. Hipóteses abertas: compilação da rota no `next dev`, latência de rede/TLS ou demora da JUDIT. As linhas do terminal separam essas hipóteses.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Qual a diferença entre um tempo limite (timeout) e um atraso (delay)?
@@ -929,19 +749,11 @@ Não há atraso programado: o único `setTimeout` em `client.ts` é um teto de 1
 
 `0000000-39.2026.8.26.0050` entrou na allowlist (`guard.ts`) com teste; 86 testes, lint, typecheck e format ok. Lacuna 10 mantida aberta. Teste gratuito: rota nunca compilada, sem chamar a JUDIT, levou 2,28 s e depois 0,014 s. Os 2 s são compilação do `next dev`, não da JUDIT (catálogo C10).
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / A rota está mal otimizada?
 
 **Resumo técnico**
 
 Não. O `next dev` compila cada rota no primeiro acesso (guia `local-development.md` do Next); o `next build` compila tudo antes. Já aquecida, a rota respondeu em 14 ms. Os 2 s são custo do ambiente de desenvolvimento, não do nosso código; em produção, o tempo relevante será o da JUDIT.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -953,10 +765,6 @@ Não. O `next dev` compila cada rota no primeiro acesso (guia `local-development
 
 Decisão sua: não copiar processos para o MongoDB. A tela lê o datalake (`POST /lawsuits`) e, para dados frescos, dispara `POST /requests`. Lacuna: a documentação não diz que um request concluído atualiza o datalake, então o resultado novo é lido em `GET /responses`. Proposto guardar só o ponteiro (`request_id`).
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que guardar o `request_id` não é "replicar a JUDIT", mas guardar a lista de processos seria?
@@ -966,10 +774,6 @@ Decisão sua: não copiar processos para o MongoDB. A tela lê o datalake (`POST
 **Resumo técnico**
 
 Botão "Consultar datalake JUDIT" (modo `db`) chama `searchCompanyLawsuitsAction`, que valida o CNPJ, exige a empresa cadastrada e chama `searchLawsuits`. `fromJuditLawsuit` converte o processo para o modelo da tela. Nada é gravado. 99 testes, lint, typecheck e build ok; clique real ainda não testado.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -982,10 +786,6 @@ Botão "Consultar datalake JUDIT" (modo `db`) chama `searchCompanyLawsuitsAction
 
 Log em `docs/logs/2026-10-14-sessao.md` e relatório atualizado. Branch `feat/judit-datalake` criada a partir da `main`, com dois commits (código da 3a e documentação), não enviada ao GitHub. Um commit é um retrato, não uma entrega: o que está pendente fica escrito na mensagem e no relatório.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Como commitar um trabalho que ainda não terminou sem atrapalhar a `main`?
@@ -995,10 +795,6 @@ Log em `docs/logs/2026-10-14-sessao.md` e relatório atualizado. Branch `feat/ju
 **Resumo técnico**
 
 O diário parecia ter 91 linhas porque uma aba do Cursor guardava, desde 12/10, uma edição acidental não salva, e por isso não recarregava o arquivo do disco. O arquivo real tem mais de 1200 linhas. Primeiro palpite errado: a cópia em `~/Downloads`. Caso D4 no catálogo.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -1011,29 +807,17 @@ O diário parecia ter 91 linhas porque uma aba do Cursor guardava, desde 12/10, 
 
 Comportamento esperado. `ensureCompany` (`src/features/companies/db.ts`) cria a empresa só com o CNPJ (`legalName: null`), e nenhuma fatia busca dados cadastrais. O texto vem do cabeçalho em `company-detail.tsx`, não do botão do datalake. O resultado do clique ainda não foi relatado.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Teste manual da fatia 3a concluído
 
 **Resumo técnico**
 
 O clique em "Consultar datalake JUDIT" (modo `db`, CNPJ fictício) funcionou: a server action chamou `POST /lawsuits` e mostrou o resultado. Nova observação: a JUDIT aceitou o CNPJ **sem máscara** (`A1B2C3D4E5F668`). Fatia 3a validada de ponta a ponta. Próxima: 3b.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / `on_demand`: custo por uso, não por funcionalidade
 
 **Resumo técnico**
 
 A JUDIT cobra por requisição. Ter `on_demand` no código não custa nada, só o envio com `true` custa. Docs: "força a busca em tempo real nos tribunais" (request-document) e "custo maior" (glossário), sem valores publicados. Proposta para a 3b: uma opção desmarcada por padrão e `onDemand` gravado em `judit_requests`.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -1045,19 +829,11 @@ A JUDIT cobra por requisição. Ter `on_demand` no código não custa nada, só 
 
 Decisão sua: cada consulta e monitoramento deve declarar a modalidade JUDIT usada (endpoint, sync/async, datalake/tribunal, polling/webhook). Nada implícito, como uma caixa `on_demand` escondida. Os rótulos da interface ficam para depois. Proposta: um catálogo tipado de modalidades e um campo `mode` gravado. Aguardando aprovação.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Request assíncrona atualiza o datalake
 
 **Resumo técnico**
 
 Você confirmou que uma request assíncrona concluída atualiza o datalake da JUDIT (fonte: tech lead da JUDIT). Isso reforça o desenho híbrido: depois da request, um `POST /lawsuits` barato já lê dado fresco, sem cópia no MongoDB. Banco próprio de processos só compensa com muitas consultas repetidas. A atualização chega junto com a entrega (também confirmado).
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -1068,10 +844,6 @@ Você confirmou que uma request assíncrona concluída atualiza o datalake da JU
 **Resumo técnico**
 
 Três camadas: `src/lib/judit` (como chamar cada endpoint, sem decisões de produto), `src/features/<domínio>` (regras, persistência, actions, mapeamento) e `src/app` (páginas e rotas de dev). `src/lib/data.ts` escolhe demo ou MongoDB. O catálogo de modalidades ficaria entre features e o client.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -1084,10 +856,6 @@ Três camadas: `src/lib/judit` (como chamar cada endpoint, sem decisões de prod
 
 Catálogo `modes.ts`, coleção `judit_requests` (índice único em `requestId`) e duas actions: criar a consulta (comum ou on-demand, com `cache_ttl_in_days`) e verificar o status e as respostas. O `request_id` vai para o log antes de gravar. 111 testes, lint, typecheck, format e build passando. Falta o teste manual.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
 - Por que `checkAsyncQueryAction` procura o `request_id` no nosso banco antes de perguntar à JUDIT?
@@ -1099,19 +867,11 @@ Catálogo `modes.ts`, coleção `judit_requests` (índice único em `requestId`)
 
 Você revisou o código da 3b e aprovou sem pedir mudanças. Ainda pendente: o teste manual com a JUDIT (reiniciar o `pnpm dev` antes, para criar o índice de `judit_requests`) e o commit.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Teste manual da fatia 3b concluído
 
 **Resumo técnico**
 
 Teste manual feito por você com o CNPJ fictício: criar, verificar status e ler o resultado funcionaram. Com isso, a JUDIT também aceitou o CNPJ sem máscara em `POST /requests`. Fatia 3b validada de ponta a ponta; falta o commit.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-14 / Encerramento da etapa 3
 
@@ -1119,19 +879,11 @@ Teste manual feito por você com o CNPJ fictício: criar, verificar status e ler
 
 Textos da consulta síncrona sem "datalake", usando o rótulo do catálogo. Etapa 3 concluída: consulta síncrona e assíncrona (comum e on-demand), testadas com a JUDIT real. Relatório e log atualizados. Próxima sessão: merge da branch e desenho da etapa 4, monitoramento real com cobrança recorrente.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Desenho da etapa 4: proposta
 
 **Resumo técnico**
 
 Proposta para o monitoramento real: modalidades explícitas (`tracking_document` e `tracking_lawsuit`), reserva no MongoDB antes do `POST /tracking` para impedir monitoramento duplicado (cobrança recorrente em dobro), status e resultados verificados à mão, pausa disponível desde a primeira fatia. Aguardando decisões.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -1142,10 +894,6 @@ Proposta para o monitoramento real: modalidades explícitas (`tracking_document`
 **Resumo técnico**
 
 Monitoramento real com reserva no MongoDB antes do `POST /tracking`, envio atômico, classificação do erro (`failed` libera o CNPJ, `uncertain` bloqueia), `mode` explícito, pausar, reativar, excluir com confirmação e resultados. 123 testes, lint, typecheck, format e build passando. Falta o teste com a JUDIT, que atravessa 24 h.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas")
 
@@ -1158,19 +906,11 @@ Monitoramento real com reserva no MongoDB antes do `POST /tracking`, envio atôm
 
 O agente subiu o `pnpm dev` e conferiu, sem custo: a página `/monitoramentos` mostra o registro da etapa 2 como "Não enviado à JUDIT" (recorrência diária) e as oito actions existem. A chamada às actions foi bloqueada pelo classificador do modo automático (caso D3). O teste segue com você.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Teste real da etapa 4 (passos 2 a 4)
 
 **Resumo técnico**
 
 Você rodou as actions pelo terminal: reserva antiga descartada; monitoramento criado na JUDIT (`tracking_id c8ac8528…`, primeira execução às 6h, CNPJ sem máscara aceito); duplicata recusada em 47 ms sem chamar a JUDIT. Divergência: pedimos recorrência 30 e a JUDIT gravou 1 (caso C11).
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 ### 2026-10-14 / Teste do `PATCH /tracking`
 
@@ -1178,29 +918,17 @@ Você rodou as actions pelo terminal: reserva antiga descartada; monitoramento c
 
 `PATCH` com `{ "recurrence": 30 }` no monitoramento de teste: a JUDIT respondeu 400, `"unrecognized key: 'recurrence'"`. O OpenAPI estava certo (contradição 26) e o corpo de erro veio aninhado, com `data` (lacuna 1). A recorrência não muda depois de criada; o monitoramento continua diário até ser pausado.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / `PATCH` passa a enviar `callback_url`
 
 **Resumo técnico**
 
 `updateTrackingRecurrence` virou `updateTrackingCallbackUrl` (`src/lib/judit/tracking.ts`), seguindo o OpenAPI. A rota de dev aceita só `{ callbackUrl }` com `https://` e recusou localmente `recurrence` e uma URL `http`. Será usada na etapa 5, para apontar o webhook de um monitoramento para o nosso endpoint. 123 testes passando.
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / Revisão técnica e encerramento da sessão
 
 **Resumo técnico**
 
 Revisão do dia no relatório (18 itens). Os urgentes: `next dev` exposto na rede, estado duplicado dos monitoramentos, chamada dupla em desenvolvimento e `uncertain` sem conferência. Caso C10 revisto. Novas perguntas de entrevista sobre as etapas 3 e 4. Commits na `feat/judit-tracking`; falta pausar o monitoramento.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas de entrevista sobre este repositório")
 
@@ -1213,19 +941,11 @@ Revisão do dia no relatório (18 itens). Os urgentes: `next dev` exposto na red
 
 Etapas 1–3 na `main`; etapa 4 na `feat/judit-tracking`, não enviada. Às 22h33 (BRT), a primeira execução do monitoramento de teste ainda não tinha ocorrido. Ordem: conferir e pausar, corrigir os itens 1–3 da revisão, abrir o PR e definir com a JUDIT o cadastro do webhook (etapa 5).
 
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
-
 ### 2026-10-14 / `next dev` só em `127.0.0.1` e seção "Inside knowledge"
 
 **Resumo técnico**
 
 Script `dev` agora é `next dev -H 127.0.0.1` (item 1 da revisão). Verificado: socket em `127.0.0.1:3000`, `curl` local 200, pelo IP da rede recusado. Nova seção "Inside knowledge" (IK0–IK9): dúvidas sobre o funcionamento interno da JUDIT, respondidas por você.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Rede do servidor de dev")
 
@@ -1237,10 +957,6 @@ Script `dev` agora é `next dev -H 127.0.0.1` (item 1 da revisão). Verificado: 
 **Resumo técnico**
 
 Corrigidos os itens 2, 3, 4, 6, 7, 11 e parte do 17 da revisão: lista do servidor sem cópia, resultados buscados no clique, "Conferir na JUDIT", `try/catch` nos handlers, aviso de recorrência, funções do banco renomeadas e mais testes. 131 testes, lint, typecheck, build. Navegador não testado.
-
-**Minha explicação em palavras próprias**
-
-> Preencha esta seção você mesmo.
 
 **Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Pontas soltas da etapa 4")
 
@@ -1254,9 +970,11 @@ Corrigidos os itens 2, 3, 4, 6, 7, 11 e parte do 17 da revisão: lista do servid
 
 Três commits na `feat/judit-tracking`, sem envio ao GitHub: `98085dc` (servidor de dev só local), `6e52e0a` (pontas soltas da etapa 4) e o de documentação (relatório, log da sessão e diário). Daqui em diante, o agente só acrescenta texto a este diário, sem alterar o que já está escrito.
 
-**Minha explicação em palavras próprias**
+### 2026-10-15 / Seção única de explicação
 
-> Preencha esta seção você mesmo.
+**Resumo técnico**
+
+A pedido, removidas as 72 seções "Minha explicação em palavras próprias" que só tinham o placeholder, e a do "Modelo de entrada". O texto já escrito foi movido, sem alteração, para a seção única perto do topo, que só você escreve. A seção 4 de `AGENTS.md` e `docs/AGENTS.md` descreve a nova regra.
 
 ---
 
