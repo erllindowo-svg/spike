@@ -54,6 +54,24 @@ escopo proposta pelo usuário:
    - opcional: conferência de entregas perdidas por `GET /responses` (IK10);
    - monitoramentos com webhook, quando houver um endereço fixo.
 
+### Etapa 8 (proposta do usuário, 2026-10-15): "projeto finalizado"
+
+- **8A. Reprodutibilidade e pontas soltas.** Quem clona o repositório
+  consegue rodar sem precisar depurar nada. Proposta de três níveis, cada um
+  com instruções próprias: (1) demonstração, sem nada configurado; (2) banco,
+  com MongoDB local ou Atlas; (3) JUDIT real, com chave própria, kill switch,
+  allowlist e túnel. Critério de pronto: o teste do clone limpo (clonar numa
+  pasta nova, seguir só o README, anotar cada travada; cada travada vira um
+  item). Primeiro achado: o README da raiz está desatualizado desde a etapa 2
+  (diz que alertas e webhooks não são persistidos; a tabela não tem as três
+  variáveis do webhook).
+- **8B. Auditoria** (`AGENTS.md`, seção 6, "Modo auditoria"), sobre o código
+  congelado depois da 8A. O usuário dita o que entendeu; o agente registra no
+  diário, marcado como ditado, sem reescrever o sentido.
+- **Ordem:** 8A antes da 8B, porque a auditoria não altera código.
+- Pendente: a lista da seção 6 do `AGENTS.md` ainda diz "7. Diagnóstico… 8.
+  Auditoria". Atualizar é decisão do usuário.
+
 ## Onde estamos
 
 As etapas 1 a 5 do `AGENTS.md` (seção 6) estão feitas. A etapa 5 grava cada

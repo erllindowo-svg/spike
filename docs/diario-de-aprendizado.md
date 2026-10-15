@@ -1257,6 +1257,12 @@ Teste feito pelo agente, a pedido do usuário. Depois do `pnpm dev` reiniciado, 
 - Recusa de uma segunda consulta igual em aberto (G5): exigiria gastar outra consulta; está coberta pelos testes.
 - Entregas de monitoramento (C14, IK11) e a ordem "entrega antes da gravação" (G1, segundo caso): a gravação veio 1,8 s antes da primeira entrega.
 
+### 2026-10-15 / Proposta da etapa 8
+
+**Resumo técnico**
+
+Proposta do usuário: uma etapa 8 para "fechar" o projeto. A 8A deixa o repositório reproduzível por quem clona, com as pontas soltas resolvidas. A 8B é a auditoria, com o usuário ditando o que entendeu para o diário. Avaliação do agente: boa ideia, com a 8A antes da 8B e um critério de pronto testável. Registrada em `docs/plano-etapas-6-7.md`.
+
 ---
 
 ## Perguntas e respostas
