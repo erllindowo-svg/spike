@@ -320,3 +320,34 @@ Registradas em vez de escolhidas em silêncio.
     devolve `hour_range` (6). A aplicação grava a recorrência devolvida pela
     JUDIT, não a pedida. Como o `PATCH` não aceita `recurrence` (item 26),
     não há como corrigir o valor depois de criado.
+37. **Monitoramento por documento só vê processos novos.** _Observado em
+    2026-10-15._ Na criação, a JUDIT acrescenta sozinha
+    `search_params.filter.distribution_date_gte` com o `created_at` do
+    monitoramento (o campo não é citado nas páginas de tracking). Coerente com
+    [tracking-document](https://docs.judit.io/tracking/tracking-document):
+    a modalidade detecta processos que "ainda não existiam" quando o
+    monitoramento começou. A primeira execução do CNPJ de teste terminou
+    `completed` com `responses_count: 0`; o processo fictício, distribuído
+    antes, nunca aparece. Por isso o CNPJ de teste monitorado não serve para
+    disparar um webhook.
+38. **Execução do monitoramento e campos fora da documentação.** _Observado
+    em 2026-10-15._ Cada execução cria uma request com `origin: "tracking"`,
+    `origin_id` (o `tracking_id`), `origin_created_at` e
+    `cache_ttl_in_days: 1`; o `GET /tracking/{id}` aponta a última no campo
+    `request_id`. Com `hour_range: 6`, a execução começou às 06:55:25 UTC
+    (`execution_minute: 55`), indício de que `hour_range` está em UTC (uma
+    observação só; diário, IK5). Também vieram, sem documentação:
+    `updating_at`, `plan_config_type`, `tracked_items_count`,
+    `tracked_items_steps_count` e `tags.ip` (IP de quem criou; dado pessoal,
+    não registrar). A JUDIT devolve `search_key` com máscara
+    (`A1.B2C.3D4/E5F6-68`) mesmo quando recebe sem. `GET /responses/tracking`
+    aceitou `created_at_gte` tanto como `2026-10-14T00:00:00` quanto com `Z`.
+39. **Chave de idempotência do webhook.** A página
+    [webhook/callbacks](https://docs.judit.io/webhook/callbacks) diz, no
+    resumo do padrão de entrega, para implementar idempotência por
+    `request_id` + `cached_response`; mais abaixo, nas boas práticas, manda
+    usar `callback_id` ("em retries, o mesmo `callback_id` é reentregue"), e
+    [errors](https://docs.judit.io/resource/errors) repete o `callback_id`.
+    `request_id` + `cached_response` não identifica uma entrega: uma request
+    gera várias respostas. Vamos usar `callback_id`, que já tem índice único
+    em `webhook_events` desde a etapa 2.

@@ -1,19 +1,20 @@
 # Relatório de progresso: Raio-X Jurídico
 
-Última atualização: 2026-10-14 (fim da noite, depois das pontas soltas). Registros detalhados:
+Última atualização: 2026-10-15 (etapa 4 encerrada; próxima: etapa 5). Registros detalhados:
 [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md) e
 [`docs/logs/2026-10-14-sessao.md`](logs/2026-10-14-sessao.md).
 
 ## Onde estamos
 
-| Etapa (AGENTS.md, seção 6)                  | Estado                                                                      |
-| ------------------------------------------- | --------------------------------------------------------------------------- |
-| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                         |
-| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                               |
-| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                       |
-| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                   |
-| 4. Monitoramento real                       | **Implementada**, pontas soltas corrigidas; falta a primeira execução (6h). |
-| 5 a 7. Webhooks, idempotência, diagnóstico  | Não iniciadas.                                                              |
+| Etapa (AGENTS.md, seção 6)                  | Estado                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------ |
+| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                      |
+| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                            |
+| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                    |
+| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                |
+| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado. |
+| 5 a 7. Webhooks, idempotência, diagnóstico  | Não iniciadas. Plano da etapa 5 no fim deste relatório.                  |
+| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").              |
 
 ### Estado do Git
 
@@ -21,8 +22,10 @@
 - Etapa 4 na branch `feat/judit-tracking` (a partir de `10760a5`): código
   e documentação da etapa, depois três commits das pontas soltas (servidor
   de dev, correções e documentação). **Não enviada** ao GitHub.
-- Próximo passo de Git: depois do teste da primeira execução, enviar a
-  branch e abrir o PR; o usuário faz o merge.
+- 2026-10-15: diário com seção única de explicação (`918c257`, branch
+  `docs/diario-secao-unica`) e registro do fechamento da etapa 4, ambos
+  levados para a `feat/judit-tracking`, que foi enviada com o PR da etapa 4.
+  O usuário faz o merge.
 
 ## Etapa 3: o que existe
 
@@ -97,6 +100,14 @@ Menu → refresh/pause/resume/delete/results: só para IDs confirmados do app
 4. Menu → "Atualizar status": esperado `created`.
 5. **Até 24 h depois:** "Atualizar status" (esperado `updated`), "Ver
    resultados" (esperado o processo fictício) e então **"Pausar na JUDIT"**.
+
+**Resultado (2026-10-15):** a execução rodou às 06:55 UTC e terminou
+`completed` com **zero** respostas. A expectativa "o processo fictício"
+estava errada: o monitoramento por documento só avisa processos distribuídos
+depois da criação (a JUDIT grava `distribution_date_gte`; README, item 37;
+catálogo, C14). Pausado pelo usuário às 21:58 UTC; JUDIT e MongoDB com
+`paused`. Detalhes no diário, entrada "Primeira execução do monitoramento e
+pausa".
 
 ## Revisão técnica de 2026-10-14: o que corrigir nas próximas sessões
 
@@ -198,10 +209,11 @@ produto.
     empresa pelo CNPJ, quando o registro já tem `companyId` e `searchKey`.
 13. Só a primeira página de respostas é lida (`page_size` 100 ou 50). A tela
     mostra "X de Y carregadas", mas não busca o resto.
-14. **Ainda não verificado ao vivo:** o formato de data de
-    `GET /responses/tracking` (`AAAA-MM-DDT00:00:00`), o `response_type` das
-    respostas de monitoramento e o fuso do `hour_range` (a tela diz "às 6h"
-    sem fuso).
+14. **Em parte verificado em 2026-10-15:** `GET /responses/tracking` aceita
+    `AAAA-MM-DDT00:00:00`; o `hour_range` parece estar em UTC (06:55 UTC com
+    `hour_range: 6`; IK5), então a tela "às 6h" engana quem está em Brasília.
+    Falta: o `response_type` e os campos das respostas de monitoramento (a
+    execução não teve resultados).
 15. Componentes grandes: `company-detail.tsx` (328 linhas),
     `new-tracking-dialog.tsx` (333) e `demo-store.tsx` (575). Extrair o card
     da consulta síncrona, como foi feito com o das assíncronas.
@@ -218,6 +230,10 @@ produto.
     cobrada" também ao pausar ou excluir.
 18. Processo: o diário passou de 1.400 linhas. Um índice por etapa no topo
     ajudaria a estudar.
+19. **Observado em 2026-10-15:** aviso do Next.js em `/empresas`
+    ("uncached data during prerendering or a navigation"): a página espera
+    `listLawsuits()` fora do próprio `<Suspense>` (catálogo, D5). O item 8
+    também foi observado ao vivo (catálogo, C16).
 
 ### O que continua aberto, e por quê
 
@@ -251,26 +267,28 @@ produto.
 
 ## Próxima sessão, em ordem
 
-1. **Conferir e só então pausar o monitoramento de teste.** Ele foi criado
-   em 2026-10-14 às 22:09 UTC (`324fbfa2-…`, `tracking_id c8ac8528-…`), com
-   recorrência **diária** (caso C11) e primeira execução prevista para as 6h
-   (fuso a confirmar). Depois das 6h, nesta ordem: "Atualizar status"
-   (esperado `updated`), "Ver resultados" (esperado o processo fictício;
-   verifica o formato de data, item 14) e, por último, **"Pausar na JUDIT"**.
-   A pausa só interrompe as próximas execuções; o monitoramento continua
-   existindo, com `status: "paused"`
-   (<https://docs.judit.io/tracking/tracking#pausando-um-monitoramento>).
-2. O mesmo roteiro verifica as correções da revisão, que ainda não foram
-   testadas no navegador:
-   - "Ver resultados" deve gerar **uma** linha `GET /responses/tracking` no
-     terminal do `pnpm dev`, não duas (item 3);
-   - depois de "Atualizar status" e de "Pausar na JUDIT", a linha deve mudar
-     sem recarregar a página (item 2).
-3. Commitar as correções, enviar `feat/judit-tracking` e abrir o PR.
-4. **Etapa 5: webhooks.** Dependência externa a resolver cedo: a JUDIT
-   cadastra o webhook pelo suporte ou aceita `callback_url` por monitoramento
-   (`updateTrackingCallbackUrl` já existe), e precisa de uma URL pública
-   HTTPS (em dev, um túnel).
+1. **Etapa 5: receber e gravar um webhook de teste.** Fatos da documentação
+   ([webhook/callbacks](https://docs.judit.io/webhook/callbacks)): cadastro
+   por URL da conta (pedido ao suporte) ou por `callback_url` na requisição;
+   `POST` JSON numa URL HTTPS pública; responder 2xx em menos de 10 s; novas
+   tentativas em 5xx ou timeout; nenhuma assinatura documentada (só HTTPS e
+   allowlist de IPs, pedida ao suporte); um único `event_type`,
+   `response_created`. Decisões a tomar antes de codar:
+   - como expor uma URL HTTPS pública em desenvolvimento (túnel);
+   - como proteger a rota sem assinatura;
+   - qual gatilho usar no teste real: o CNPJ de teste monitorado nunca gera
+     evento (item 37 do README). Hipótese a validar: uma consulta assíncrona
+     do CNPJ de teste com `callback_url` gera entregas na hora.
+     O que já existe: coleções `webhook_events` (índice único em
+     `callback_id`) e `alerts`, páginas `/webhooks` e `/alertas` com dados
+     fictícios, `updateTrackingCallbackUrl`.
+2. **Etapa 6:** idempotência pelo índice, associação `reference_id` →
+   monitoramento, geração de alerta, telas lendo o banco.
+3. **Etapa 7, com escopo fechado:** itens 8 e 9 da revisão (chamadas
+   repetidas e clique duplo na consulta assíncrona), item 19 (aviso de
+   `/empresas`), o 404 de `/processos/[cnj]` no modo `db` e um painel de
+   diagnóstico dos webhooks. O resto da revisão fica opcional.
+4. **Auditoria completa do código**, no modo descrito no `AGENTS.md`.
 
 ## Como retomar com o agente
 

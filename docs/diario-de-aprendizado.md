@@ -198,6 +198,31 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Correção: a busca saiu do efeito e foi para o clique (`useTrackingResults` em `tracking-judit-actions.tsx`).
 - Lição de suporte: quando uma chamada aparece em dobro só em desenvolvimento, suspeite do Strict Mode antes de suspeitar do fornecedor. Com uma API cobrada, efeitos não são lugar de chamada que custa.
 
+**C14. Monitoramento por CNPJ sem nenhum resultado.** _Observado em 2026-10-15; é comportamento correto, não falha._
+
+- Sinal: a primeira execução terminou (`completed`) com `responses_count: 0`, e "Ver resultados" mostrou zero processos, embora o CNPJ fictício tenha um processo no datalake.
+- Camada: JUDIT (regra da modalidade).
+- Hipóteses, em ordem de probabilidade: a modalidade só procura processos novos; a execução falhou; o processo não foi encontrado.
+- Teste que separou: `GET /tracking/{id}` mostrou que a JUDIT acrescentou sozinha o filtro `distribution_date_gte` com a data de criação do monitoramento; `GET /requests/{request_id}` da execução mostrou `status: "completed"`.
+- Causa: o monitoramento por documento detecta o **nascimento** de processos que "ainda não existiam quando você começou a monitorar" ([tracking-document](https://docs.judit.io/tracking/tracking-document)). O processo fictício foi distribuído antes, então nunca vai aparecer. O "esperado: o processo fictício" do relatório de 2026-10-14 estava errado.
+- Prevenção: a tela pode explicar que zero é normal num monitoramento recente. Para testar webhooks, o CNPJ fictício monitorado não serve; é preciso outro gatilho.
+- Lição de suporte: "meu monitoramento não trouxe o processo que eu já conheço" é um ticket típico. Antes de investigar, confira a modalidade: por documento só avisa processos novos; para acompanhar um processo que já existe, o monitoramento é por CNJ.
+
+**C15. O ID usado não é do monitoramento.** _Observado em 2026-10-15._
+
+- Sinal: para conferir a execução das 6h, foram usados dois IDs que eram `request_id` de consultas assíncronas criadas na página da empresa, não do monitoramento.
+- Camada: pessoa (identificador trocado).
+- Teste que separou: o nome da action no log do `pnpm dev`: `└─ ƒ checkAsyncQueryAction(…)` em `POST /empresas/…`, e não `trackingResultsAction` em `POST /monitoramentos`.
+- Os quatro IDs desta integração: o id local (nosso; a JUDIT não conhece), o `tracking_id` (o monitoramento na JUDIT), o `request_id` de uma consulta assíncrona e o `request_id` de cada execução do monitoramento (`origin: "tracking"`, `origin_id` igual ao `tracking_id`; o `GET /tracking/{id}` aponta a última execução no campo `request_id`).
+- Lição de suporte: antes de investigar, pergunte de onde veio o ID e confira o tipo. Um `request_id` de consulta não diz nada sobre um monitoramento, e vice-versa.
+
+**C16. "Ver resultado" da consulta assíncrona chama a JUDIT a cada clique.** _Observado em 2026-10-15 (item 8 da revisão de 2026-10-14)._
+
+- Sinal: cada clique gerou uma linha `checkAsyncQueryAction` de 0,4 s a 1,4 s, mesmo com a consulta já `completed` no banco.
+- Causa: a action sempre faz `GET /requests/{id}` e, quando concluída, `GET /responses` (`src/features/queries/actions.ts:121-175`).
+- Correção prevista (etapa 7): não perguntar o status quando o banco já diz `completed` e guardar o resumo na tela.
+- Lição de suporte: um botão de "ver" que leva 1 s indica ida e volta a um serviço externo; se o serviço for cobrado, cada clique pode ter custo.
+
 **Lacunas a confirmar nas próximas chamadas reais** (README da JUDIT, contradições):
 
 - formato do corpo de erro: aninhado `{ error: { name, message } }` ou plano `{ error, message, code }` (1). O aninhado foi observado num 400 em 2026-10-14; falta ver um 403/429;
@@ -230,6 +255,15 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Causa: uma aba aberta desde 12/10 tinha uma edição acidental não salva. Com alterações pendentes, o editor não recarrega o arquivo quando o disco muda.
 - Correção: descartar a aba (Revert File), sem salvar. Salvar teria sobrescrito as 1233 linhas.
 - Lição de suporte: "o arquivo está vazio" pode ser verdade só na tela de quem está olhando. Compare a fonte (disco, Git) com o que o cliente exibe.
+
+**D5. `Next.js encountered uncached data during prerendering or a navigation` em `/empresas`.** _Observado em 2026-10-15._
+
+- Sinal: no terminal do `pnpm dev`, depois de `GET /empresas?q=monitoramentos` (a busca global leva para `/empresas?q=…`), um `Error: Route "/empresas"` apontando `connection()` em `src/lib/data.ts:41`. A página respondeu 200 e funcionou.
+- Camada: ferramenta (validação do Next.js em desenvolvimento).
+- Causa: com `cacheComponents: true`, o Next valida em desenvolvimento se a navegação para cada página pode ser instantânea. `src/app/(app)/empresas/page.tsx:15` espera `listLawsuits()` antes do próprio `<Suspense>`; no modo `db`, isso chama `connection()` ("espere a requisição real"). O `<Suspense>` do layout cobre o carregamento direto, mas não a navegação entre páginas, porque o layout continua montado (`node_modules/next/dist/docs/01-app/02-guides/instant-navigation.md`, "How validation simulates different navigations"). Ironia: no modo `db`, `listLawsuits()` devolve `[]`.
+- Por que `/monitoramentos` não avisa: a página não espera nada no servidor.
+- Correção prevista (etapa 7): mover a leitura para um componente dentro do `<Suspense>`. `export const instant = false` só cala o aviso.
+- Lição de suporte: um "Error" no terminal de desenvolvimento nem sempre é falha para o usuário final. Aqui o efeito em produção seria uma navegação mais lenta, e o ticket seria "a tela de empresas demora para abrir", não "deu erro".
 
 ### E. Segurança como falha operacional
 
@@ -278,6 +312,7 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Observado: nenhuma das páginas de tracking tem selo de cobrança (README, item 31). Hoje tratamos tudo como cobrável.
 - Dúvidas: cada execução recorrente é cobrada como uma requisição? `GET /tracking/{id}`, `GET /responses/tracking/{id}`, pausar, reativar e excluir são cobrados?
 - Impacto: decide se "Atualizar status" e "Ver resultados" podem ser chamados livremente e quanto custa deixar um monitoramento diário ativo.
+- Observado em 2026-10-15: cada execução gera uma request própria (`origin: "tracking"`, `origin_id` igual ao `tracking_id`, `cache_ttl_in_days: 1`), como no exemplo de [consumption/history](https://docs.judit.io/resource/consumption/history). Se a cobrança for por request, cada execução diária conta, mesmo sem resultado (a de hoje teve `responses_count: 0`).
 - Resposta:
 
 **IK3. O que significa o status `suspended`?** _Aberta desde 2026-10-14._
@@ -291,6 +326,7 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 
 - Observado: a pausa devolve o monitoramento com `status: "paused"` ([tracking](https://docs.judit.io/tracking/tracking#pausando-um-monitoramento)), mas a documentação não diz se `GET /responses/tracking/{id}` continua devolvendo as execuções anteriores.
 - Impacto: se não continuarem, é preciso ler os resultados antes de pausar (é a ordem que vamos seguir no teste de amanhã).
+- Observado em 2026-10-15: depois da pausa, `GET /tracking/{id}`, `GET /responses/tracking/{id}` e a action "Ver resultados" responderam normalmente (200). Como a execução não teve resultados, isso prova que a leitura continua funcionando, mas não que resultados antigos continuam lá.
 - Resposta:
 
 **IK5. Em que fuso está o `hour_range`?** _Aberta desde 2026-10-14._
@@ -298,6 +334,7 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Observado: o monitoramento de teste voltou com `hour_range: 6`; a tela diz "às 6h", sem fuso (relatório, item 14).
 - Dúvida: UTC ou horário de Brasília? É a hora de início da execução ou uma janela?
 - Impacto: o texto da tela e o horário em que vale conferir os resultados. A primeira execução também pode responder isso.
+- Observado em 2026-10-15: com `hour_range: 6`, a execução começou às 06:55:25 UTC (03:55 em Brasília) e terminou às 07:01:07 UTC. Indício forte de UTC, com um minuto definido pela JUDIT (`execution_minute: 55`, campo fora da documentação). É uma observação só; falta a confirmação.
 - Resposta:
 
 **IK6. O CNJ fictício serve para monitoramento?** _Aberta desde 2026-10-14._
@@ -326,6 +363,7 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Contexto: a etapa 5 depende disso. Existe `callback_url` por monitoramento (`updateTrackingCallbackUrl` já está pronto), mas não sabemos se a conta também precisa de um cadastro feito pelo suporte.
 - Dúvidas: basta o `callback_url`, ou é preciso abrir um pedido ao suporte? Existe um ambiente ou um evento de teste para disparar uma entrega sem esperar uma execução real?
 - Ainda não pesquisado na documentação: autenticação das entregas, política de novas tentativas e ordem dos eventos. Isso será lido na etapa 5; o que a documentação não cobrir vira um novo item aqui.
+- Encontrado na documentação em 2026-10-15 ([webhook/callbacks](https://docs.judit.io/webhook/callbacks)): há duas formas de cadastro, uma URL para a conta inteira, pedida ao suporte (recomendada), ou `callback_url` em cada requisição. Entrega por `POST` JSON numa URL HTTPS pública; resposta 2xx em menos de 10 s; em 5xx ou timeout, novas tentativas com backoff exponencial; indisponibilidade longa perde eventos. Segurança: só HTTPS e allowlist de IPs da JUDIT, pedidos ao suporte; nenhuma assinatura documentada. Idempotência: a página manda usar `callback_id` e, em outro trecho, `request_id` + `cached_response` (README da integração, item 39). Continuam abertos: um evento de teste e a lista de IPs.
 - Resposta:
 
 ---
@@ -975,6 +1013,52 @@ Três commits na `feat/judit-tracking`, sem envio ao GitHub: `98085dc` (servidor
 **Resumo técnico**
 
 A pedido, removidas as 72 seções "Minha explicação em palavras próprias" que só tinham o placeholder, e a do "Modelo de entrada". O texto já escrito foi movido, sem alteração, para a seção única perto do topo, que só você escreve. A seção 4 de `AGENTS.md` e `docs/AGENTS.md` descreve a nova regra.
+
+### 2026-10-15 / Auditoria / client.ts
+
+**Resumo técnico**
+
+Auditado na conversa do Claude (chat), fora deste repositório. `juditRequest` (`src/lib/judit/client.ts:61`) é a única porta para a JUDIT. Pontos discutidos:
+
+- sem novas tentativas automáticas: a JUDIT não documenta chave de idempotência, então repetir um `POST` que ela já recebeu poderia criar e cobrar em dobro;
+- três hosts separados (requests, tracking e lawsuits), montados em `buildUrl`;
+- `acceptErrorBody`: deixa o serviço aceitar um corpo de erro como resultado, caso do 404 com `has_lawsuits: false` em `POST /lawsuits`;
+- o kill switch (`assertLiveCallsEnabled`) roda antes de ler a chave;
+- tempo limite com `AbortController`; a flag `timedOut` separa o nosso timeout (`JuditTimeoutError`) de uma falha de rede (`JuditNetworkError`), e o corpo também é lido dentro do prazo;
+- a árvore de decisão da resposta é a tabela C do catálogo;
+- HTTP 200 não é sucesso de negócio: `findApplicationError` procura o `application_error`;
+- o 429 é separado (`JuditRateLimitError`), com `Retry-After` e `X-RateLimit-*` guardados como vieram;
+- schema tolerante: campos novos não quebram a validação;
+- auxiliares: `toHttpError` (corpo de erro aninhado ou plano), `parseJson` com o `Symbol` `INVALID_JSON` para JSON inválido, e `redact`, que tira a chave de qualquer texto de erro.
+
+### 2026-10-15 / Modo auditoria adiado
+
+**Resumo técnico**
+
+A auditoria completa do código passou para o fim do projeto, depois da etapa 7. As regras e a ordem dos arquivos estão no `AGENTS.md`, seção 6, "Modo auditoria". Até lá, o trabalho segue o modo padrão (construir e ensinar).
+
+### 2026-10-15 / Primeira execução do monitoramento e pausa
+
+**Resumo técnico**
+
+O agente conferiu o monitoramento de teste pelas rotas de dev e pela action "Ver resultados". A execução rodou às 06:55 UTC e terminou sem resultados, o que é correto para a modalidade. O monitoramento está pausado na JUDIT e no MongoDB. Etapa 4 encerrada.
+
+**O que o teste mostrou**
+
+- Pausa: `pauseTrackingAction` às 21:58 UTC. A JUDIT devolve `status: "paused"` com `paused_at`, e o MongoDB também registra `paused`. As execuções diárias param por aqui.
+- Execução: uma request com `origin: "tracking"`, criada às 06:55:25 UTC e concluída às 07:01:07 UTC (quase 6 minutos), com `responses_count: 0`.
+- Zero resultados é o esperado: a JUDIT gravou o filtro `distribution_date_gte` igual à data de criação do monitoramento, porque o monitoramento por documento só avisa processos novos (catálogo, C14).
+- Formato de data (item 14 da revisão): `GET /responses/tracking` aceitou `2026-10-14T00:00:00`, o formato que a tela usa, e também o ISO com `Z`. O formato dos campos das respostas continua sem verificação, porque não houve resposta.
+- A JUDIT devolve o CNPJ com máscara (`A1.B2C.3D4/E5F6-68`), embora tenhamos enviado sem. A conferência do envio incerto (C12) já compara a chave normalizada.
+- Campos fora da documentação: `execution_minute`, `updating_at`, `plan_config_type`, `tracked_items_count`, `origin_created_at` e `tags.ip`, o IP de quem criou o monitoramento. É dado pessoal: não deve ir para log nem para o banco.
+- Chamadas feitas pelo agente: 5 leituras na JUDIT (`GET /tracking`, dois `GET /responses/tracking`, `GET /requests/{id}` e `GET /responses`), todas do monitoramento fictício.
+- Não verificado: no navegador, se "Ver resultados" gera uma chamada só (item 3); a chamada de hoje foi feita por `curl`.
+
+**O que isso significa**
+
+- Para o produto: monitorado, o CNPJ fictício nunca vai gerar um webhook. A etapa 5 precisa de outro gatilho para o teste real.
+- Para o suporte: um monitoramento "vazio" não é defeito, e todo diagnóstico começa por identificar o tipo de ID (C15).
+- O que foi observado entrou nos itens IK2, IK4, IK5 e IK9 de "Inside knowledge"; as respostas continuam com você.
 
 ---
 

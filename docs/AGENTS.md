@@ -124,8 +124,23 @@ A ordem prevista é:
 5. Recebimento e persistência de um webhook de teste.
 6. Idempotência, associação do evento ao monitoramento e geração de alerta.
 7. Diagnóstico, tratamento de falhas e refinamento da experiência.
+8. Auditoria completa do código, no modo descrito abaixo.
 
 A ordem pode mudar se uma dependência técnica exigir isso. Explique o motivo da mudança. Não conecte todas as telas à API de uma vez; valide um fluxo de ponta a ponta antes de ampliar.
+
+### Modo auditoria (só no final do projeto)
+
+Depois da etapa 7, faremos uma auditoria completa do código, para que eu saiba explicar cada linha e diagnosticar falhas. Ela não vale durante o desenvolvimento: só começa quando eu pedir. Enquanto durar:
+
+- não altere código-fonte; apenas leia e explique;
+- um arquivo por vez, indicando caminho e intervalo de linhas (por exemplo, `client.ts:62-108`) em vez de colar o arquivo no terminal; trechos curtos só quando ajudarem;
+- explicação densa, sem simplificar demais: o que o código faz, por que foi feito assim, que alternativa foi descartada e qual seria o custo;
+- sempre que fizer sentido, ligue ao suporte técnico: como a falha apareceria para o cliente e que ticket ela geraria;
+- diferencie fato documentado da JUDIT, hipótese e decisão nossa; cite o README de `src/lib/judit` quando houver contradição documentada relevante;
+- sem quizzes, a menos que eu peça; a conversa é livre e eu posso desviar;
+- ao terminar cada arquivo ou bloco, registre no diário uma entrada curta "Auditoria / <arquivo>" com o resumo técnico e as dúvidas que levantei, sem escrever em meu nome; acumule as mudanças e só commite quando eu pedir.
+
+Ordem: `src/lib/judit/errors.ts` → `guard.ts` → `src/lib/env.ts` e `scripts/check-env.mjs` → `dev-route.ts` → `lawsuits.ts`, `requests.ts`, `tracking.ts` e os schemas → fluxo síncrono (`src/features/processes`) → fluxo assíncrono (`src/features/queries`) → monitoramentos, webhooks e alertas (`src/features/trackings`, `webhooks`, `alerts`) → persistência (`src/db` e os `db.ts` das features). O `client.ts` já foi auditado (entrada "Auditoria / client.ts" do diário, 2026-10-15).
 
 ## 7. Regras específicas para webhooks
 
