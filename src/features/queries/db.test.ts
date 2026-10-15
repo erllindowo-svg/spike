@@ -13,8 +13,11 @@ import { JUDIT_REQUESTS_REQUEST_ID_INDEX } from "@/db/collections";
 import { createTestDb } from "@/db/test-db";
 
 import {
+  findOpenJuditRequest,
   getJuditRequest,
   listJuditRequests,
+  markJuditRequestCompleted,
+  OPEN_QUERY_WINDOW_MS,
   saveJuditRequest,
   updateJuditRequestStatus,
   type NewJuditRequest,
@@ -90,5 +93,49 @@ describe("judit_requests", () => {
       status: "completed",
     });
     expect(await updateJuditRequestStatus("missing", "completed")).toBeNull();
+  });
+});
+
+describe("findOpenJuditRequest", () => {
+  it("finds a pending or started query of the same company and mode", async () => {
+    await saveJuditRequest(base);
+
+    expect(
+      await findOpenJuditRequest("company-1", "historical_async"),
+    ).toMatchObject({ requestId: base.requestId });
+    expect(
+      await findOpenJuditRequest("company-1", "historical_on_demand"),
+    ).toBeNull();
+    expect(
+      await findOpenJuditRequest("company-2", "historical_async"),
+    ).toBeNull();
+  });
+
+  it("does not count a completed query", async () => {
+    await saveJuditRequest(base);
+    await markJuditRequestCompleted(base.requestId);
+
+    expect(
+      await findOpenJuditRequest("company-1", "historical_async"),
+    ).toBeNull();
+  });
+
+  it("stops counting a query that never finished after the window", async () => {
+    await saveJuditRequest(base);
+    const later = new Date(Date.now() + OPEN_QUERY_WINDOW_MS + 1000);
+
+    expect(
+      await findOpenJuditRequest("company-1", "historical_async", later),
+    ).toBeNull();
+  });
+});
+
+describe("markJuditRequestCompleted", () => {
+  it("records completed without pretending someone asked JUDIT", async () => {
+    await saveJuditRequest(base);
+
+    const updated = await markJuditRequestCompleted(base.requestId);
+
+    expect(updated).toMatchObject({ status: "completed", lastCheckedAt: null });
   });
 });

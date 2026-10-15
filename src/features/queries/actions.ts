@@ -12,6 +12,7 @@ import { getDataSource } from "@/lib/data";
 import { createRequest, getRequest, listResponses } from "@/lib/judit/requests";
 
 import {
+  findOpenJuditRequest,
   getJuditRequest,
   saveJuditRequest,
   updateJuditRequestStatus,
@@ -79,6 +80,20 @@ export async function startAsyncQueryAction(
         ok: false,
         reason: "invalid",
         message: "Empresa não cadastrada na aplicação.",
+      };
+    }
+
+    // Uma consulta igual ainda em aberto: a segunda seria cobrada e traria
+    // o mesmo resultado. Regra simples, por consulta prévia: dois envios no
+    // mesmo instante (dois cliques, duas abas) ainda passam juntos. O
+    // monitoramento, cobrado a cada recorrência, tem a regra no índice único.
+    const open = await findOpenJuditRequest(company.id, query.mode);
+    if (open) {
+      return {
+        ok: false,
+        reason: "invalid",
+        message:
+          'Já existe uma consulta igual em andamento para esta empresa. Use "Verificar status" nela antes de criar outra.',
       };
     }
 
@@ -163,16 +178,21 @@ export async function checkAsyncQueryAction(
       };
     }
 
-    const remote = await getRequest(stored.requestId);
-    const request =
-      (await updateJuditRequestStatus(stored.requestId, remote.status)) ??
-      stored;
+    // "completed" é final: não há o que perguntar de novo à JUDIT. O banco
+    // chega a esse status por esta mesma action ou pelo webhook (código 600).
+    let request = stored;
+    if (stored.status !== "completed") {
+      const remote = await getRequest(stored.requestId);
+      request =
+        (await updateJuditRequestStatus(stored.requestId, remote.status)) ??
+        stored;
 
-    // Antes de "completed", as respostas podem estar incompletas: a
-    // documentação diz que só esse status indica o conjunto final.
-    if (remote.status !== "completed") {
-      refresh();
-      return { ok: true, request, results: null };
+      // Antes de "completed", as respostas podem estar incompletas: a
+      // documentação diz que só esse status indica o conjunto final.
+      if (remote.status !== "completed") {
+        refresh();
+        return { ok: true, request, results: null };
+      }
     }
 
     const list = await listResponses({ requestId: stored.requestId });

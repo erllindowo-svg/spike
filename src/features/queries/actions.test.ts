@@ -12,6 +12,7 @@ import { fakeWebhookToken } from "@/lib/judit/__fixtures__/webhooks";
 
 import { checkAsyncQueryAction, startAsyncQueryAction } from "./actions";
 import {
+  findOpenJuditRequest,
   getJuditRequest,
   saveJuditRequest,
   updateJuditRequestStatus,
@@ -22,6 +23,7 @@ import {
 // refresh() only works inside a real Next.js request.
 vi.mock("@/features/companies/db", () => ({ getCompanyByCnpj: vi.fn() }));
 vi.mock("./db", () => ({
+  findOpenJuditRequest: vi.fn(),
   getJuditRequest: vi.fn(),
   saveJuditRequest: vi.fn(),
   updateJuditRequestStatus: vi.fn(),
@@ -89,6 +91,7 @@ beforeEach(() => {
   vi.mocked(processEventsForReference).mockReset().mockResolvedValue([]);
   vi.mocked(getCompanyByCnpj).mockReset().mockResolvedValue(company);
   vi.mocked(getJuditRequest).mockReset().mockResolvedValue(storedRequest);
+  vi.mocked(findOpenJuditRequest).mockReset().mockResolvedValue(null);
   vi.mocked(saveJuditRequest)
     .mockReset()
     .mockImplementation(async (input) => ({ ...storedRequest, ...input }));
@@ -133,6 +136,23 @@ describe("startAsyncQueryAction", () => {
       status: "pending",
     });
     expect(result).toMatchObject({ ok: true });
+  });
+
+  it("refuses a second query while the same one is still open, without calling JUDIT", async () => {
+    vi.mocked(findOpenJuditRequest).mockResolvedValue(storedRequest);
+    mockFetch(createdRequestBody);
+
+    const result = await startAsyncQueryAction({
+      mode: "historical_async",
+      cnpj: TEST_CNPJ,
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "invalid" });
+    expect(findOpenJuditRequest).toHaveBeenCalledWith(
+      company.id,
+      "historical_async",
+    );
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("asks for webhook delivery when a public origin is configured", async () => {
@@ -279,6 +299,24 @@ describe("checkAsyncQueryAction", () => {
       results: null,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask JUDIT for the status of a request already completed", async () => {
+    vi.mocked(getJuditRequest).mockResolvedValue({
+      ...storedRequest,
+      status: "completed",
+    });
+    const fetchMock = mockFetch(responsesBody);
+
+    const result = await checkAsyncQueryAction(REQUEST_ID);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sentUrl(fetchMock, 0)).toContain("/responses");
+    expect(updateJuditRequestStatus).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      request: { status: "completed" },
+    });
   });
 
   it("reads and maps the responses once completed", async () => {
