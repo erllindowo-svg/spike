@@ -14,6 +14,16 @@ import { POST } from "./route";
 const saveWebhookEvent = vi.hoisted(() => vi.fn());
 vi.mock("@/features/webhooks/db", () => ({ saveWebhookEvent }));
 
+// after() only works inside a Next request; here it just collects the
+// callbacks, so a test can run them "after the response". The processing
+// rules are tested in src/features/webhooks/process.test.ts.
+const scheduled = vi.hoisted(() => [] as Array<() => Promise<unknown>>);
+vi.mock("next/server", () => ({
+  after: (callback: () => Promise<unknown>) => scheduled.push(callback),
+}));
+const processWebhookEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/features/webhooks/process", () => ({ processWebhookEvent }));
+
 const logs = {
   info: vi.spyOn(console, "info").mockImplementation(() => {}),
   warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
@@ -44,7 +54,13 @@ beforeEach(() => {
   vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
   vi.stubEnv("JUDIT_WEBHOOK_FULL_PAYLOAD", "");
   saveWebhookEvent.mockReset();
-  saveWebhookEvent.mockResolvedValue({ duplicate: false, event: {} });
+  saveWebhookEvent.mockResolvedValue({
+    duplicate: false,
+    event: { id: "event-1" },
+  });
+  scheduled.length = 0;
+  processWebhookEvent.mockReset();
+  processWebhookEvent.mockResolvedValue({ status: "processed", note: "ok" });
   Object.values(logs).forEach((spy) => spy.mockClear());
 });
 
@@ -73,6 +89,37 @@ describe("POST /api/webhooks/judit", () => {
       status: "received",
       duplicate: true,
     });
+  });
+
+  it("processes the stored event only after the response", async () => {
+    const response = await deliver(requestCompletedDelivery);
+
+    expect(response.status).toBe(200);
+    expect(processWebhookEvent).not.toHaveBeenCalled();
+    expect(scheduled).toHaveLength(1);
+    await scheduled[0]();
+    expect(processWebhookEvent).toHaveBeenCalledWith("event-1");
+  });
+
+  it("does not schedule processing for a redelivery", async () => {
+    saveWebhookEvent.mockResolvedValue({ duplicate: true, event: null });
+
+    await deliver(requestCompletedDelivery);
+
+    expect(scheduled).toHaveLength(0);
+  });
+
+  it("logs a processing crash after the response, without the token", async () => {
+    processWebhookEvent.mockRejectedValue(
+      new Error(`database down near ${fakeWebhookToken}`),
+    );
+
+    const response = await deliver(requestCompletedDelivery);
+    await scheduled[0]();
+
+    expect(response.status).toBe(200);
+    expect(allLogText()).toContain("processamento interrompido");
+    expect(allLogText()).not.toContain(fakeWebhookToken);
   });
 
   it("answers 503 when storage fails, so JUDIT retries", async () => {

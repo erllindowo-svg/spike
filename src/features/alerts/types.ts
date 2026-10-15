@@ -3,11 +3,11 @@ import type { Alert } from "@/db/models";
 // Tipos usados em alerts.type. Valores próprios do produto, não da JUDIT.
 export type AlertType = "new_lawsuit" | "lawsuit_movement" | "tracking_notice";
 
-export type AlertView = Omit<Alert, "type"> & {
-  type: AlertType;
-  // Ainda não existe campo para o processo relacionado; candidato ao modelo.
-  lawsuitCnj: string | null;
-};
+export type AlertView = Omit<Alert, "type"> & { type: AlertType };
+
+export function isAlertType(value: string): value is AlertType {
+  return value in alertTypeLabels;
+}
 
 export const alertTypeLabels: Record<AlertType, string> = {
   new_lawsuit: "Novo processo",

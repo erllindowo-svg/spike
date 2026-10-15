@@ -7,6 +7,7 @@ import {
   fullPayloadEnabled,
   getWebhookToken,
   isValidWebhookToken,
+  productCallbackUrl,
   redactToken,
 } from "./callback";
 
@@ -59,6 +60,39 @@ describe("buildJuditCallbackUrl", () => {
     vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
 
     expect(() => buildJuditCallbackUrl("http://abc.example")).toThrow(/https/);
+  });
+});
+
+describe("productCallbackUrl", () => {
+  it("is null (polling only) without a public origin", () => {
+    vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "");
+    vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
+
+    expect(productCallbackUrl()).toBeNull();
+  });
+
+  it("builds the callback_url from the configured origin", () => {
+    vi.stubEnv(
+      "JUDIT_WEBHOOK_PUBLIC_ORIGIN",
+      "https://exemplo.trycloudflare.com",
+    );
+    vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
+
+    expect(productCallbackUrl()).toBe(
+      `https://exemplo.trycloudflare.com/api/webhooks/judit?token=${fakeWebhookToken}`,
+    );
+  });
+
+  it("refuses an origin with a path, http, or without a token", () => {
+    vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
+    vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "https://exemplo.com/app");
+    expect(() => productCallbackUrl()).toThrow("JUDIT_WEBHOOK_PUBLIC_ORIGIN");
+    vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "http://exemplo.com");
+    expect(() => productCallbackUrl()).toThrow("JUDIT_WEBHOOK_PUBLIC_ORIGIN");
+
+    vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "https://exemplo.com");
+    vi.stubEnv("JUDIT_WEBHOOK_TOKEN", "");
+    expect(() => productCallbackUrl()).toThrow("JUDIT_WEBHOOK_TOKEN");
   });
 });
 

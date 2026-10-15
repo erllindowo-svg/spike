@@ -6,13 +6,14 @@ import { connection } from "next/server";
 // DATA_SOURCE escolhe a origem para o app inteiro:
 //
 // - "demo" (padrão): dados fictícios de mock-data.ts, em memória.
-// - "db": MongoDB. Só empresas e monitoramentos já são persistidos; processos,
-//   alertas, eventos de webhook e atividade ainda não têm funções de
-//   persistência e aparecem vazios. Nada aqui chama a JUDIT.
+// - "db": MongoDB: empresas, monitoramentos, consultas assíncronas, eventos de
+//   webhook e alertas. Processos não são copiados (continuam na JUDIT) e a
+//   atividade não é persistida; aparecem vazios. Nada aqui chama a JUDIT.
 
-import type { JuditRequest } from "@/db/models";
+import type { Alert, JuditRequest, WebhookEvent } from "@/db/models";
 import type { ActivityItem } from "@/features/activity/types";
-import type { AlertView } from "@/features/alerts/types";
+import * as alertsDb from "@/features/alerts/db";
+import { isAlertType, type AlertView } from "@/features/alerts/types";
 import { normalizeCnpj } from "@/features/companies/cnpj";
 import * as companiesDb from "@/features/companies/db";
 import type { Company } from "@/features/companies/types";
@@ -21,6 +22,7 @@ import type { Lawsuit } from "@/features/processes/types";
 import * as queriesDb from "@/features/queries/db";
 import * as trackingsDb from "@/features/trackings/db";
 import type { Tracking } from "@/features/trackings/types";
+import * as webhooksDb from "@/features/webhooks/db";
 import type { WebhookEventView } from "@/features/webhooks/types";
 import { getServerEnv } from "@/lib/env";
 
@@ -98,10 +100,15 @@ export type DemoState = {
 // Coleções que a interface mantém no estado do navegador (demo-store.tsx).
 export async function getInitialState(): Promise<DemoState> {
   if (await usingDatabase()) {
+    const [trackings, alerts, events] = await Promise.all([
+      trackingsDb.listTrackings(),
+      alertsDb.listAlerts(),
+      webhooksDb.listRecentWebhookEvents(RECENT_EVENTS),
+    ]);
     return {
-      trackings: await trackingsDb.listTrackings(),
-      alerts: [],
-      webhookEvents: [],
+      trackings,
+      alerts: alerts.flatMap(toAlertView),
+      webhookEvents: events.map((event) => toEventView(event, alerts)),
       activity: [],
     };
   }
@@ -112,6 +119,27 @@ export async function getInitialState(): Promise<DemoState> {
       byDateDesc((e) => e.receivedAt),
     ),
     activity: [...mock.activity].sort(byDateDesc((a) => a.occurredAt)),
+  };
+}
+
+// Quantos eventos a tela de diagnóstico mostra. Sem paginação: volume de
+// protótipo.
+const RECENT_EVENTS = 200;
+
+// O banco guarda `type` como texto; um valor que a interface não conhece não
+// derruba a tela, só fica de fora (e aparece no log).
+function toAlertView(alert: Alert): AlertView[] {
+  if (isAlertType(alert.type)) return [{ ...alert, type: alert.type }];
+  console.warn(`[alerts] tipo desconhecido ignorado na tela: ${alert.type}`);
+  return [];
+}
+
+function toEventView(event: WebhookEvent, alerts: Alert[]): WebhookEventView {
+  return {
+    ...event,
+    alertIds: alerts
+      .filter((alert) => alert.webhookEventId === event.id)
+      .map((alert) => alert.id),
   };
 }
 

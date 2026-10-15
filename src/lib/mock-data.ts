@@ -463,10 +463,12 @@ function buildEvent(seed: EventSeed): WebhookEventView {
     },
     receivedAt,
     processingStatus: seed.status,
+    processingStartedAt: seed.status === "pending" ? null : receivedAt,
     processedAt:
       seed.durationMs === null
         ? null
         : new Date(receivedAt.getTime() + seed.durationMs),
+    processingNote: null,
     processingError: seed.error ?? null,
     duplicateDeliveries: seed.duplicateDeliveries ?? 0,
     alertIds: seed.alertIds ?? [],
@@ -630,7 +632,9 @@ const A = (
   type,
   companyId: company ? companyId(company) : null,
   webhookEventId: eventN ? mockId(4, eventN) : null,
+  trackingId: null,
   lawsuitCnj,
+  dedupeKey: `demo:${n}`,
   title,
   description,
   createdAt: at(createdAt),

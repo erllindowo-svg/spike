@@ -62,6 +62,15 @@ export function buildJuditCallbackUrl(publicOrigin: string): string {
   return url.toString();
 }
 
+// `callback_url` das consultas do produto (card da empresa), ou null quando
+// JUDIT_WEBHOOK_PUBLIC_ORIGIN está vazia: o webhook é opcional, e a consulta
+// segue só com polling. Com a origem preenchida e o token vazio, lança erro
+// ANTES da chamada à JUDIT: a configuração está pela metade.
+export function productCallbackUrl(): string | null {
+  const origin = getServerEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN");
+  return origin ? buildJuditCallbackUrl(origin) : null;
+}
+
 // Troca o token por um marcador em qualquer texto. Mesma ideia do redact de
 // src/lib/judit/client.ts, que faz isso com a chave da API.
 export function redactToken(text: string, token: string): string {

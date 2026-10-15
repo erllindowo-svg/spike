@@ -1,11 +1,14 @@
 "use client";
 
-import { BellIcon, CircleAlertIcon } from "lucide-react";
+import { BellIcon, CircleAlertIcon, RotateCwIcon } from "lucide-react";
 import Link from "next/link";
+import { useTransition } from "react";
+import { toast } from "sonner";
 
 import { CopyButton } from "@/components/shared/copy-button";
 import { JsonViewer } from "@/components/shared/json-viewer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -15,11 +18,12 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatSearchKey } from "@/features/trackings/format";
+import { reprocessWebhookEventAction } from "@/features/webhooks/actions";
 import {
   getProcessingDurationMs,
   type WebhookEventView,
 } from "@/features/webhooks/types";
-import { useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
 import { formatDuration, formatPreciseDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -97,7 +101,7 @@ export function WebhookEventSheet({
   event: WebhookEventView | null;
   onClose: () => void;
 }) {
-  const { trackings, alerts } = useDemoStore();
+  const { trackings, alerts, dataSource } = useDemoStore();
   const tracking = event?.referenceId
     ? trackings.find((t) => t.juditTrackingId === event.referenceId)
     : undefined;
@@ -132,6 +136,10 @@ export function WebhookEventSheet({
 
               <TabsContent value="summary" className="overflow-y-auto p-4">
                 <div className="flex flex-col gap-5">
+                  {dataSource === "db" &&
+                    event.processingStatus !== "processed" && (
+                      <ReprocessButton eventId={event.id} />
+                    )}
                   {event.processingError && (
                     <Alert variant="destructive">
                       <CircleAlertIcon />
@@ -147,7 +155,7 @@ export function WebhookEventSheet({
                     <ol>
                       <Step title="Recebimento" state="done">
                         {formatPreciseDateTime(event.receivedAt)} · payload
-                        armazenado sem alterações
+                        armazenado
                         {event.duplicateDeliveries > 0 &&
                           ` · ${event.duplicateDeliveries} reentrega(s) com o mesmo callback_id descartada(s)`}
                       </Step>
@@ -168,6 +176,11 @@ export function WebhookEventSheet({
                           : status === "processing"
                             ? "Em andamento"
                             : "Aguardando processamento"}
+                        {event.processingNote && (
+                          <span className="mt-1 block text-foreground">
+                            {event.processingNote}
+                          </span>
+                        )}
                       </Step>
                       <Step
                         title="Geração de alertas"
@@ -219,6 +232,8 @@ export function WebhookEventSheet({
                                 )}
                               </Link>
                             </>
+                          ) : event.referenceType === "request" ? (
+                            "Consulta assíncrona (request_id). O resultado do processamento diz se ela é desta aplicação."
                           ) : event.referenceId ? (
                             "Nenhum monitoramento local corresponde a esta referência."
                           ) : null}
@@ -249,7 +264,8 @@ export function WebhookEventSheet({
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground">
-                    Payload original, exatamente como armazenado.
+                    Payload como armazenado: dados de processo resumidos (fora
+                    do modo manutenção) e token mascarado.
                   </p>
                   <CopyButton
                     value={json}
@@ -264,5 +280,57 @@ export function WebhookEventSheet({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+// Roda as regras de novo (src/features/webhooks/process.ts). Útil para um
+// evento "failed", "ignored" (a referência pode ter sido gravada depois) ou
+// preso em "processing". A tela é atualizada pelo refresh() da action.
+function ReprocessButton({ eventId }: { eventId: string }) {
+  const [pending, startTransition] = useTransition();
+
+  function reprocess() {
+    startTransition(async () => {
+      try {
+        const response = await reprocessWebhookEventAction(eventId);
+        if (!response.ok) {
+          toast.error(response.message);
+          return;
+        }
+        const { result } = response;
+        if (result.status === "skipped") {
+          toast.info(
+            "Nada a fazer: o evento já foi processado ou está em processamento.",
+          );
+        } else if (result.status === "failed") {
+          toast.error("O processamento falhou de novo.", {
+            description: result.error,
+          });
+        } else {
+          toast.success(
+            result.status === "processed"
+              ? "Evento processado."
+              : "Evento ignorado.",
+            { description: result.note },
+          );
+        }
+      } catch {
+        toast.error(SERVER_UNREACHABLE);
+      }
+    });
+  }
+
+  return (
+    <div className="flex justify-end">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={pending}
+        onClick={reprocess}
+      >
+        <RotateCwIcon data-icon="inline-start" />
+        {pending ? "Reprocessando…" : "Reprocessar"}
+      </Button>
+    </div>
   );
 }

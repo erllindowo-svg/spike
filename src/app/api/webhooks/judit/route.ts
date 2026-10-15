@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import {
   fullPayloadEnabled,
   getWebhookToken,
@@ -7,6 +9,7 @@ import {
 } from "@/features/webhooks/callback";
 import { saveWebhookEvent } from "@/features/webhooks/db";
 import { prepareWebhookEvent } from "@/features/webhooks/envelope";
+import { processWebhookEvent } from "@/features/webhooks/process";
 import { getServerEnv } from "@/lib/env";
 
 // Recebe as entregas da JUDIT (https://docs.judit.io/webhook/callbacks).
@@ -23,9 +26,11 @@ import { getServerEnv } from "@/lib/env";
 //   503  configuração inválida ou banco indisponível          repete
 //
 // O evento é gravado ANTES do 200: se o banco falhar, a JUDIT tenta de novo e
-// nada se perde. Processar o evento (associar, gerar alerta) não acontece
-// aqui; é a etapa 6. O log mostra só identificadores, nunca o token nem dados
-// do processo.
+// nada se perde. Processar o evento (associar, gerar alerta) acontece DEPOIS
+// da resposta, com after(): a JUDIT recebe o 200 sem esperar as regras, e uma
+// falha no processamento não vira 5xx (o evento já está gravado e fica
+// "failed", para "Reprocessar" em /webhooks). O log mostra só
+// identificadores, nunca o token nem dados do processo.
 
 export async function POST(request: Request) {
   let token: string | undefined;
@@ -75,6 +80,18 @@ export async function POST(request: Request) {
     }
     console.info(
       `[webhooks] recebido: ${ids}${fullPayload ? " (payload completo)" : ""}`,
+    );
+    const eventId = saved.event.id;
+    after(() =>
+      processWebhookEvent(eventId).catch((error: unknown) => {
+        // Só falhas de banco ao reivindicar ou ao registrar o resultado
+        // chegam aqui; o evento continua gravado.
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(
+          `[webhooks] processamento interrompido (${ids}):`,
+          redactToken(message, token),
+        );
+      }),
     );
     return reply(200, { duplicate: false });
   } catch (error) {

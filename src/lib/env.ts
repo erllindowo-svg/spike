@@ -40,7 +40,29 @@ export const serverEnvSchema = z.object({
   // Maintenance switch: only the exact value "enabled" stores the whole
   // webhook payload (lawsuit data included) for diagnosis. Off by default.
   JUDIT_WEBHOOK_FULL_PAYLOAD: z.string().trim().optional(),
+  // Public https origin where JUDIT can reach this app (in development, the
+  // tunnel URL, which changes every time the tunnel starts). When set, the
+  // app's async queries send a callback_url and are marked as delivered by
+  // webhook; empty means polling only. See src/features/webhooks/callback.ts.
+  JUDIT_WEBHOOK_PUBLIC_ORIGIN: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    z
+      .string()
+      .trim()
+      .refine(isHttpsOrigin, "must be an https:// origin")
+      .optional(),
+  ),
 });
+
+function isHttpsOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.pathname === "/" && !url.search;
+  } catch {
+    return false;
+  }
+}
 
 type ServerEnv = z.infer<typeof serverEnvSchema>;
 

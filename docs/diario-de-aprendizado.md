@@ -306,6 +306,33 @@ Contrato: a JUDIT repete a entrega só em 5xx ou timeout; um 4xx encerra as tent
 
 **F6. Envelope fora do formato.** _Previsto._ Um `callback_id` numérico ou um `payload` que não é objeto indicaria mudança de contrato: a rota responde 400 e registra só os caminhos dos campos (`[webhooks] envelope inválido: callback_id: …`). Como 400 encerra as tentativas, o evento se perde: o log é a única evidência. Campos ausentes ou desconhecidos não recusam a entrega.
 
+### G. Processamento de webhooks (etapa 6)
+
+Receber não é processar. A rota grava e responde 200; o processamento roda depois (`after()`) e termina em `processed`, `ignored` ou `failed`, com uma nota ou o erro. Tudo aparece no detalhe do evento em `/webhooks`. Regras e tabela em `src/features/webhooks/README.md`.
+
+**G1. Evento "Ignorado: Consulta não encontrada nesta aplicação".** _Previsto; esperado para as duas entregas reais de 2026-10-15._
+
+- Hipóteses, em ordem: a consulta foi criada pela rota de dev (`/api/dev/judit/requests`), que não grava em `judit_requests`; a entrega chegou antes de o app gravar o `request_id` (a JUDIT entregou em 2,7 s no teste real); a consulta é de outra aplicação com a mesma chave.
+- Teste que separou: procurar o `reference_id` em `judit_requests` (Atlas) e comparar `receivedAt` do evento com `createdAt` da consulta.
+- Correção: no segundo caso, nada a fazer: a action processa de novo as entregas antecipadas logo depois de gravar (`processEventsForReference`). Em qualquer caso, "Reprocessar" roda as regras outra vez.
+- Lição de suporte: "ignorado" não é erro, é "não é meu". Num ticket, o `reference_id` diz de quem é a entrega.
+- Observado em 2026-10-15: as duas entregas da etapa 5 (consulta criada pela rota de dev) ficaram `ignored` com essa nota. Reprocessar de novo deu o mesmo resultado, sem erro.
+
+**G2. Evento parado em "Processando".** _Previsto (testado com MongoDB em memória)._ O servidor caiu entre a reserva do evento e o registro do resultado. Depois de 5 minutos (`STALE_PROCESSING_MS`), "Reprocessar" aceita o evento de novo. Antes disso, recusa, para não processar em dobro algo que pode estar em andamento.
+
+**G3. Evento "Falha" com erro de banco.** _Previsto (testado)._ O banco falhou no meio das regras (`processingError` mostra a mensagem do driver). "Reprocessar" é seguro: o status gravado é fixo e o alerta tem `dedupeKey` com índice único, então repetir não cria nada em dobro.
+
+**G4. Alertas duplicados apesar do `dedupeKey`.** _Previsto._
+
+- Sinal: dois alertas iguais para o mesmo processo ou para o mesmo evento.
+- Hipótese principal: o índice `alerts_dedupe_key_unique` não existe no Atlas. O `ensureIndexes` só roda quando o app abre a conexão, e o `pnpm dev` guarda a conexão entre recargas (`globalThis` em `src/db/index.ts`). Um servidor de dev iniciado antes da etapa 6 recompila o código novo, mas nunca cria o índice.
+- Teste que separou: Atlas → `alerts` → Indexes.
+- Correção: reiniciar o `pnpm dev`. Prevenção: depois de mudar `src/db/collections.ts`, reiniciar sempre (mesma família do D6).
+
+**G5. "Já existe uma consulta igual em andamento para esta empresa."** _Previsto; é comportamento correto._ Há uma consulta da mesma modalidade com status `pending` ou `started` no NOSSO banco, criada há menos de 24 h. O banco só muda quando alguém clica em "Verificar status" ou quando o webhook avisa o fim (600). Primeiro passo: "Verificar status" na consulta anterior. A regra é uma consulta prévia, não um índice: dois envios no mesmo instante ainda passam.
+
+**G6. Monitoramento aparece pausado, mas foi reativado.** _Previsto._ Um aviso de pausa (700 a 703) atrasado, processado depois da reativação, grava `paused` de novo. "Atualizar status" no menu do monitoramento corrige pelo que a JUDIT informa. Lição: webhooks podem chegar fora de ordem; o estado da JUDIT é a fonte da verdade.
+
 ### Modelo para novos casos
 
 ```
@@ -408,6 +435,13 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Dúvidas: quantas tentativas e em que intervalos? Qual a janela total? Existe como pedir a reentrega de um evento perdido, ou um painel com o histórico de entregas e o status que o nosso servidor respondeu?
 - Hipótese: uma entrega perdida não é um dado perdido, porque a resposta continua disponível por `GET /responses?request_id=…` (polling). Daria para conferir as entregas que faltam comparando o que chegou com o que a API lista.
 - Impacto: quanto tempo o app pode ficar fora do ar sem perder eventos, e se a etapa 6 ou 7 precisa de uma conferência por polling.
+- Resposta:
+
+**IK11. Como chegam as entregas de um monitoramento?** _Aberta desde 2026-10-15._
+
+- Contexto: a etapa 6 processa entregas de monitoramento (`reference_type: "tracking"`), mas nenhuma foi observada: o CNPJ de teste não gera resultados (C14), e o CNJ fictício depende do IK6.
+- Dúvidas: cada execução termina com um `application_info` 600, como uma consulta? Um monitoramento por CNJ manda a versão do cache e depois a atualizada, ou só uma entrega por movimentação? O `response_data` traz só as movimentações novas ou o processo inteiro (a página diz "o processo por completo")?
+- Impacto: hoje, um 600 de monitoramento é registrado sem ação, e cada entrega de monitoramento por CNJ gera um alerta. Se vierem duas versões por execução, sairão dois alertas de movimentação.
 - Resposta:
 
 ---
@@ -1156,6 +1190,79 @@ Primeira entrega real da JUDIT pelo túnel: uma consulta assíncrona do CNPJ de 
 
 As linhas `[webhooks] recebido: callback_id=…` das duas entregas, e nenhuma linha `POST /api/webhooks/judit?token=…` (o `next.config.ts` tira essa rota do log de requisições).
 
+### 2026-10-15 / Decisões das etapas 6 e 7 em discussão
+
+**Resumo técnico**
+
+Revisão das seis decisões de `docs/plano-etapas-6-7.md`. Códigos 700 a 703 confirmados na documentação. Achados: "um alerta por monitoramento e CNJ" não serve para monitoramento por CNJ; as duas entregas reais serão `ignored` (a rota de dev não grava em `judit_requests`). Decisões aguardando o usuário.
+
+### 2026-10-15 / Etapa 7 como etapa de produto
+
+**Resumo técnico**
+
+Proposta do usuário: a etapa 6 completa o back-end; a 7 vira etapa de produto (usar o app, repensar fluxos). Contraproposta: a parte técnica da 6c (enviar `callback_url`) fica na 6, para um teste de ponta a ponta; a lista da 7 fecha depois do uso guiado.
+
+### 2026-10-15 / Etapa 6: processamento, alertas e diagnóstico
+
+**Resumo técnico**
+
+Etapa 6 implementada em quatro fatias e quatro commits na branch `feat/judit-webhook-processing`. Cada entrega gravada é processada depois do 200 (`after()`): associa à consulta ou ao monitoramento, atualiza o estado e cria o alerta sem duplicar. As telas `/webhooks` e `/alertas` leem o banco.
+
+**Decisões (2026-10-15, todas aprovadas pelo usuário)**
+
+- A etapa 6 completa o back-end. A etapa 7 vira a etapa de produto: usar o app e repensar os fluxos, com a lista fechada depois desse uso.
+- O vocabulário da JUDIT continua na interface ("consulta síncrona", "assíncrona", "on-demand"): mostra que as modalidades foram entendidas.
+- Processamento com `after()`, reserva atômica (`pending → processing`) e "Reprocessar".
+- `application_error` numa consulta não muda o status dela (IK7).
+- Alerta com `dedupeKey` e índice único: por processo no monitoramento por documento, por entrega nos demais.
+- Webhook só nas consultas assíncronas, com `JUDIT_WEBHOOK_PUBLIC_ORIGIN`; os monitoramentos continuam em polling (a URL do túnel muda a cada execução).
+
+**Fatias**
+
+- 6a (`process.ts`, `delivery.ts`): regras do processamento. `delivery.ts` lê o que a JUDIT disse (contrato); `process.ts` decide o que fazer (nossas regras).
+- 6b: telas lendo o MongoDB, "marcar como lido" gravado, "Reprocessar" e contador real de reentregas. Sem mudar layout.
+- 6c: `callback_url` nas consultas do card, quando há origem pública; entregas que chegam antes de a consulta ser gravada são processadas logo depois.
+- 6d: "Verificar status" não pergunta à JUDIT quando já está `completed` (C16); nova consulta igual é recusada enquanto há uma em aberto (G5).
+
+**Como verificar**
+
+- 219 testes (eram 180), lint, typecheck, formatação e build. As regras foram testadas contra um MongoDB em memória, com os exemplos da documentação.
+- Fumaça no `pnpm dev` que já estava rodando: `/webhooks` e `/alertas` responderam 200 lendo o Atlas, com as duas entregas reais da etapa 5 em `pending`.
+- Não verificado: o índice `alerts_dedupe_key_unique` no Atlas (precisa reiniciar o `pnpm dev`, G4), o processamento das duas entregas reais (esperado: "ignorado", G1) e uma consulta do card com webhook pelo túnel.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Webhooks")
+
+- Por que o processamento roda depois do 200, e não antes?
+- O mesmo processo chega duas vezes por um monitoramento por documento: o que impede dois alertas, e por que essa regra não serve para o monitoramento por CNJ?
+
+### 2026-10-15 / Teste manual da etapa 6
+
+**Resumo técnico**
+
+Teste feito pelo agente, a pedido do usuário. Depois do `pnpm dev` reiniciado, as entregas antigas ficaram `ignored` (G1). Uma consulta assíncrona real, criada pela action do card com o túnel ligado, foi concluída pelo webhook (código 600) em 5,5 s, sem "Verificar status" e sem alerta.
+
+**O que foi feito e o que apareceu**
+
+- `pnpm dev` reiniciado pelo usuário às 20:36:09. A primeira leitura do banco passou pelo `ensureIndexes` sem erro: o índice `alerts_dedupe_key_unique` foi criado. A confirmação é indireta: um índice recusado derrubaria a conexão. Não foi aberto o Atlas.
+- "Reprocessar" chamado como o botão faria (server action pelo `curl`, sem chamada à JUDIT): as duas entregas antigas ficaram `ignored`, em cerca de 140 ms cada.
+- Túnel `cloudflared` ligado; pela internet, `/` e `/webhooks` responderam 404 e o webhook sem token, 401 (F5).
+- `JUDIT_WEBHOOK_PUBLIC_ORIGIN` posta no `.env.local` pelo usuário; o `next dev` releu o arquivo sem reiniciar.
+- Consulta `historical_async` do CNPJ fictício pela action do card (1 consulta gasta): gravada com `delivery: "webhook"` às 23:38:36.663 (UTC).
+- Linha do tempo: processo recebido às 23:38:38.434 (1,8 s depois da gravação), processado em 134 ms, sem alerta; código 600 recebido às 23:38:42.136, processado em 166 ms, com a nota "Consulta marcada como concluída".
+- Na página da empresa: status `completed`, `updatedAt` às 23:38:42.306 (o webhook) e `lastCheckedAt` nulo (ninguém perguntou à JUDIT). Nenhum alerta criado.
+- Túnel desligado ao fim (a URL passou a responder 530).
+
+**Não verificado**
+
+- Recusa de uma segunda consulta igual em aberto (G5): exigiria gastar outra consulta; está coberta pelos testes.
+- Entregas de monitoramento (C14, IK11) e a ordem "entrega antes da gravação" (G1, segundo caso): a gravação veio 1,8 s antes da primeira entrega.
+
+### 2026-10-15 / Proposta da etapa 8
+
+**Resumo técnico**
+
+Proposta do usuário: uma etapa 8 para "fechar" o projeto. A 8A deixa o repositório reproduzível por quem clona, com as pontas soltas resolvidas. A 8B é a auditoria, com o usuário ditando o que entendeu para o diário. Avaliação do agente: boa ideia, com a 8A antes da 8B e um critério de pronto testável. Registrada em `docs/plano-etapas-6-7.md`.
+
 ---
 
 ## Perguntas e respostas
@@ -1648,3 +1755,9 @@ Não. A documentação diz que ela repete só em 5xx ou timeout, com intervalos 
 
 **Se a recepção funciona com o CNPJ de teste, para que usar um CNPJ real?** _(pergunta sua, 2026-10-15)_
 O CNPJ de teste prova o encanamento: a JUDIT aceita a `callback_url`, entrega no formato esperado, o token e o banco funcionam. Ele não prova como o nosso código lida com dados reais: dezenas de entregas em segundos, a segunda entrega "atualizada" (`cached_response: false`), processos grandes, campos faltando e entregas de monitoramento (o de teste nunca dispara, C14). Isso não é testar a JUDIT, e sim testar as nossas suposições sobre os dados dela. Custa créditos e traz dados pessoais de terceiros, por isso a decisão fica para quando a etapa 7 precisar.
+
+**Por que o processamento roda depois do 200, e não antes?** _(etapa 6)_
+Porque receber e processar têm garantias diferentes. Para a JUDIT, o que importa é que a entrega foi guardada: depois do `insert`, nada se perde. As regras (associar, atualizar, criar alerta) consultam o banco várias vezes e podem falhar. Rodando antes do 200, uma falha viraria 5xx e a JUDIT repetiria uma entrega que já está salva, e a demora contaria contra os 10 s. Com `after()`, a falha fica registrada no próprio evento (`failed`) e se resolve com "Reprocessar".
+
+**O mesmo processo chega duas vezes por um monitoramento por documento: o que impede dois alertas, e por que essa regra não serve para o monitoramento por CNJ?** _(etapa 6)_
+O `dedupeKey` `new_lawsuit:<monitoramento>:<CNJ>`, com índice único: o segundo `insert` é recusado pelo banco, mesmo que as duas entregas sejam processadas ao mesmo tempo. No monitoramento por documento, o fato é "apareceu um processo novo", e ele acontece uma vez só. No monitoramento por CNJ, o CNJ é sempre o mesmo e o fato é "houve uma movimentação". Uma chave por CNJ avisaria só a primeira, por isso a chave é por entrega.

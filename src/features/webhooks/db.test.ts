@@ -71,6 +71,9 @@ describe("saveWebhookEvent", () => {
     expect(again).toEqual({ duplicate: true, event: null });
     const { webhookEvents } = collections(testDb.current!.db);
     expect(await webhookEvents.countDocuments()).toBe(1);
+    expect(await webhookEvents.findOne()).toMatchObject({
+      duplicateDeliveries: 1,
+    });
   });
 
   it("lets two simultaneous redeliveries store only one event", async () => {

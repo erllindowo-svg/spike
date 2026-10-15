@@ -17,6 +17,8 @@ const PUBLIC_VALUES = new Set([
   "DATA_SOURCE",
   "JUDIT_LIVE_CALLS",
   "JUDIT_WEBHOOK_FULL_PAYLOAD",
+  // URL do túnel: pública por definição (o token não faz parte dela).
+  "JUDIT_WEBHOOK_PUBLIC_ORIGIN",
 ]);
 
 const expectedKeys = readFileSync(".env.example", "utf8")

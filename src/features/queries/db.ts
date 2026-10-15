@@ -90,3 +90,45 @@ export async function updateJuditRequestStatus(
   );
   return doc ? toJuditRequest(doc) : null;
 }
+
+// A JUDIT avisou pelo webhook que a consulta terminou (application_info,
+// código 600). Grava o mesmo status que GET /requests/{id} devolveria, mas
+// não mexe em `lastCheckedAt`: ninguém perguntou à JUDIT, foi ela que avisou.
+export async function markJuditRequestCompleted(
+  requestId: string,
+): Promise<JuditRequest | null> {
+  const { juditRequests } = collections(await getDb());
+  const doc = await juditRequests.findOneAndUpdate(
+    { requestId },
+    { $set: { status: "completed", updatedAt: new Date() } },
+    { returnDocument: "after" },
+  );
+  return doc ? toJuditRequest(doc) : null;
+}
+
+// Por quanto tempo uma consulta "pending" ou "started" impede outra igual.
+// Escolha nossa: a JUDIT não documenta um status de falha (IK7), então uma
+// consulta que nunca terminar bloquearia a empresa para sempre. Depois de
+// 24 h, ela deixa de contar.
+export const OPEN_QUERY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Consulta ainda em aberto, segundo o NOSSO banco, para a mesma empresa e
+// modalidade. O status do banco só muda quando alguém pergunta à JUDIT
+// ("Verificar status") ou quando o webhook avisa o fim (código 600).
+export async function findOpenJuditRequest(
+  companyId: string,
+  mode: JuditRequest["mode"],
+  now = new Date(),
+): Promise<JuditRequest | null> {
+  const { juditRequests } = collections(await getDb());
+  const doc = await juditRequests.findOne(
+    {
+      companyId,
+      mode,
+      status: { $in: ["pending", "started"] },
+      createdAt: { $gt: new Date(now.getTime() - OPEN_QUERY_WINDOW_MS) },
+    },
+    { sort: { createdAt: -1 } },
+  );
+  return doc ? toJuditRequest(doc) : null;
+}

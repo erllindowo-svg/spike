@@ -9,6 +9,10 @@ import {
 } from "react";
 
 import type { ActivityItem } from "@/features/activity/types";
+import {
+  markAlertReadAction,
+  markAllAlertsReadAction,
+} from "@/features/alerts/actions";
 import type { AlertView } from "@/features/alerts/types";
 import { formatCnpj } from "@/features/companies/cnpj";
 import type { Company } from "@/features/companies/types";
@@ -34,12 +38,11 @@ import type { DataSource, DemoState } from "./data";
 //
 // - "demo": tudo fica em memória; recarregar a página restaura os dados
 //   iniciais. Nada é persistido nem enviado à JUDIT.
-// - "db": os monitoramentos vêm do MongoDB e são lidos direto do
-//   `initialState` do servidor, sem cópia no navegador. Cada server action
-//   que muda um monitoramento chama refresh(): o layout é renderizado de novo
-//   no servidor, relê o banco e entrega a lista nova. Ações que dependem de
-//   dados ainda não persistidos (simular webhook, restaurar) ficam
-//   indisponíveis.
+// - "db": monitoramentos, alertas e eventos de webhook vêm do MongoDB e são
+//   lidos direto do `initialState` do servidor, sem cópia no navegador. Cada
+//   server action que muda esses dados chama refresh(): o layout é
+//   renderizado de novo no servidor, relê o banco e entrega as listas novas.
+//   Simular webhook e restaurar só existem na demonstração.
 
 export type SimulationScenario =
   | "lawsuit_movement"
@@ -196,7 +199,8 @@ type DemoStore = DemoState & {
   addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
   markAlertRead: (id: string) => void;
-  markAllAlertsRead: () => void;
+  // Resolve com a mensagem de erro, ou null se deu certo.
+  markAllAlertsRead: () => Promise<string | null>;
   simulateWebhookEvent: (scenario: SimulationScenario) => SimulationResult;
   reset: () => void;
 };
@@ -219,10 +223,14 @@ export function DemoStoreProvider({
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  // No modo "db", a lista é a do servidor (ver o comentário no topo). O
-  // reducer só guarda os monitoramentos da demonstração.
-  const trackings =
-    dataSource === "db" ? initialState.trackings : state.trackings;
+  // No modo "db", as listas são as do servidor (ver o comentário no topo).
+  // O reducer só guarda os dados da demonstração e a atividade.
+  const fromServer = dataSource === "db";
+  const trackings = fromServer ? initialState.trackings : state.trackings;
+  const alerts = fromServer ? initialState.alerts : state.alerts;
+  const webhookEvents = fromServer
+    ? initialState.webhookEvents
+    : state.webhookEvents;
 
   const companiesById = useMemo(
     () => new Map(companies.map((c) => [c.id, c])),
@@ -330,14 +338,31 @@ export function DemoStoreProvider({
     [dataSource],
   );
 
+  // No modo "db", a leitura é gravada no banco; o alerta aparece como lido
+  // quando o refresh() da action entrega a lista nova. Uma falha só deixa o
+  // alerta como não lido.
   const markAlertRead = useCallback(
-    (id: string) => dispatch({ type: "markAlertRead", id }),
-    [],
+    (id: string) => {
+      if (dataSource === "db") {
+        markAlertReadAction(id).catch(() => {});
+        return;
+      }
+      dispatch({ type: "markAlertRead", id });
+    },
+    [dataSource],
   );
-  const markAllAlertsRead = useCallback(
-    () => dispatch({ type: "markAllAlertsRead" }),
-    [],
-  );
+  const markAllAlertsRead = useCallback(async (): Promise<string | null> => {
+    if (dataSource === "db") {
+      try {
+        const result = await markAllAlertsReadAction();
+        return result.ok ? null : result.message;
+      } catch {
+        return SERVER_UNREACHABLE;
+      }
+    }
+    dispatch({ type: "markAllAlertsRead" });
+    return null;
+  }, [dataSource]);
 
   const simulateWebhookEvent = useCallback(
     (scenario: SimulationScenario): SimulationResult => {
@@ -413,7 +438,9 @@ export function DemoStoreProvider({
         },
         receivedAt,
         processingStatus: "pending",
+        processingStartedAt: null,
         processedAt: null,
+        processingNote: null,
         processingError: null,
         duplicateDeliveries: 0,
         alertIds: [],
@@ -478,7 +505,9 @@ export function DemoStoreProvider({
           type: isNewLawsuit ? "new_lawsuit" : "lawsuit_movement",
           companyId: tracking.companyId,
           webhookEventId: event.id,
+          trackingId: tracking.id,
           lawsuitCnj: lawsuit?.cnj ?? null,
+          dedupeKey: `demo:${event.id}`,
           title: isNewLawsuit
             ? "Novo processo identificado"
             : "Nova movimentação processual",
@@ -527,6 +556,8 @@ export function DemoStoreProvider({
     () => ({
       ...state,
       trackings,
+      alerts,
+      webhookEvents,
       dataSource,
       companies,
       lawsuits,
@@ -541,6 +572,8 @@ export function DemoStoreProvider({
     [
       state,
       trackings,
+      alerts,
+      webhookEvents,
       dataSource,
       companies,
       lawsuits,

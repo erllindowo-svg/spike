@@ -73,14 +73,34 @@ export type WebhookEvent = {
   payload: unknown;
   receivedAt: Date;
   processingStatus: WebhookProcessingStatus;
+  // Início da última tentativa de processamento. Serve para perceber um
+  // evento preso em "processing" (o servidor caiu no meio).
+  processingStartedAt: Date | null;
+  // Fim do processamento (processed, ignored ou failed).
   processedAt: Date | null;
+  // O que o processamento fez, ou por que ignorou o evento. Texto para o
+  // diagnóstico, sem dados do processo.
+  processingNote: string | null;
+  // Motivo de "failed".
   processingError: string | null;
+  // Reentregas com o mesmo callback_id, recusadas pelo índice único. Muitas
+  // indicam que a JUDIT não recebeu o nosso 2xx a tempo.
+  duplicateDeliveries: number;
 };
 
 export type Alert = {
   id: string;
   companyId: string | null;
+  // Evento que gerou o alerta. Num alerta deduplicado, é a primeira entrega.
   webhookEventId: string | null;
+  // Monitoramento do app (o `id` local, não o tracking_id da JUDIT).
+  trackingId: string | null;
+  // Só os 20 dígitos, como em Lawsuit.cnj.
+  lawsuitCnj: string | null;
+  // Regra de unicidade do alerta, com índice único: o mesmo fato não gera
+  // dois alertas, mesmo que o evento chegue de novo ou seja reprocessado.
+  // Montada em src/features/webhooks/process.ts (alertKey).
+  dedupeKey: string;
   title: string;
   description: string | null;
   type: string;
