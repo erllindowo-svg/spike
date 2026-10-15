@@ -16,6 +16,7 @@ const PUBLIC_VALUES = new Set([
   "MONGODB_DB",
   "DATA_SOURCE",
   "JUDIT_LIVE_CALLS",
+  "JUDIT_WEBHOOK_FULL_PAYLOAD",
 ]);
 
 const expectedKeys = readFileSync(".env.example", "utf8")
@@ -23,6 +24,9 @@ const expectedKeys = readFileSync(".env.example", "utf8")
   .map((line) => line.trim())
   .filter((line) => line !== "" && !line.startsWith("#"))
   .map((line) => line.slice(0, line.indexOf("=")).trim());
+
+// Largura da coluna dos nomes: o maior nome mais dois espaços.
+const column = Math.max(...expectedKeys.map((key) => key.length)) + 2;
 
 // dev = true: carrega os mesmos arquivos que o `pnpm dev` (.env.local etc.).
 // O logger vazio evita que o carregador imprima mensagens próprias.
@@ -52,11 +56,11 @@ for (const key of expectedKeys) {
     status = `definida (${value.length} caracteres)`;
   }
 
-  console.log(`${key.padEnd(18)}${status}`);
+  console.log(`${key.padEnd(column)}${status}`);
 
   if (key === "MONGODB_URI" && value?.trim()) {
     for (const note of uriNotes(value.trim())) {
-      console.log(`${"".padEnd(18)}${note}`);
+      console.log(`${"".padEnd(column)}${note}`);
     }
   }
 }

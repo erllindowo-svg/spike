@@ -24,8 +24,9 @@ import {
 //      final. There can be a cached result first and a fresh one later (see
 //      responseCameFromCache in schemas/requests.ts).
 //
-// Webhooks would replace steps 2 and 3, but they are out of scope here.
-// Nothing in this module polls automatically: each GET is a request against
+// Webhooks replace steps 2 and 3 when the request carries a `callback_url`:
+// JUDIT then POSTs each response to the app (src/app/api/webhooks/judit).
+// Polling keeps working either way. Nothing in this module polls automatically: each GET is a request against
 // the rate limit, and the docs do not say whether status checks are billed.
 // Docs: https://docs.judit.io/requests/requests (by CNJ) and
 // https://docs.judit.io/requests/request-document (by document).
@@ -33,8 +34,8 @@ import {
 // POST /requests. Billable ("Cobrança por requisição"). Creates work on
 // JUDIT's side, so it is never retried automatically (see client.ts).
 // Not exposed on purpose: `judit_ia` (beta, extra feature),
-// `should_search_superior_instances` (+30% cost), `callback_url` (webhooks,
-// out of scope) and `customer_key` (credential vault).
+// `should_search_superior_instances` (+30% cost) and `customer_key`
+// (credential vault).
 export async function createRequest(params: {
   searchType: "cpf" | "cnpj" | "oab" | "name" | "lawsuit_cnj";
   searchKey: string;
@@ -48,6 +49,10 @@ export async function createRequest(params: {
   withInferredParties?: boolean;
   lawsuitInstance?: number;
   filter?: LawsuitFilter;
+  // Where JUDIT delivers each response of this request (webhook), at the top
+  // level of the body (https://docs.judit.io/webhook/callbacks). Build it
+  // with buildJuditCallbackUrl (src/features/webhooks/callback.ts).
+  callbackUrl?: string;
 }) {
   const searchKey = params.searchKey.trim();
   assertAllowedSearchKey(params.searchType, searchKey);
@@ -80,6 +85,7 @@ export async function createRequest(params: {
           : {}),
       },
       ...(params.withAttachments ? { with_attachments: true } : {}),
+      ...(params.callbackUrl ? { callback_url: params.callbackUrl } : {}),
     },
     schema: requestSchema,
   });

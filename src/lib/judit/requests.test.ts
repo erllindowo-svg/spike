@@ -94,6 +94,23 @@ describe("createRequest", () => {
       with_attachments: true,
     });
   });
+
+  it("sends callback_url at the top level of the body, as documented", async () => {
+    const fetchMock = mockFetch(createdRequestBody, 201);
+    const callbackUrl =
+      "https://exemplo.trycloudflare.com/api/webhooks/judit?token=fake";
+
+    await createRequest({
+      searchType: "cnpj",
+      searchKey: TEST_CNPJ,
+      callbackUrl,
+    });
+
+    expect(sentRequest(fetchMock).body).toEqual({
+      search: { search_type: "cnpj", search_key: TEST_CNPJ },
+      callback_url: callbackUrl,
+    });
+  });
 });
 
 describe("getRequest", () => {

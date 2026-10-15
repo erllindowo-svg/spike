@@ -67,6 +67,8 @@ export function toModel<T extends { _id: string }>(
 export const TRACKING_ACTIVE_KEY_INDEX = "trackings_active_search_key_unique";
 export const JUDIT_REQUESTS_REQUEST_ID_INDEX =
   "judit_requests_request_id_unique";
+export const WEBHOOK_EVENTS_CALLBACK_ID_INDEX =
+  "webhook_events_callback_id_unique";
 
 // Índices e regras de unicidade. O MongoDB não tem migrations como o SQL:
 // createIndex é idempotente (não faz nada se o índice já existe igual), então
@@ -110,7 +112,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
     webhookEvents.createIndex(
       { callbackId: 1 },
       {
-        name: "webhook_events_callback_id_unique",
+        name: WEBHOOK_EVENTS_CALLBACK_ID_INDEX,
         unique: true,
         partialFilterExpression: { callbackId: { $type: "string" } },
       },

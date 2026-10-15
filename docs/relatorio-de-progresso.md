@@ -1,6 +1,6 @@
 # Relatório de progresso: Raio-X Jurídico
 
-Última atualização: 2026-10-15 (etapa 4 encerrada; próxima: etapa 5). Registros detalhados:
+Última atualização: 2026-10-15 (etapa 5 testada com entrega real; falta o commit). Registros detalhados:
 [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md) e
 [`docs/logs/2026-10-14-sessao.md`](logs/2026-10-14-sessao.md).
 
@@ -13,7 +13,8 @@
 | 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                    |
 | 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                |
 | 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado. |
-| 5 a 7. Webhooks, idempotência, diagnóstico  | Não iniciadas. Plano da etapa 5 no fim deste relatório.                  |
+| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15: entrega real gravada; falta o commit.       |
+| 6 e 7. Processamento, alerta, diagnóstico   | Não iniciadas.                                                           |
 | 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").              |
 
 ### Estado do Git
@@ -25,7 +26,9 @@
 - 2026-10-15: diário com seção única de explicação (`918c257`, branch
   `docs/diario-secao-unica`) e registro do fechamento da etapa 4, ambos
   levados para a `feat/judit-tracking`, que foi enviada com o PR da etapa 4.
-  O usuário faz o merge.
+  PR #4 mergeado em 2026-10-15 (`main` em `2881807`).
+- Etapa 5 na branch `feat/judit-webhooks` (a partir de `2881807`), ainda
+  sem commit.
 
 ## Etapa 3: o que existe
 
@@ -108,6 +111,31 @@ depois da criação (a JUDIT grava `distribution_date_gte`; README, item 37;
 catálogo, C14). Pausado pelo usuário às 21:58 UTC; JUDIT e MongoDB com
 `paused`. Detalhes no diário, entrada "Primeira execução do monitoramento e
 pausa".
+
+## Etapa 5: receber e gravar webhooks (implementada em 2026-10-15)
+
+Decisões do usuário: túnel `cloudflared`; token secreto na `callback_url`
+(a JUDIT não documenta assinatura); consulta assíncrona com `callback_url`
+como gatilho do teste; gravar o envelope completo e resumir o dado de
+processo, com um modo manutenção que grava tudo.
+
+```
+POST /api/dev/judit/requests {callbackOrigin} → createRequest(callback_url=…?token=…) → JUDIT
+JUDIT → túnel → src/proxy.ts (só /api/webhooks/judit passa) → route.ts
+route.ts: token (401) → JSON (400) → envelope (400) → webhook_events (503 se falhar) → 200
+```
+
+- Detalhes, tabela de status e teste real: `src/features/webhooks/README.md`.
+- Variáveis novas: `JUDIT_WEBHOOK_TOKEN` (vazia = webhook desligado) e
+  `JUDIT_WEBHOOK_FULL_PAYLOAD` (modo manutenção).
+- `src/proxy.ts`: em desenvolvimento, quem não vem desta máquina só alcança a
+  rota do webhook. Testado no `pnpm dev` com cabeçalhos simulados.
+- 180 testes, lint, typecheck, formatação e build passando.
+- **Teste real (2026-10-15):** uma consulta assíncrona do CNPJ de teste com
+  `callbackOrigin` gerou duas entregas em 7 s (o processo, do cache, e o
+  código 600), gravadas com o token mascarado. Pela URL do túnel, só a rota
+  do webhook respondeu. Túnel encerrado. Falta: commit, push e PR.
+- Casos do catálogo: D6 e F1 a F6.
 
 ## Revisão técnica de 2026-10-14: o que corrigir nas próximas sessões
 
@@ -267,30 +295,15 @@ produto.
 
 ## Próxima sessão, em ordem
 
-1. **Etapa 5: receber e gravar um webhook de teste.** Fatos da documentação
-   ([webhook/callbacks](https://docs.judit.io/webhook/callbacks)): cadastro
-   por URL da conta (pedido ao suporte) ou por `callback_url` na requisição;
-   `POST` JSON numa URL HTTPS pública; responder 2xx em menos de 10 s; novas
-   tentativas em 5xx ou timeout; nenhuma assinatura documentada (só HTTPS e
-   allowlist de IPs, pedida ao suporte); um único `event_type`,
-   `response_created`. Decisões a tomar antes de codar:
-   - como expor uma URL HTTPS pública em desenvolvimento (túnel);
-   - como proteger a rota sem assinatura;
-   - qual gatilho usar no teste real: o CNPJ de teste monitorado nunca gera
-     evento (item 37 do README). Hipótese a validar: uma consulta assíncrona
-     do CNPJ de teste com `callback_url` gera entregas na hora.
-     O que já existe: coleções `webhook_events` (índice único em
-     `callback_id`) e `alerts`, páginas `/webhooks` e `/alertas` com dados
-     fictícios, `updateTrackingCallbackUrl`.
-2. **Etapa 6:** idempotência pelo índice, associação `reference_id` →
-   monitoramento, geração de alerta, telas lendo o banco.
-3. **Etapa 7, com escopo fechado:** itens 8 e 9 da revisão (chamadas
-   repetidas e clique duplo na consulta assíncrona), item 19 (aviso de
-   `/empresas`), o 404 de `/processos/[cnj]` no modo `db` e um painel de
-   diagnóstico dos webhooks. O resto da revisão fica opcional.
-4. **Auditoria completa do código**, no modo descrito no `AGENTS.md`.
+1. Se ainda não foi feito: push e PR da etapa 5 (`feat/judit-webhooks`).
+2. **Etapas 6 e 7:** o plano completo está em
+   [`docs/plano-etapas-6-7.md`](plano-etapas-6-7.md), com o que já existe, o
+   que falta, o tamanho de cada parte, a proposta de juntar as duas etapas
+   (uma branch, quatro fatias) e as decisões a tomar no início.
+3. **Auditoria completa do código**, no modo descrito no `AGENTS.md`.
 
 ## Como retomar com o agente
 
-> Li o `docs/relatorio-de-progresso.md`. O monitoramento de teste foi criado
-> em …; o resultado de "Atualizar status" e "Ver resultados" foi: ….
+> Leia `docs/plano-etapas-6-7.md` e `docs/relatorio-de-progresso.md`. Vamos
+> decidir os itens de "Decisões para o início da próxima sessão" e começar a
+> fatia 6a.

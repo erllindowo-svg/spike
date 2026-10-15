@@ -110,6 +110,13 @@ export async function juditRequest<Schema extends z.ZodType>(
     clearTimeout(timer);
   }
 
+  // JUDIT echoes the callback_url back (request details, webhook tags), and
+  // that URL carries our webhook token. Masking it here, where every JUDIT
+  // body passes, keeps it out of dev route output, logs and stored records.
+  // The app never needs the token from a response: it builds the URL itself.
+  const webhookToken = webhookTokenToMask();
+  if (webhookToken) text = redact(text, webhookToken);
+
   if (!response.ok) {
     const body = parseJson(text);
     if (request.acceptErrorBody?.(response.status, body)) {
@@ -234,6 +241,16 @@ function parseJson(text: string): unknown {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+// An invalid JUDIT_WEBHOOK_TOKEN is reported by the webhook route. Here it
+// only means there is no token to mask, so JUDIT calls keep working.
+function webhookTokenToMask(): string | undefined {
+  try {
+    return getServerEnv("JUDIT_WEBHOOK_TOKEN");
+  } catch {
+    return undefined;
+  }
 }
 
 // Defense in depth: if a body ever echoed the key back, it would not reach

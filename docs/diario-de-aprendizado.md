@@ -265,11 +265,46 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Correção prevista (etapa 7): mover a leitura para um componente dentro do `<Suspense>`. `export const instant = false` só cala o aviso.
 - Lição de suporte: um "Error" no terminal de desenvolvimento nem sempre é falha para o usuário final. Aqui o efeito em produção seria uma navegação mais lenta, e o ticket seria "a tela de empresas demora para abrir", não "deu erro".
 
+**D6. Rota nova responde 503/500 no `pnpm dev`, mas 404 no build.** _Observado em 2026-10-15._
+
+- Sinal: depois de acrescentar variáveis ao `src/lib/env.ts`, `POST /api/webhooks/judit` respondeu 503 ("configuração inválida") e a rota de dev de consultas respondeu 500 com corpo vazio, sem nenhum token configurado. Nos testes, o mesmo código respondia 404.
+- Camada: ferramenta (servidor de desenvolvimento).
+- Hipóteses: valor inválido no `.env.local`; bug no schema; o servidor de dev rodando uma versão antiga do `env.ts`, sem as chaves novas (pedir uma chave que o schema não conhece quebra antes de validar).
+- Teste que separou: o build novo, servido com `next start` na porta 3100, com o mesmo código e o mesmo `.env.local`, respondeu 404. `pnpm env:check` mostrou o token ausente.
+- Causa provável: módulo antigo em memória no `pnpm dev`. O mecanismo exato do recarregamento não foi confirmado.
+- Correção: reiniciar o `pnpm dev`.
+- Lição de suporte: "funciona no teste e no build, falha no servidor que já estava rodando" aponta para estado antigo em memória. Compare com um processo novo antes de mexer no código.
+- Atualização (2026-10-15): o `pnpm dev` voltou a responder certo (401 sem token) sem reinício manual, depois da mudança no `next.config.ts` e no `.env.local`. Explicação provável: o `next dev` reinicia sozinho quando o `next.config.ts` muda, e com isso carregou o `env.ts` novo.
+
 ### E. Segurança como falha operacional
 
 **E1. Diagnóstico que vazou parte de um segredo.** _Observado em 2026-10-13._ Um script improvisado imprimiu os 10 primeiros caracteres da chave. Prevenção: só `pnpm env:check`, que mostra nomes, tamanhos e valores não secretos. Avaliado como risco irrelevante em 2026-10-14.
 
 **E2. Repositório público.** Tudo que entra num commit enviado deve ser tratado como publicado. Verificado em 2026-10-14: nenhum segredo no histórico.
+
+### F. Webhooks (etapa 5)
+
+Contrato: a JUDIT repete a entrega só em 5xx ou timeout; um 4xx encerra as tentativas ([webhook/callbacks](https://docs.judit.io/webhook/callbacks)). O status que a rota devolve decide se o evento ainda pode chegar. Tabela completa em `src/features/webhooks/README.md`.
+
+**F1. "A JUDIT diz que entregou, mas não há nada no banco."** _Previsto._
+
+- Hipóteses, em ordem: a rota respondeu 401 (token trocado depois da requisição, ou `callback_url` montada com outro token); 404 (webhook desligado: token vazio ou `DATA_SOURCE` diferente de `db`); o túnel caiu ou mudou de URL (o `cloudflared` gera uma URL nova a cada execução); o servidor de dev estava parado.
+- Teste que separou: o terminal do `pnpm dev` (`[webhooks] token ausente ou inválido`, nada, ou `recebido`) e o `GET /api/dev/webhooks`.
+- Lição de suporte: é o que a página de suporte da JUDIT pede num ticket de webhook: a `callback_url`, o `request_id`, o `callback_id` e o que o seu servidor respondeu. Um 4xx da sua rota é final: a JUDIT não tenta de novo.
+
+**F2. A mesma entrega chegou duas vezes.** _Previsto (testado com MongoDB em memória)._ A JUDIT reenvia quando não recebe 2xx em 10 s. O índice único de `callback_id` recusa a segunda gravação, e a rota responde 200 com `duplicate: true`. Duas entregas simultâneas também resultam em um único evento. Uma consulta comum gera várias entregas legítimas (cache, atualizada e o código 600), com `callback_id` diferentes: isso não é duplicata.
+
+**F3. Entregas em 503, repetidas pela JUDIT.** _Previsto._ Banco indisponível ou configuração inválida. Procure `[webhooks] falha ao gravar` ou `[webhooks] configuração inválida` no terminal. É o comportamento desejado: o evento não se perde enquanto a JUDIT tenta de novo, desde que a falha não dure além das tentativas dela.
+
+**F4. Token do webhook exposto.** _Previsto (testado)._ A JUDIT devolve a `callback_url` em `payload.tags.callback_url`. Sem o mascaramento, o token iria para o banco e para qualquer tela de diagnóstico. Prevenção: `envelope.ts` troca o token por `[token]` em todo o corpo, e a rota faz o mesmo nas mensagens de erro do log. Dois outros caminhos de vazamento, achados na revisão do próprio código: o `next dev` imprime a URL de cada requisição com a query string (resolvido com `logging.incomingRequests.ignore` no `next.config.ts`), e a JUDIT ecoa a `callback_url` nas respostas dela, que a rota de dev mostraria no terminal (resolvido no `client.ts`, que mascara o token em todo corpo recebido).
+
+- Observado em 2026-10-15: a JUDIT ecoou a `callback_url` na resposta 201 do `POST /requests` (campo não documentado) e em `payload.tags.callback_url` de cada entrega. Nos dois lugares o token apareceu mascarado (`[REDACTED]` pelo client, `[token]` pelo envelope). Se o token vazar, troque-o; entregas pendentes de requisições antigas passarão a receber 401.
+
+**F5. Túnel ligado expõe o app.** _Previsto (testado com cabeçalhos simulados)._ Pela URL do túnel, qualquer pessoa alcançaria páginas, server actions e rotas de dev cobradas. `src/proxy.ts` responde 404 a quem não vem desta máquina, exceto na rota do webhook. Sinal de que o filtro funciona: pela URL do túnel, `/` responde 404 e `/api/webhooks/judit` sem token responde 401.
+
+- Observado em 2026-10-15, pela internet: `/`, `/monitoramentos`, `/api/dev/webhooks` e `POST /api/dev/judit/requests` responderam 404; o webhook sem token ou com token errado, 401.
+
+**F6. Envelope fora do formato.** _Previsto._ Um `callback_id` numérico ou um `payload` que não é objeto indicaria mudança de contrato: a rota responde 400 e registra só os caminhos dos campos (`[webhooks] envelope inválido: callback_id: …`). Como 400 encerra as tentativas, o evento se perde: o log é a única evidência. Campos ausentes ou desconhecidos não recusam a entrega.
 
 ### Modelo para novos casos
 
@@ -364,6 +399,15 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Dúvidas: basta o `callback_url`, ou é preciso abrir um pedido ao suporte? Existe um ambiente ou um evento de teste para disparar uma entrega sem esperar uma execução real?
 - Ainda não pesquisado na documentação: autenticação das entregas, política de novas tentativas e ordem dos eventos. Isso será lido na etapa 5; o que a documentação não cobrir vira um novo item aqui.
 - Encontrado na documentação em 2026-10-15 ([webhook/callbacks](https://docs.judit.io/webhook/callbacks)): há duas formas de cadastro, uma URL para a conta inteira, pedida ao suporte (recomendada), ou `callback_url` em cada requisição. Entrega por `POST` JSON numa URL HTTPS pública; resposta 2xx em menos de 10 s; em 5xx ou timeout, novas tentativas com backoff exponencial; indisponibilidade longa perde eventos. Segurança: só HTTPS e allowlist de IPs da JUDIT, pedidos ao suporte; nenhuma assinatura documentada. Idempotência: a página manda usar `callback_id` e, em outro trecho, `request_id` + `cached_response` (README da integração, item 39). Continuam abertos: um evento de teste e a lista de IPs.
+- Observado em 2026-10-15: o `callback_url` por requisição funcionou sem nenhum cadastro com o suporte. Uma consulta assíncrona do CNPJ de teste gerou duas entregas em 7 s (o processo, do cache, e o código 600). Para monitoramentos (`PATCH /tracking` com `callback_url`), ainda não testado.
+- Resposta:
+
+**IK10. Quantas vezes a JUDIT reenvia um webhook, e por quanto tempo?** _Aberta desde 2026-10-15._
+
+- Documentado ([webhook/callbacks](https://docs.judit.io/webhook/callbacks)): em 5xx ou timeout (mais de 10 s), novas tentativas com backoff exponencial; "se sua URL ficar indisponível por muito tempo, perdemos eventos". Um 4xx não é repetido.
+- Dúvidas: quantas tentativas e em que intervalos? Qual a janela total? Existe como pedir a reentrega de um evento perdido, ou um painel com o histórico de entregas e o status que o nosso servidor respondeu?
+- Hipótese: uma entrega perdida não é um dado perdido, porque a resposta continua disponível por `GET /responses?request_id=…` (polling). Daria para conferir as entregas que faltam comparando o que chegou com o que a API lista.
+- Impacto: quanto tempo o app pode ficar fora do ar sem perder eventos, e se a etapa 6 ou 7 precisa de uma conferência por polling.
 - Resposta:
 
 ---
@@ -1060,6 +1104,58 @@ O agente conferiu o monitoramento de teste pelas rotas de dev e pela action "Ver
 - Para o suporte: um monitoramento "vazio" não é defeito, e todo diagnóstico começa por identificar o tipo de ID (C15).
 - O que foi observado entrou nos itens IK2, IK4, IK5 e IK9 de "Inside knowledge"; as respostas continuam com você.
 
+### 2026-10-15 / Etapa 5 explicada
+
+**Resumo técnico**
+
+Explicação da etapa 5 antes de codar: a JUDIT passa a chamar o app (webhook) em vez de o app perguntar (polling). Fluxo, contrato documentado (`response_created`, entregas incrementais, fim com código 600, 2xx em 10 s, sem assinatura) e quatro decisões pendentes: túnel, proteção da rota, gatilho do teste e o que gravar.
+
+### 2026-10-15 / Etapa 5: receber e gravar webhooks
+
+**Resumo técnico**
+
+Nova rota `POST /api/webhooks/judit`: confere o token da `callback_url`, valida o envelope, grava em `webhook_events` (pendente) e responde 200, ou 503 para a JUDIT repetir. Dado de processo resumido por padrão; modo manutenção grava tudo. `src/proxy.ts` limita o túnel à rota do webhook.
+
+**Decisões (2026-10-15)**
+
+- Túnel: `cloudflared`, já instalado; ligado só durante o teste.
+- Proteção: token secreto na `callback_url` (`JUDIT_WEBHOOK_TOKEN`), comparado em tempo constante. A JUDIT não documenta assinatura.
+- Gatilho do teste real: consulta assíncrona do CNPJ fictício com `callbackOrigin`, porque o monitoramento por documento nunca gera evento (C14).
+- O que gravar: envelope completo; `response_data` de processo vira resumo (CNJ e nomes dos campos); `JUDIT_WEBHOOK_FULL_PAYLOAD=enabled` grava tudo para diagnóstico.
+
+**Como verificar**
+
+- 180 testes (eram 131): envelope, token, client (mascaramento), banco em memória (inclusive o exemplo com `$oid` e duas reentregas simultâneas), contrato HTTP da rota e o filtro do túnel. Lint, typecheck, formatação e build passando.
+- No `pnpm dev`: local responde 200; com `Host` do túnel ou cabeçalho `cf-ray`, 404 (F5). A rota do webhook respondeu 503 no servidor que já estava rodando, e 404 no build novo (D6); falta reiniciar o `pnpm dev`.
+- Ainda não verificado: uma entrega real da JUDIT pelo túnel.
+
+**Perguntas de verificação** (respostas em "Perguntas e respostas", seção "Webhooks")
+
+- Por que a rota responde 503, e não 500 ou 400, quando o MongoDB está fora do ar?
+- Se o token só serve para provar a origem, por que ele precisa ser mascarado no banco?
+
+### 2026-10-15 / Teste real do webhook
+
+**Resumo técnico**
+
+Primeira entrega real da JUDIT pelo túnel: uma consulta assíncrona do CNPJ de teste com `callbackOrigin` gerou duas entregas, gravadas como pendentes, com o token mascarado. O filtro do túnel funcionou pela internet. Túnel encerrado ao final.
+
+**O que o teste mostrou**
+
+- Linha do tempo (UTC): consulta criada às 22:54:25.6; entrega do processo gravada às 22:54:28.3 (2,7 s); entrega de fim (`application_info`, código 600, `REQUEST_COMPLETED`) às 22:54:32.3 (6,7 s).
+- A hipótese do gatilho estava certa: uma consulta assíncrona com `callback_url` dispara entregas na hora, sem cadastro com o suporte (IK9).
+- Só veio a entrega do cache (`cached: true` e `tags.cached_response: true`), sem uma segunda "atualizada": a consulta por documento sem `on_demand` não vai ao tribunal (README, item 35). A documentação prevê esse caso.
+- O indicador de cache, numa entrega, aparece em dois lugares: `payload.cached` e `payload.tags.cached_response` (README, item 19).
+- Campos fora da documentação: `responseIds` no `payload`, `savedResponseId` dentro do processo e `user_id` repetido dentro do `payload`.
+- O processo veio resumido como planejado: o CNJ fictício e 33 nomes de campos, sem partes nem valores.
+- A JUDIT ecoou a `callback_url` também na resposta 201 de criação; o client já a mascarou (F4).
+- Pela internet, só a rota do webhook respondeu; o resto, 404 (F5).
+- Não verificado: reentrega real (a JUDIT só reenvia se a rota falhar) e entregas de monitoramento.
+
+**O que conferir no seu terminal**
+
+As linhas `[webhooks] recebido: callback_id=…` das duas entregas, e nenhuma linha `POST /api/webhooks/judit?token=…` (o `next.config.ts` tira essa rota do log de requisições).
+
 ---
 
 ## Perguntas e respostas
@@ -1529,3 +1625,26 @@ O nosso client desiste depois de 15 s, mas a requisição pode continuar sendo p
 
 **Depois da correção do item 2, quem atualiza a linha da tabela quando você pausa um monitoramento?**
 O servidor. A action grava o novo status no MongoDB e chama `refresh()`. O Next renderiza o layout de novo no servidor, que relê o banco e envia um `initialState` novo, e o provider usa essa lista diretamente. Antes, o navegador guardava uma cópia própria (`useReducer`) e precisava ser corrigido à mão com `replaceTracking`.
+
+### Webhooks
+
+**Por que a rota responde 503, e não 500 ou 400, quando o MongoDB está fora do ar?**
+O status é uma instrução para a JUDIT. Ela só repete a entrega em 5xx ou timeout; um 4xx encerra as tentativas. Um 400 diria "o seu envio está errado" e o evento se perderia, embora o problema seja nosso e passageiro. Um 500 também faria a JUDIT repetir, mas o 503 ("serviço indisponível") descreve melhor uma falha temporária, e a rota só usa 503 para isso.
+
+**Se o token só serve para provar a origem, por que ele precisa ser mascarado no banco?**
+Porque quem lê o token consegue se passar pela JUDIT. A JUDIT devolve a `callback_url`, com o token, dentro do payload (`tags.callback_url`). Gravar o corpo como veio espalharia o segredo pelo banco, por telas de diagnóstico e por backups. Com o token em mãos, qualquer pessoa poderia mandar eventos falsos que a rota aceitaria.
+
+**Qual a diferença entre webhook, envelope, payload e token?** _(pergunta sua, 2026-10-15)_
+O webhook é o mecanismo: a JUDIT faz um `POST` para um endereço nosso quando tem novidade. Cada `POST` é uma entrega. O corpo da entrega é o envelope (`callback_id`, `reference_id`…), e dentro dele o campo `payload` traz o conteúdo em si, como o processo encontrado. O token não vem no corpo: é um segredo nosso, escrito no endereço (`?token=…`), que prova que quem chamou recebeu esse endereço da gente.
+
+**O que é uma reentrega?** _(pergunta sua, 2026-10-15)_
+É a JUDIT mandando de novo a mesma entrega, com o mesmo `callback_id`, porque não recebeu 2xx em 10 s (a rota caiu, demorou ou respondeu 5xx). Do lado de lá, a JUDIT não sabe se gravamos ou não, então repete. Do nosso lado, o índice único de `callback_id` faz a segunda cópia ser recusada, e a rota responde 200 para ela parar.
+
+**O que são os testes automatizados, e o que eles não provam?** _(pergunta sua, 2026-10-15)_
+São programas que chamam o nosso código com entradas preparadas e conferem a saída (`pnpm test` roda todos). A cada mudança, todos rodam de novo, e um comportamento antigo que quebrar aparece na hora. Eles usam substitutos: um `fetch` falso no lugar da JUDIT e um MongoDB temporário em memória. Por isso não provam o contrato real da JUDIT, só que o código faz o que nós achamos que a JUDIT espera. Isso é o papel do teste real.
+
+**A reentrega da JUDIT é infinita?** _(pergunta sua, 2026-10-15)_
+Não. A documentação diz que ela repete só em 5xx ou timeout, com intervalos crescentes, e que eventos se perdem se a URL ficar fora do ar "por muito tempo". Quantas vezes e por quanto tempo não está documentado (IK10). Um 4xx encerra na hora. Uma entrega perdida não é um dado perdido: a resposta continua disponível por `GET /responses`.
+
+**Se a recepção funciona com o CNPJ de teste, para que usar um CNPJ real?** _(pergunta sua, 2026-10-15)_
+O CNPJ de teste prova o encanamento: a JUDIT aceita a `callback_url`, entrega no formato esperado, o token e o banco funcionam. Ele não prova como o nosso código lida com dados reais: dezenas de entregas em segundos, a segunda entrega "atualizada" (`cached_response: false`), processos grandes, campos faltando e entregas de monitoramento (o de teste nunca dispara, C14). Isso não é testar a JUDIT, e sim testar as nossas suposições sobre os dados dela. Custa créditos e traz dados pessoais de terceiros, por isso a decisão fica para quando a etapa 7 precisar.

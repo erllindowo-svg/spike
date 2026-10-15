@@ -38,7 +38,7 @@ Respondem 404 a menos que `NODE_ENV === "development"` **e**
 | `POST /api/dev/judit/lawsuits/count`                                               | `POST /lawsuits/count`                        |
 | `POST /api/dev/judit/lawsuits/synthetic`                                           | `POST /lawsuits/synthetic`                    |
 | `GET /api/dev/judit/lawsuits/{cnj}`                                                | `GET /lawsuits/{lawsuit_cnj}`                 |
-| `POST /api/dev/judit/requests`                                                     | `POST /requests`                              |
+| `POST /api/dev/judit/requests` (`callbackOrigin` opcional, só https)               | `POST /requests` (com `callback_url`)         |
 | `GET /api/dev/judit/requests?created_at_gte&created_at_lte`                        | `GET /requests`                               |
 | `GET /api/dev/judit/requests/{requestId}`                                          | `GET /requests/{request_id}`                  |
 | `GET /api/dev/judit/responses?request_id=...`                                      | `GET /responses`                              |
@@ -59,6 +59,11 @@ curl -X POST http://localhost:3000/api/dev/judit/lawsuits/count \
   -H 'content-type: application/json' \
   -d '{"searchType":"cnpj","searchKey":"A1B2C3D4/E5F6-68"}'
 ```
+
+`callbackOrigin` é a origem pública do túnel (`https://….trycloudflare.com`):
+o servidor monta a `callback_url` com o token do webhook, que assim não passa
+pelo terminal. As entregas recebidas aparecem em `GET /api/dev/webhooks`
+(sem chamada à JUDIT). Teste completo em `src/features/webhooks/README.md`.
 
 Status da rota local: 400 entrada inválida, 403 fora da allowlist,
 422 `application_error`, 429 rate limit, 502 erro HTTP/resposta inesperada
@@ -187,7 +192,10 @@ Registradas em vez de escolhidas em silêncio.
 8. **Webhooks de tracking.** A página de callbacks fala em
    `tracking_response`; as páginas de tracking mostram `response_created`
    com `reference_type: "tracking"`. (Webhooks estão fora do escopo desta
-   tarefa.)
+   tarefa.) **Resolvido em 2026-10-15:** `tracking_response` não aparece mais
+   na documentação; a página de callbacks diz que todo webhook usa
+   `event_type: "response_created"`, e o `reference_type` separa `request`
+   de `tracking`.
 9. **Documento de teste.** A maioria das páginas usa `A1B2C3D4/E5F6-68`; a
    página de contagem usa `-90`. Só `-68` tem dígitos verificadores válidos
    (`isValidCnpj`).
@@ -234,6 +242,8 @@ Registradas em vez de escolhidas em silêncio.
     `page_data[].cached_response`; o OpenAPI usa `cached` na raiz do item; o
     exemplo da própria página traz os dois dentro de `tags`.
     `responseCameFromCache` verifica os quatro lugares.
+    _Observado em 2026-10-15 numa entrega de webhook:_ `cached: true` na raiz
+    do `payload` e `tags.cached_response: true`, os dois ao mesmo tempo.
     _Observado em 2026-10-14 no `POST /lawsuits`:_ nenhum dos quatro
     aparece; `tags` trouxe só `dictionary_updated_at`. No Hot Storage, tudo
     vem do datalake, então talvez o indicador nem se aplique a esta rota.
@@ -351,3 +361,20 @@ Registradas em vez de escolhidas em silêncio.
     `request_id` + `cached_response` não identifica uma entrega: uma request
     gera várias respostas. Vamos usar `callback_id`, que já tem índice único
     em `webhook_events` desde a etapa 2.
+40. **`callback_url` devolvida no payload.** O exemplo do aviso de finalização
+    em [webhook/callbacks](https://docs.judit.io/webhook/callbacks) traz
+    `payload.tags.callback_url` com a URL cadastrada. Como a nossa URL leva o
+    token do webhook (a JUDIT não documenta assinatura), o token é mascarado
+    em todo o corpo antes de gravar (`src/features/webhooks/envelope.ts`).
+    A mesma página manda validar a origem por HTTPS e allowlist de IPs da
+    JUDIT, com a lista pedida ao suporte, e diz que um 4xx não é repetido,
+    só 5xx e timeout.
+41. **Entregas reais de webhook.** _Observado em 2026-10-15_ (consulta
+    assíncrona do CNPJ de teste, sem `on_demand`, com `callback_url`): duas
+    entregas em 7 s, o processo vindo do cache (`cached` e
+    `tags.cached_response`) e o fim (`application_info`, código 600). Nenhuma
+    entrega "atualizada", como a documentação prevê quando não há coleta no
+    tribunal. Fora da documentação: `responseIds` e `user_id` dentro do
+    `payload`, `savedResponseId` dentro do processo, e a `callback_url`
+    ecoada na resposta 201 de `POST /requests` (o client mascara o token).
+    Bastou o `callback_url` por requisição, sem cadastro com o suporte.
