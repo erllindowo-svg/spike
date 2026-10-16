@@ -573,3 +573,17 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   parte (`party-lawsuits-card.tsx`); o estado continua em `PartyDetail`,
   porque os indicadores do topo usam o mesmo resultado. Outras divisões de
   componentes grandes ficam para quando houver motivo além do tamanho.
+- **Fatia 14, período do gráfico do Dashboard: feita.** "Alertas por dia"
+  escolhe 7, 14 ou 30 dias; o indicador "Alertas" continua contando 14 dias,
+  como o texto dele diz. No modo `db`, se a lista de alertas chegou ao
+  limite, a descrição avisa que a contagem é sobre os mais recentes.
+
+**Círculo 2 encerrado do lado do agente (2026-10-16).** Dependem do
+usuário: destino do evento de saída, revisão dos textos de ajuda, liberar
+documentos reais (S5) e os testes ao vivo de tudo o que chama a JUDIT pela
+primeira vez (dados cadastrais, `step_terms`, saldo e consumo, consulta
+processual por CNJ com resumo por IA, mandados, execução penal). Fora do
+plano do círculo 2, candidatos ao 3: anexos (F12, F13), filtros avançados
+(F14), Diário Oficial (F19), histórico da conta (F26), OAB e nome (R1),
+respostas além da primeira página (item 13), login e "tomadas" do
+back-end.

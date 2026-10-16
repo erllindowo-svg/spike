@@ -11,6 +11,7 @@ import {
   SearchIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { ColumnChart } from "@/components/shared/column-chart";
 import { DistributionChart } from "@/components/shared/distribution-chart";
@@ -25,6 +26,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { alertTypeStyles } from "@/features/alerts/components/alerts-center";
 import {
   DistributionCard,
@@ -53,7 +55,10 @@ import {
 // Dashboard (círculo 1 do escopo, C1-8): um resumo de todas as áreas. Tudo
 // vem do que o app já guardou; abrir esta página não chama a JUDIT.
 
+// O indicador "Alertas" conta sempre 14 dias; o gráfico escolhe o período.
 const ALERT_DAYS = 14;
+const CHART_PERIODS = [7, 14, 30] as const;
+type ChartPeriod = (typeof CHART_PERIODS)[number];
 
 export function OverviewDashboard({
   queries,
@@ -90,6 +95,12 @@ export function OverviewDashboard({
     ALERT_DAYS,
   );
   const alertsInPeriod = alertDays.reduce((sum, d) => sum + d.count, 0);
+  const [chartDays, setChartDays] = useState<ChartPeriod>(ALERT_DAYS);
+  const chartData = countPerDay(
+    alerts.map((a) => a.createdAt),
+    referenceDate,
+    chartDays,
+  );
   const openQueries = queries.filter(isQueryOpen).length;
   // As listas vêm do banco até um limite (src/lib/list-limits.ts). Acima
   // dele, o número vira "200+" em vez de parecer o total.
@@ -234,17 +245,38 @@ export function OverviewDashboard({
           <CardHeader>
             <CardTitle>Alertas por dia</CardTitle>
             <CardDescription>
-              Últimos {ALERT_DAYS} dias, até {formatDate(referenceDate)}.
+              Últimos {chartDays} dias, até {formatDate(referenceDate)}
+              {alertsCapped &&
+                `; conta só os ${formatNumber(LIST_LIMITS.alerts)} alertas mais recentes`}
+              .
             </CardDescription>
+            <CardAction>
+              <ToggleGroup
+                variant="outline"
+                spacing={0}
+                size="sm"
+                value={[String(chartDays)]}
+                onValueChange={(v) =>
+                  v[0] && setChartDays(Number(v[0]) as ChartPeriod)
+                }
+                aria-label="Período do gráfico"
+              >
+                {CHART_PERIODS.map((days) => (
+                  <ToggleGroupItem key={days} value={String(days)}>
+                    {days} dias
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </CardAction>
           </CardHeader>
           <CardContent>
             <ColumnChart
-              data={alertDays.map((d) => ({
+              data={chartData.map((d) => ({
                 key: d.key,
                 label: d.label,
                 value: d.count,
               }))}
-              label={`Alertas por dia nos últimos ${ALERT_DAYS} dias`}
+              label={`Alertas por dia nos últimos ${chartDays} dias`}
               unit="alertas"
             />
           </CardContent>
