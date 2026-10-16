@@ -37,14 +37,12 @@ function InfoItem({
   );
 }
 
-export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
+export function LawsuitTrackingAction({ cnj }: { cnj: string }) {
   const { trackings } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const tracking = trackings.find(
     (t) =>
-      t.searchType === "cnj" &&
-      t.searchKey === lawsuit.cnj &&
-      !isTrackingClosed(t),
+      t.searchType === "cnj" && t.searchKey === cnj && !isTrackingClosed(t),
   );
 
   if (tracking) {
@@ -59,9 +57,7 @@ export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
 
   return (
     <Button
-      onClick={() =>
-        openNewTracking({ searchType: "cnj", searchKey: lawsuit.cnj })
-      }
+      onClick={() => openNewTracking({ searchType: "cnj", searchKey: cnj })}
     >
       <RadarIcon data-icon="inline-start" />
       Monitorar este processo

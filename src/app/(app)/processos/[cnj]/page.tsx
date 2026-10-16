@@ -8,12 +8,18 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { DOCUMENTS, partyHref } from "@/features/parties/documents";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCnj } from "@/features/processes/cnj";
+import { formatCnj, isValidCnj, normalizeCnj } from "@/features/processes/cnj";
 import {
   LawsuitDetails,
   LawsuitTrackingAction,
 } from "@/features/processes/components/lawsuit-details";
-import { getLawsuitByCnj, listParties, staticParamSamples } from "@/lib/data";
+import { RemoteLawsuit } from "@/features/processes/components/remote-lawsuit";
+import {
+  getDataSource,
+  getLawsuitByCnj,
+  listParties,
+  staticParamSamples,
+} from "@/lib/data";
 
 export function generateStaticParams() {
   return staticParamSamples.lawsuits();
@@ -22,8 +28,8 @@ export function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: PageProps<"/processos/[cnj]">): Promise<Metadata> {
-  const lawsuit = await getLawsuitByCnj((await params).cnj);
-  return { title: lawsuit ? formatCnj(lawsuit.cnj) : "Processo" };
+  const cnj = (await params).cnj;
+  return { title: isValidCnj(cnj) ? formatCnj(cnj) : "Processo" };
 }
 
 // params é lido dentro do Suspense para que o shell da rota continue estático.
@@ -38,8 +44,29 @@ export default function LawsuitPage({ params }: PageProps<"/processos/[cnj]">) {
 async function LawsuitContent({
   params,
 }: Pick<PageProps<"/processos/[cnj]">, "params">) {
-  const lawsuit = await getLawsuitByCnj((await params).cnj);
-  if (!lawsuit) notFound();
+  const cnj = normalizeCnj((await params).cnj);
+  if (!isValidCnj(cnj)) notFound();
+  const lawsuit = await getLawsuitByCnj(cnj);
+  // No modo "db" os processos não ficam guardados: a página busca a capa na
+  // JUDIT por clique, em vez de responder 404.
+  if (!lawsuit) {
+    if (getDataSource() !== "db") notFound();
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 w-fit text-muted-foreground"
+          nativeButton={false}
+          render={<Link href="/monitoramentos" />}
+        >
+          <ChevronLeftIcon data-icon="inline-start" />
+          Monitoramentos
+        </Button>
+        <RemoteLawsuit cnj={cnj} />
+      </>
+    );
+  }
   const back = (await listParties()).find((c) => c.id === lawsuit.partyId);
 
   return (
@@ -74,7 +101,7 @@ async function LawsuitContent({
               {formatCnj(lawsuit.cnj)}
             </CardTitle>
           </div>
-          <LawsuitTrackingAction lawsuit={lawsuit} />
+          <LawsuitTrackingAction cnj={lawsuit.cnj} />
         </CardHeader>
         <CardContent>
           <LawsuitDetails lawsuit={lawsuit} />

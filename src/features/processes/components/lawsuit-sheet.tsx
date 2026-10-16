@@ -47,7 +47,7 @@ export function LawsuitSheet({
                 <ExternalLinkIcon data-icon="inline-start" />
                 Abrir página
               </Button>
-              <LawsuitTrackingAction lawsuit={lawsuit} />
+              <LawsuitTrackingAction cnj={lawsuit.cnj} />
             </SheetFooter>
           </>
         )}

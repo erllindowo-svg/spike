@@ -510,3 +510,8 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   client (`users.production.judit.io`, `src/lib/judit/account.ts`). O
   formato da resposta do saldo não é documentado (README item 45): a tela
   mostra os campos simples que vierem. Não testado ao vivo.
+- **Fatia 8, processo no modo `db`: feita.** `/processos/[cnj]` não dá mais
+  404 para um CNJ válido: mostra o monitoramento e os alertas do processo e
+  busca a capa na JUDIT por clique, na base (F05) ou atualizada no tribunal
+  (F04), pela mesma action da página Consultar (cada busca entra no
+  histórico). CNJ inválido continua "não encontrado".
