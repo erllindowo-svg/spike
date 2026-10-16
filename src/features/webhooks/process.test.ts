@@ -49,7 +49,13 @@ vi.mock("@/features/alerts/db", async (importOriginal) => {
   };
 });
 
-vi.spyOn(console, "info").mockImplementation(() => {});
+const info = vi.spyOn(console, "info").mockImplementation(() => {});
+
+// Outbound events (src/features/notifications/outbound.ts) published so far.
+const outboundLogs = () =>
+  info.mock.calls.filter(([message]) =>
+    String(message).startsWith("[outbound]"),
+  );
 
 // Fictitious identifiers. The reference ids come from the fixtures.
 const CNPJ = "A1B2C3D4E5F668";
@@ -207,6 +213,21 @@ describe("processWebhookEvent: trackings", () => {
       readAt: null,
     });
     expect((await getEvent(updated))?.processingNote).toContain("já existia");
+  });
+
+  it("publishes the outbound event once per new alert, not for repetitions", async () => {
+    await seedTracking("tracking_document");
+    const cached = await receive(trackingLawsuitDelivery);
+    const updated = await receive(trackingLawsuitDelivery);
+    const before = outboundLogs().length;
+
+    await processWebhookEvent(cached);
+    await processWebhookEvent(updated);
+
+    const published = outboundLogs().slice(before);
+    expect(published).toHaveLength(1);
+    const [alert] = await allAlerts();
+    expect(String(published[0][0])).toContain(`alert.created ${alert._id}`);
   });
 
   it("creates one lawsuit_movement alert per delivery for a CNJ tracking", async () => {

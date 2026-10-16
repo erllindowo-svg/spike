@@ -8,9 +8,11 @@ import {
   RadarIcon,
   ScrollTextIcon,
   WebhookIcon,
+  XIcon,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -35,11 +37,17 @@ import {
   type AlertView,
 } from "@/features/alerts/types";
 import { formatCnj } from "@/features/processes/cnj";
+import { SupportOnly } from "@/features/settings/support-view";
+import { formatSearchKey } from "@/features/trackings/format";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const typeStyles: Record<AlertType, { icon: LucideIcon; className: string }> = {
+// Ícone e cor de cada tipo de alerta (também usados no Dashboard).
+export const alertTypeStyles: Record<
+  AlertType,
+  { icon: LucideIcon; className: string }
+> = {
   new_lawsuit: { icon: FilePlus2Icon, className: "bg-primary/10 text-primary" },
   lawsuit_movement: { icon: ScrollTextIcon, className: "bg-info/10 text-info" },
   tracking_notice: { icon: RadarIcon, className: "bg-warning/10 text-warning" },
@@ -48,11 +56,30 @@ const typeStyles: Record<AlertType, { icon: LucideIcon; className: string }> = {
 type ReadFilter = "all" | "unread" | "read";
 
 export function AlertsCenter() {
-  const { alerts, dataSource, getCompany, markAlertRead, markAllAlertsRead } =
-    useDemoStore();
+  const {
+    alerts: allAlerts,
+    trackings,
+    dataSource,
+    getCompany,
+    markAlertRead,
+    markAllAlertsRead,
+  } = useDemoStore();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [type, setType] = useState<AlertType | "all">("all");
   const [read, setRead] = useState<ReadFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // ?monitoramento=<id local> mostra só os alertas de um monitoramento (link
+  // da coluna "Alertas" em Monitoramentos).
+  const trackingId = searchParams.get("monitoramento");
+  const tracking = trackingId
+    ? (trackings.find((t) => t.id === trackingId) ?? null)
+    : null;
+  const alerts = trackingId
+    ? allAlerts.filter((a) => a.trackingId === trackingId)
+    : allAlerts;
 
   const unread = alerts.filter((a) => !a.readAt).length;
   const filtered = alerts.filter(
@@ -60,7 +87,7 @@ export function AlertsCenter() {
       (type === "all" || a.type === type) &&
       (read === "all" || (read === "unread" ? !a.readAt : !!a.readAt)),
   );
-  const selected = alerts.find((a) => a.id === selectedId) ?? null;
+  const selected = allAlerts.find((a) => a.id === selectedId) ?? null;
 
   // Agrupa o feed por dia, preservando a ordem cronológica decrescente.
   const groups: { day: string; items: AlertView[] }[] = [];
@@ -85,15 +112,44 @@ export function AlertsCenter() {
           variant="outline"
           disabled={unread === 0}
           onClick={async () => {
+            // Com o filtro de monitoramento, só os alertas dele.
+            if (trackingId) {
+              for (const alert of alerts) {
+                if (!alert.readAt) markAlertRead(alert.id);
+              }
+              toast.success("Alertas deste monitoramento marcados como lidos.");
+              return;
+            }
             const error = await markAllAlertsRead();
             if (error) toast.error(error);
             else toast.success("Todos os alertas foram marcados como lidos.");
           }}
         >
           <CheckCheckIcon data-icon="inline-start" />
-          Marcar todos como lidos
+          {trackingId ? "Marcar estes como lidos" : "Marcar todos como lidos"}
         </Button>
       </PageIntro>
+
+      {trackingId && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Monitoramento:</span>
+          <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 py-0.5 pr-1 pl-2.5">
+            <span className="font-mono text-xs">
+              {tracking
+                ? formatSearchKey(tracking.searchType, tracking.searchKey)
+                : "não encontrado"}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Mostrar alertas de todos os monitoramentos"
+              onClick={() => router.replace(pathname, { scroll: false })}
+            >
+              <XIcon />
+            </Button>
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <ToggleGroup
@@ -147,14 +203,16 @@ export function AlertsCenter() {
                 : "Ajuste os filtros de tipo ou de leitura."
             }
             action={
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<Link href="/webhooks" />}
-              >
-                <WebhookIcon data-icon="inline-start" />
-                Ir para o diagnóstico
-              </Button>
+              <SupportOnly>
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href="/webhooks" />}
+                >
+                  <WebhookIcon data-icon="inline-start" />
+                  Ir para o diagnóstico
+                </Button>
+              </SupportOnly>
             }
           />
         ) : (
@@ -165,7 +223,7 @@ export function AlertsCenter() {
               </h2>
               <ul className="divide-y">
                 {group.items.map((alert) => {
-                  const { icon: Icon, className } = typeStyles[alert.type];
+                  const { icon: Icon, className } = alertTypeStyles[alert.type];
                   const company = getCompany(alert.companyId);
                   return (
                     <li
@@ -323,21 +381,23 @@ function AlertSheet({
                     <span className="text-muted-foreground">Não informado</span>
                   )}
                 </dd>
-                <dt className="text-muted-foreground">Evento de origem</dt>
-                <dd className="min-w-0">
-                  {event ? (
-                    <Link
-                      href={`/webhooks?evento=${event.id}`}
-                      className="block truncate font-mono text-xs text-primary underline-offset-4 hover:underline"
-                    >
-                      {event.callbackId ?? event.id}
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      Sem evento associado
-                    </span>
-                  )}
-                </dd>
+                <SupportOnly>
+                  <dt className="text-muted-foreground">Evento de origem</dt>
+                  <dd className="min-w-0">
+                    {event ? (
+                      <Link
+                        href={`/webhooks?evento=${event.id}`}
+                        className="block truncate font-mono text-xs text-primary underline-offset-4 hover:underline"
+                      >
+                        {event.callbackId ?? event.id}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Sem evento associado
+                      </span>
+                    )}
+                  </dd>
+                </SupportOnly>
               </dl>
             </div>
             <SheetFooter className="border-t">

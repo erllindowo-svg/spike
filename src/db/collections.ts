@@ -4,6 +4,7 @@ import type {
   Alert,
   Company,
   JuditRequest,
+  SyncQuery,
   Tracking,
   TrackingCreation,
   WebhookEvent,
@@ -41,6 +42,7 @@ export type WebhookEventDoc = Doc<Omit<WebhookEvent, WebhookEventStage6Field>> &
   Partial<Pick<WebhookEvent, WebhookEventStage6Field>>;
 export type AlertDoc = Doc<Alert>;
 export type JuditRequestDoc = Doc<JuditRequest>;
+export type SyncQueryDoc = Doc<SyncQuery>;
 
 export function collections(db: Db) {
   return {
@@ -49,6 +51,7 @@ export function collections(db: Db) {
     webhookEvents: db.collection<WebhookEventDoc>("webhook_events"),
     alerts: db.collection<AlertDoc>("alerts"),
     juditRequests: db.collection<JuditRequestDoc>("judit_requests"),
+    syncQueries: db.collection<SyncQueryDoc>("sync_queries"),
   };
 }
 
@@ -81,8 +84,14 @@ export const ALERTS_DEDUPE_KEY_INDEX = "alerts_dedupe_key_unique";
 // é chamado na conexão. Mudar as opções de um índice existente exige
 // removê-lo antes; isso fica para quando acontecer.
 export async function ensureIndexes(db: Db): Promise<void> {
-  const { companies, trackings, webhookEvents, alerts, juditRequests } =
-    collections(db);
+  const {
+    companies,
+    trackings,
+    webhookEvents,
+    alerts,
+    juditRequests,
+    syncQueries,
+  } = collections(db);
 
   await Promise.all([
     companies.createIndex(
@@ -165,6 +174,17 @@ export async function ensureIndexes(db: Db): Promise<void> {
     juditRequests.createIndex(
       { companyId: 1, createdAt: -1 },
       { name: "judit_requests_company_id_created_at" },
+    ),
+    // Histórico da página Consultas, do mais novo para o mais antigo. Sem
+    // regra de unicidade: cada chamada é um registro, e a JUDIT nem sempre
+    // devolve um request_id.
+    juditRequests.createIndex(
+      { createdAt: -1 },
+      { name: "judit_requests_created_at" },
+    ),
+    syncQueries.createIndex(
+      { createdAt: -1 },
+      { name: "sync_queries_created_at" },
     ),
   ]);
 }

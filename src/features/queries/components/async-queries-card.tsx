@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { CopyButton } from "@/components/shared/copy-button";
-import { StatusBadge, type StatusTone } from "@/components/shared/status-badge";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,23 +19,15 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import type { AsyncQueryMode, JuditRequest } from "@/db/models";
 import type { Lawsuit } from "@/features/processes/types";
+import { SupportOnly, useSupportView } from "@/features/settings/support-view";
 import { formatDateTime } from "@/lib/format";
 
 import { checkAsyncQueryAction, startAsyncQueryAction } from "../actions";
 import { ASYNC_QUERY_MODES, QUERY_MODES } from "../modes";
 import type { ResponsesSummary } from "../responses";
+import { asyncStatusLabel, deliveryLabels } from "../status";
 
 import { ResponsesSummaryView } from "./responses-summary-view";
-
-// Status documentados de uma request (OpenAPI). Um status desconhecido
-// aparece como veio da JUDIT.
-const statusLabels: Record<string, { label: string; tone: StatusTone }> = {
-  pending: { label: "Na fila", tone: "pending" },
-  started: { label: "Em andamento", tone: "info" },
-  cancelling: { label: "Cancelando", tone: "warning" },
-  cancelled: { label: "Cancelada", tone: "neutral" },
-  completed: { label: "Concluída", tone: "success" },
-};
 
 export function AsyncQueriesCard({
   cnpj,
@@ -51,6 +43,7 @@ export function AsyncQueriesCard({
   const [cacheTtl, setCacheTtl] = useState("");
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, ResponsesSummary>>({});
+  const [supportView] = useSupportView();
 
   const cacheTtlValue = cacheTtl.trim() === "" ? undefined : Number(cacheTtl);
   const cacheTtlInvalid =
@@ -71,7 +64,9 @@ export function AsyncQueriesCard({
         return;
       }
       toast.success(`${QUERY_MODES[mode].label} criada`, {
-        description: `request_id ${result.request.requestId}`,
+        description: supportView
+          ? `request_id ${result.request.requestId}`
+          : "Acompanhe o andamento em “Verificar status”.",
       });
     });
   }
@@ -86,7 +81,7 @@ export function AsyncQueriesCard({
         return;
       }
       if (!result.results) {
-        toast.info(`Status: ${statusLabel(result.request.status).label}`);
+        toast.info(`Status: ${asyncStatusLabel(result.request.status).label}`);
         return;
       }
       const loaded = result.results;
@@ -116,9 +111,11 @@ export function AsyncQueriesCard({
               >
                 <div className="flex flex-col gap-1">
                   <span className="font-medium">{info.label}</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {info.endpoint}
-                  </span>
+                  <SupportOnly>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {info.endpoint}
+                    </span>
+                  </SupportOnly>
                 </div>
                 <dl className="flex flex-col gap-1.5 text-sm">
                   <div>
@@ -185,7 +182,7 @@ export function AsyncQueriesCard({
         ) : (
           <ul className="flex flex-col divide-y">
             {queries.map((query) => {
-              const status = statusLabel(query.status);
+              const status = asyncStatusLabel(query.status);
               const loaded = results[query.requestId];
               return (
                 <li
@@ -207,9 +204,12 @@ export function AsyncQueriesCard({
                           </span>
                         )}
                       </div>
-                      <span className="font-mono text-xs break-all text-muted-foreground">
-                        request_id {query.requestId}
-                      </span>
+                      <SupportOnly>
+                        <span className="font-mono text-xs break-all text-muted-foreground">
+                          request_id {query.requestId} ·{" "}
+                          {deliveryLabels[query.delivery]}
+                        </span>
+                      </SupportOnly>
                       <span className="text-xs text-muted-foreground">
                         Criada em {formatDateTime(query.createdAt)}
                         {query.lastCheckedAt &&
@@ -217,11 +217,13 @@ export function AsyncQueriesCard({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <CopyButton
-                        value={query.requestId}
-                        label="Copiar request_id"
-                        successMessage="request_id copiado."
-                      />
+                      <SupportOnly>
+                        <CopyButton
+                          value={query.requestId}
+                          label="Copiar request_id"
+                          successMessage="request_id copiado."
+                        />
+                      </SupportOnly>
                       <Button
                         variant="outline"
                         size="sm"
@@ -253,10 +255,4 @@ export function AsyncQueriesCard({
       </CardContent>
     </Card>
   );
-}
-
-function statusLabel(status: string): { label: string; tone: StatusTone } {
-  return Object.hasOwn(statusLabels, status)
-    ? statusLabels[status]
-    : { label: status, tone: "warning" };
 }

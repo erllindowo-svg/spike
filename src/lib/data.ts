@@ -6,9 +6,10 @@ import { connection } from "next/server";
 // DATA_SOURCE escolhe a origem para o app inteiro:
 //
 // - "demo" (padrão): dados fictícios de mock-data.ts, em memória.
-// - "db": MongoDB: empresas, monitoramentos, consultas assíncronas, eventos de
-//   webhook e alertas. Processos não são copiados (continuam na JUDIT) e a
-//   atividade não é persistida; aparecem vazios. Nada aqui chama a JUDIT.
+// - "db": MongoDB: empresas, monitoramentos, consultas (assíncronas e o
+//   registro das síncronas), eventos de webhook e alertas. Processos não são
+//   copiados (continuam na JUDIT) e a atividade não é persistida; aparecem
+//   vazios. Nada aqui chama a JUDIT.
 
 import type { Alert, JuditRequest, WebhookEvent } from "@/db/models";
 import type { ActivityItem } from "@/features/activity/types";
@@ -20,6 +21,12 @@ import type { Company } from "@/features/companies/types";
 import { normalizeCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
 import * as queriesDb from "@/features/queries/db";
+import {
+  fromJuditRequest,
+  fromSyncQuery,
+  mergeQueries,
+  type QueryView,
+} from "@/features/queries/types";
 import * as trackingsDb from "@/features/trackings/db";
 import type { Tracking } from "@/features/trackings/types";
 import * as webhooksDb from "@/features/webhooks/db";
@@ -83,6 +90,30 @@ export async function listAsyncQueries(
 ): Promise<JuditRequest[]> {
   if (await usingDatabase()) return queriesDb.listJuditRequests(companyId);
   return [];
+}
+
+// Todas as consultas, síncronas e assíncronas, para a página Consultas. Na
+// demonstração, linhas fictícias no mesmo formato.
+export async function listQueries(): Promise<QueryView[]> {
+  if (await usingDatabase()) {
+    const [requests, syncQueries] = await Promise.all([
+      queriesDb.listRecentJuditRequests(),
+      queriesDb.listSyncQueries(),
+    ]);
+    return mergeQueries(
+      requests.map(fromJuditRequest),
+      syncQueries.map(fromSyncQuery),
+    );
+  }
+  return mergeQueries(mock.queries);
+}
+
+// "Agora" para as contagens por período do Dashboard. Na demonstração, a data
+// fixa dos dados fictícios (senão os gráficos ficariam vazios com o passar
+// dos dias); no modo "db", a hora da requisição.
+export async function getReferenceDate(): Promise<Date> {
+  if (await usingDatabase()) return new Date();
+  return mock.DEMO_NOW;
 }
 
 const byDateDesc =

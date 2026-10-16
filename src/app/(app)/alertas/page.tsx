@@ -1,9 +1,7 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { AlertsCenter } from "@/features/alerts/components/alerts-center";
-
-export const metadata: Metadata = { title: "Alertas" };
-
+// Os alertas passaram a morar em Monitoramentos (círculo 1 do escopo,
+// docs/etapa-7-escopo.md). O endereço antigo continua funcionando.
 export default function AlertsPage() {
-  return <AlertsCenter />;
+  redirect("/monitoramentos/alertas");
 }

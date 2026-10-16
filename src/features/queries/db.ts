@@ -3,8 +3,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/db";
-import { collections, type JuditRequestDoc } from "@/db/collections";
-import type { JuditRequest } from "@/db/models";
+import { collections, toModel, type JuditRequestDoc } from "@/db/collections";
+import type { JuditRequest, SyncQuery } from "@/db/models";
 
 // Persistência dos ponteiros de consultas assíncronas (coleção
 // `judit_requests`). Só o `request_id` e os dados para acompanhá-lo: os
@@ -64,6 +64,20 @@ export async function listJuditRequests(
   const docs = await juditRequests
     .find({ companyId })
     .sort({ createdAt: -1 })
+    .toArray();
+  return docs.map(toJuditRequest);
+}
+
+// Todas as empresas, para a página Consultas. Sem paginação: volume de
+// protótipo.
+export async function listRecentJuditRequests(
+  limit = 200,
+): Promise<JuditRequest[]> {
+  const { juditRequests } = collections(await getDb());
+  const docs = await juditRequests
+    .find()
+    .sort({ createdAt: -1 })
+    .limit(limit)
     .toArray();
   return docs.map(toJuditRequest);
 }
@@ -131,4 +145,26 @@ export async function findOpenJuditRequest(
     { sort: { createdAt: -1 } },
   );
   return doc ? toJuditRequest(doc) : null;
+}
+
+// Consultas síncronas (coleção `sync_queries`): só metadados de cada chamada
+// que chegou à JUDIT. Ver o comentário de SyncQuery em src/db/models.ts.
+
+export type NewSyncQuery = Omit<SyncQuery, "id" | "createdAt">;
+
+export async function saveSyncQuery(input: NewSyncQuery): Promise<SyncQuery> {
+  const { syncQueries } = collections(await getDb());
+  const doc = { _id: randomUUID(), ...input, createdAt: new Date() };
+  await syncQueries.insertOne(doc);
+  return toModel(doc);
+}
+
+export async function listSyncQueries(limit = 200): Promise<SyncQuery[]> {
+  const { syncQueries } = collections(await getDb());
+  const docs = await syncQueries
+    .find()
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .toArray();
+  return docs.map(toModel);
 }

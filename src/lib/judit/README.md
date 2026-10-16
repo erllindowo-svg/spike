@@ -387,3 +387,10 @@ Registradas em vez de escolhidas em silêncio.
     processamento dos webhooks (`src/features/webhooks/delivery.ts`) guarda
     os dois como texto e não decide nada pelo valor: só os mostra na nota do
     evento e no alerta.
+43. **Limite de requisições por minuto.** A página
+    [rate-limits](https://docs.judit.io/essentialConcepts/rate-limits) diz
+    "180 requisições por minuto por API Key", compartilhadas entre os
+    serviços, em janela deslizante de 60 s; a tabela de erros da
+    [consulta síncrona](https://docs.judit.io/cache-judit/hotstorage) diz
+    "Rate limit excedido (500 req/min)". Lido em 2026-10-16. Qualquer limite
+    nosso deve ficar abaixo do menor dos dois (180).

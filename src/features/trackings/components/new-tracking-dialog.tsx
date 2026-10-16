@@ -252,7 +252,7 @@ function NewTrackingForm({
             ) : (
               <FieldDescription>
                 {matchedCompany
-                  ? `Empresa encontrada nos dados de demonstração: ${matchedCompany.legalName ?? "razão social indisponível"}.`
+                  ? `${dataSource === "db" ? "Empresa já na lista" : "Empresa encontrada nos dados de demonstração"}: ${matchedCompany.legalName ?? "razão social não consultada"}.`
                   : "Novos processos em que este CNPJ aparecer serão notificados."}
               </FieldDescription>
             )}

@@ -46,7 +46,8 @@ async function AppData({ children }: { children: React.ReactNode }) {
       lawsuits={lawsuits}
     >
       <NewTrackingDialogProvider>
-        <SidebarProvider>
+        {/* Recolhido por padrão: só os ícones (app-sidebar.tsx). */}
+        <SidebarProvider defaultOpen={false}>
           <AppSidebar />
           <SidebarInset className="min-w-0">
             <AppHeader />

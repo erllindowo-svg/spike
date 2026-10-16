@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BellIcon,
   Building2Icon,
   EllipsisIcon,
   PauseIcon,
@@ -38,6 +39,7 @@ import {
   searchTypeDescriptions,
   type Tracking,
 } from "@/features/trackings/types";
+import { useSupportView } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -57,9 +59,17 @@ export function TrackingsTable({
   trackings: Tracking[];
   variant?: "full" | "compact";
 }) {
-  const { getCompany, lawsuits, webhookEvents, setTrackingPaused, dataSource } =
-    useDemoStore();
+  const {
+    getCompany,
+    lawsuits,
+    alerts,
+    webhookEvents,
+    setTrackingPaused,
+    dataSource,
+  } = useDemoStore();
+  const [supportView] = useSupportView();
   const lastEvents = getLastEventByReference(webhookEvents);
+  const alertCounts = countAlertsByTracking(alerts);
   const full = variant === "full";
   const [deleting, setDeleting] = useState<Tracking | null>(null);
   const trackingResults = useTrackingResults();
@@ -93,6 +103,7 @@ export function TrackingsTable({
             {full && <TableHead>Recorrência</TableHead>}
             <TableHead>Status</TableHead>
             {full && <TableHead>Criado em</TableHead>}
+            {full && <TableHead>Alertas</TableHead>}
             <TableHead className="text-right">
               {full ? "Último evento" : "Atualizado em"}
             </TableHead>
@@ -170,6 +181,14 @@ export function TrackingsTable({
                     {formatDate(tracking.createdAt)}
                   </TableCell>
                 )}
+                {full && (
+                  <TableCell>
+                    <TrackingAlertsLink
+                      trackingId={tracking.id}
+                      counts={alertCounts.get(tracking.id)}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="text-right text-muted-foreground tabular-nums">
                   {full
                     ? lastEvent
@@ -206,23 +225,34 @@ export function TrackingsTable({
                             Ver processo
                           </DropdownMenuItem>
                         )}
-                        {tracking.juditTrackingId ? (
-                          <DropdownMenuItem
-                            render={
-                              <Link
-                                href={`/webhooks?referencia=${tracking.juditTrackingId}`}
-                              />
-                            }
-                          >
-                            <WebhookIcon />
-                            Ver eventos recebidos
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem disabled>
-                            <WebhookIcon />
-                            Sem eventos (item local)
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem
+                          render={
+                            <Link
+                              href={`/monitoramentos/alertas?monitoramento=${tracking.id}`}
+                            />
+                          }
+                        >
+                          <BellIcon />
+                          Ver alertas
+                        </DropdownMenuItem>
+                        {supportView &&
+                          (tracking.juditTrackingId ? (
+                            <DropdownMenuItem
+                              render={
+                                <Link
+                                  href={`/webhooks?referencia=${tracking.juditTrackingId}`}
+                                />
+                              }
+                            >
+                              <WebhookIcon />
+                              Ver eventos recebidos
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem disabled>
+                              <WebhookIcon />
+                              Sem eventos (item local)
+                            </DropdownMenuItem>
+                          ))}
                         {dataSource === "db" && (
                           <JuditTrackingMenuItems
                             tracking={tracking}
@@ -268,6 +298,46 @@ export function TrackingsTable({
         onOpenChange={(open) => !open && trackingResults.close()}
       />
     </>
+  );
+}
+
+type AlertCounts = { total: number; unread: number };
+
+// Alertas por monitoramento (o `trackingId` local do alerta).
+function countAlertsByTracking(
+  alerts: { trackingId: string | null; readAt: Date | null }[],
+): Map<string, AlertCounts> {
+  const counts = new Map<string, AlertCounts>();
+  for (const alert of alerts) {
+    if (!alert.trackingId) continue;
+    const entry = counts.get(alert.trackingId) ?? { total: 0, unread: 0 };
+    entry.total += 1;
+    if (!alert.readAt) entry.unread += 1;
+    counts.set(alert.trackingId, entry);
+  }
+  return counts;
+}
+
+function TrackingAlertsLink({
+  trackingId,
+  counts,
+}: {
+  trackingId: string;
+  counts: AlertCounts | undefined;
+}) {
+  if (!counts) return <span className="text-muted-foreground">Nenhum</span>;
+  return (
+    <Link
+      href={`/monitoramentos/alertas?monitoramento=${trackingId}`}
+      className="inline-flex items-center gap-1.5 rounded-sm text-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <span className="tabular-nums">{counts.total}</span>
+      {counts.unread > 0 && (
+        <span className="rounded-full bg-primary/10 px-1.5 text-xs text-primary tabular-nums">
+          {counts.unread} não lidos
+        </span>
+      )}
+    </Link>
   );
 }
 

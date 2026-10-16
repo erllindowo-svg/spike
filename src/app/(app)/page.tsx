@@ -1,14 +1,23 @@
+import type { Metadata } from "next";
+
 import { OverviewDashboard } from "@/features/overview/components/overview-dashboard";
 import { summarizeDistribution } from "@/features/processes/types";
-import { listLawsuits } from "@/lib/data";
+import { getReferenceDate, listLawsuits, listQueries } from "@/lib/data";
 
-export default async function OverviewPage() {
-  const lawsuits = await listLawsuits();
+export const metadata: Metadata = { title: "Dashboard" };
+
+export default async function DashboardPage() {
+  const [lawsuits, queries, referenceDate] = await Promise.all([
+    listLawsuits(),
+    listQueries(),
+    getReferenceDate(),
+  ]);
 
   return (
     <OverviewDashboard
+      queries={queries}
+      referenceDate={referenceDate}
       lawsuitsCount={lawsuits.length}
-      activeLawsuitsCount={lawsuits.filter((l) => l.status === "active").length}
       distribution={{
         area: summarizeDistribution(lawsuits, "area"),
         tribunal: summarizeDistribution(lawsuits, "tribunal"),

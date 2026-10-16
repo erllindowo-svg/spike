@@ -5,10 +5,13 @@ import { formatNumber } from "@/lib/format";
 export function DistributionChart({
   data,
   label,
+  unit = "processos",
   maxItems = 6,
 }: {
   data: DistributionDatum[];
   label: string;
+  // Plural do que é contado.
+  unit?: string;
   maxItems?: number;
 }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
@@ -22,7 +25,7 @@ export function DistributionChart({
   if (total === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
-        Nenhum processo para distribuir.
+        Nada para mostrar ainda.
       </p>
     );
   }
@@ -36,7 +39,7 @@ export function DistributionChart({
           return (
             <li
               key={row.label}
-              className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3 text-sm"
+              className="grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-3 text-sm"
             >
               <span className="truncate text-foreground" title={row.label}>
                 {row.label}
@@ -61,8 +64,10 @@ export function DistributionChart({
         })}
       </ul>
       <p className="text-xs text-muted-foreground">
-        Total de {formatNumber(total)} processos. Contagem por {label}, sem
-        qualquer avaliação de mérito ou risco.
+        Total de {formatNumber(total)} {unit}. Contagem por {label}
+        {unit === "processos"
+          ? ", sem qualquer avaliação de mérito ou risco."
+          : "."}
       </p>
     </figure>
   );

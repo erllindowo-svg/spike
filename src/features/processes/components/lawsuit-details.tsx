@@ -69,7 +69,7 @@ export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
 }
 
 export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
-  const { getCompany } = useDemoStore();
+  const { getCompany, dataSource } = useDemoStore();
   const company = getCompany(lawsuit.companyId);
 
   return (
@@ -120,14 +120,17 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
       <section className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold">Movimentações</h3>
-          <span className="text-xs text-muted-foreground">
-            Exemplos fictícios
-          </span>
+          {dataSource === "demo" && (
+            <span className="text-xs text-muted-foreground">
+              Exemplos fictícios
+            </span>
+          )}
         </div>
         {lawsuit.movements.length === 0 ? (
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Nenhuma movimentação disponível. Os dados deste processo ainda não
-            foram retornados.
+            {dataSource === "db"
+              ? "As movimentações dos processos da JUDIT ainda não são exibidas."
+              : "Nenhuma movimentação disponível."}
           </p>
         ) : (
           <ol className="flex flex-col">

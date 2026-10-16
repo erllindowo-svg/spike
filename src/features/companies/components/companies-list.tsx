@@ -29,6 +29,7 @@ import { isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatNumber } from "@/lib/format";
 
+import { AddCompanyDialog } from "./add-company-dialog";
 import { RegistrationStatusBadge } from "./registration-status-badge";
 
 export type CompanyLawsuitSummary = Record<
@@ -43,8 +44,11 @@ export function CompaniesList({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { companies, trackings } = useDemoStore();
+  const { companies, trackings, dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
+  // Adicionar empresa sem monitorar só existe no modo "db": a demonstração
+  // tem uma lista fixa de empresas fictícias.
+  const [adding, setAdding] = useState<{ cnpj?: string } | null>(null);
   const queryParam = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(queryParam);
   const [syncedParam, setSyncedParam] = useState(queryParam);
@@ -72,9 +76,15 @@ export function CompaniesList({
 
   return (
     <>
-      <PageIntro description="Empresas consultadas por CNPJ. Abra uma empresa para ver o panorama processual e os monitoramentos vinculados.">
+      <PageIntro description="Empresas que você adicionou ou monitora. Abra uma empresa para consultar os processos e ver os monitoramentos vinculados.">
+        {dataSource === "db" && (
+          <Button variant="outline" onClick={() => setAdding({})}>
+            <PlusIcon data-icon="inline-start" />
+            Adicionar empresa
+          </Button>
+        )}
         <Button onClick={() => openNewTracking({ searchType: "cnpj" })}>
-          <PlusIcon data-icon="inline-start" />
+          <RadarIcon data-icon="inline-start" />
           Monitorar CNPJ
         </Button>
       </PageIntro>
@@ -106,23 +116,33 @@ export function CompaniesList({
               title="Nenhuma empresa encontrada"
               description={
                 canTrackQuery
-                  ? "Este CNPJ não está nos dados de demonstração. A consulta real à JUDIT será habilitada na etapa de integração."
+                  ? dataSource === "db"
+                    ? `O CNPJ ${formatCnpj(cnpjTerm)} ainda não está na lista. Adicione a empresa (com ou sem consulta aos dados cadastrais) ou comece a monitorá-la.`
+                    : "Este CNPJ não está nos dados de demonstração."
                   : "Tente outra razão social ou um CNPJ completo."
               }
               action={
                 canTrackQuery ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      openNewTracking({
-                        searchType: "cnpj",
-                        searchKey: cnpjTerm,
-                      })
-                    }
-                  >
-                    <RadarIcon data-icon="inline-start" />
-                    Monitorar {formatCnpj(cnpjTerm)}
-                  </Button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {dataSource === "db" && (
+                      <Button onClick={() => setAdding({ cnpj: cnpjTerm })}>
+                        <PlusIcon data-icon="inline-start" />
+                        Adicionar empresa
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        openNewTracking({
+                          searchType: "cnpj",
+                          searchKey: cnpjTerm,
+                        })
+                      }
+                    >
+                      <RadarIcon data-icon="inline-start" />
+                      Monitorar
+                    </Button>
+                  </div>
                 ) : (
                   <Button variant="outline" onClick={() => setQuery("")}>
                     Limpar busca
@@ -203,6 +223,12 @@ export function CompaniesList({
           )}
         </CardContent>
       </Card>
+
+      <AddCompanyDialog
+        open={adding !== null}
+        onOpenChange={(open) => !open && setAdding(null)}
+        defaultCnpj={adding?.cnpj}
+      />
     </>
   );
 }

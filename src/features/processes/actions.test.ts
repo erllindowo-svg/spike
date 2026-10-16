@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCompanyByCnpj } from "@/features/companies/db";
+import { saveSyncQuery } from "@/features/queries/db";
 import { hotStorageObservedBody } from "@/lib/judit/__fixtures__/lawsuits";
 
 import { searchCompanyLawsuitsAction } from "./actions";
@@ -8,6 +9,8 @@ import { searchCompanyLawsuitsAction } from "./actions";
 // The action runs with the real JUDIT client (guard, schema, errors) and a
 // mocked fetch; only the database lookup is replaced.
 vi.mock("@/features/companies/db", () => ({ getCompanyByCnpj: vi.fn() }));
+// The history record (page Consultas) is only observed.
+vi.mock("@/features/queries/db", () => ({ saveSyncQuery: vi.fn() }));
 
 const TEST_CNPJ = "A1B2C3D4E5F668";
 const company = {
@@ -35,6 +38,7 @@ beforeEach(() => {
   vi.stubEnv("DATA_SOURCE", "db");
   vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
   vi.mocked(getCompanyByCnpj).mockReset().mockResolvedValue(company);
+  vi.mocked(saveSyncQuery).mockReset();
 });
 
 describe("searchCompanyLawsuitsAction", () => {
@@ -82,6 +86,8 @@ describe("searchCompanyLawsuitsAction", () => {
       reason: "not_allowed",
     });
     expect(fetch).not.toHaveBeenCalled();
+    // Blocked before leaving the server: nothing to record.
+    expect(saveSyncQuery).not.toHaveBeenCalled();
   });
 
   it("returns the mapped lawsuits and the JUDIT request_id", async () => {
@@ -105,6 +111,27 @@ describe("searchCompanyLawsuitsAction", () => {
       search_type: "cnpj",
       search_key: TEST_CNPJ,
     });
+    // Metadata only: the count, never the lawsuits.
+    expect(saveSyncQuery).toHaveBeenCalledWith({
+      mode: "datalake_sync",
+      companyId: "company-1",
+      searchType: "cnpj",
+      searchKey: TEST_CNPJ,
+      requestId: "2bf22fa7-4061-4ea6-8e69-b479bc12c24c",
+      outcome: "ok",
+      resultCount: 1,
+      errorKind: null,
+    });
+  });
+
+  it("still returns the lawsuits when the history record fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(saveSyncQuery).mockRejectedValue(new Error("db down"));
+    mockFetch(hotStorageObservedBody);
+
+    expect(await searchCompanyLawsuitsAction(TEST_CNPJ)).toMatchObject({
+      ok: true,
+    });
   });
 
   it("reports a JUDIT HTTP error without leaking the body", async () => {
@@ -118,5 +145,8 @@ describe("searchCompanyLawsuitsAction", () => {
       reason: "error",
       message: "A JUDIT retornou um erro (http). Detalhes no log do servidor.",
     });
+    expect(saveSyncQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "failed", errorKind: "http" }),
+    );
   });
 });

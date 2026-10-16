@@ -12,6 +12,7 @@ import type {
   LawsuitStatus,
 } from "@/features/processes/types";
 import { trackingModeFor } from "@/features/queries/modes";
+import type { QueryView } from "@/features/queries/types";
 import type { Tracking } from "@/features/trackings/types";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
@@ -814,7 +815,7 @@ export const activity: ActivityItem[] = [
     "Decisão interlocutória publicada · TJSP",
     "2026-10-08T17:35:28",
     null,
-    "/alertas",
+    "/monitoramentos/alertas",
   ),
   act(
     8,
@@ -843,4 +844,56 @@ export const activity: ActivityItem[] = [
     "semNome",
     "/monitoramentos",
   ),
+];
+
+// Consultas (página Consultas). Na demonstração nada é consultado de fato:
+// são linhas fictícias no mesmo formato das gravadas no modo "db".
+
+const companyCnpj = (key: CompanyKey) =>
+  companies[companyRows.findIndex(([k]) => k === key)].cnpj;
+
+const Q = (
+  n: number,
+  flow: QueryView["flow"],
+  mode: QueryView["mode"],
+  company: CompanyKey,
+  createdAt: string,
+  result: Partial<QueryView>,
+): QueryView => ({
+  id: mockId(7, n),
+  flow,
+  mode,
+  companyId: companyId(company),
+  cnpj: companyCnpj(company),
+  createdAt: at(createdAt),
+  requestId: flow === "async" ? mockId(8, n) : null,
+  asyncStatus: null,
+  syncOutcome: null,
+  resultCount: null,
+  delivery: null,
+  lastCheckedAt: null,
+  ...result,
+});
+
+export const queries: QueryView[] = [
+  Q(1, "async", "historical_on_demand", "aurora", "2026-10-10T17:20", {
+    asyncStatus: "started",
+    delivery: "polling",
+    lastCheckedAt: at("2026-10-10T17:35"),
+  }),
+  Q(2, "sync", "datalake_sync", "aurora", "2026-10-10T09:12", {
+    syncOutcome: "ok",
+    resultCount: 6,
+  }),
+  Q(3, "async", "historical_async", "bravo", "2026-10-09T16:40", {
+    asyncStatus: "completed",
+    delivery: "webhook",
+  }),
+  Q(4, "sync", "registration_data", "cedro", "2026-10-09T11:05", {
+    syncOutcome: "ok",
+    resultCount: 1,
+  }),
+  Q(5, "sync", "datalake_sync", "delta", "2026-10-08T14:30", {
+    syncOutcome: "uncertain",
+  }),
 ];

@@ -34,17 +34,19 @@ export function GlobalSearch() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  function notFound(kind: "cnpj" | "cnj", key: string) {
+  function lawsuitNotFound(cnj: string) {
     toast.info(
-      `${kind === "cnpj" ? "CNPJ" : "Processo"} não encontrado ${
-        dataSource === "db" ? "no banco de dados" : "nos dados de demonstração"
+      `Processo não encontrado ${
+        dataSource === "db" ? "no app" : "nos dados de demonstração"
       }`,
       {
         description:
-          "A consulta real à JUDIT será habilitada na etapa de integração.",
+          dataSource === "db"
+            ? "A busca procura só no que o app já guardou. Para acompanhar este processo, crie um monitoramento."
+            : "Na demonstração, a busca só procura nos dados fictícios.",
         action: {
           label: "Monitorar",
-          onClick: () => openNewTracking({ searchType: kind, searchKey: key }),
+          onClick: () => openNewTracking({ searchType: "cnj", searchKey: cnj }),
         },
       },
     );
@@ -66,7 +68,7 @@ export function GlobalSearch() {
         return;
       }
       const lawsuit = lawsuits.find((l) => l.cnj === cnj);
-      if (!lawsuit) return notFound("cnj", cnj);
+      if (!lawsuit) return lawsuitNotFound(cnj);
       setQuery("");
       router.push(`/processos/${cnj}`);
       return;
@@ -80,9 +82,9 @@ export function GlobalSearch() {
         return;
       }
       const company = companies.find((c) => c.cnpj === cnpj);
-      if (!company) return notFound("cnpj", cnpj);
       setQuery("");
-      router.push(`/empresas/${cnpj}`);
+      // CNPJ fora da lista: a lista de Empresas oferece adicionar ou monitorar.
+      router.push(company ? `/empresas/${cnpj}` : `/empresas?q=${cnpj}`);
       return;
     }
 

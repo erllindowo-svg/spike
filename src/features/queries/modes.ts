@@ -36,6 +36,16 @@ export const QUERY_MODES = {
     cost: "Cobrada por requisição.",
     docsUrl: "https://docs.judit.io/cache-judit/hotstorage",
   },
+  registration_data: {
+    label: "Consulta de dados cadastrais",
+    endpoint: "POST /entities",
+    flow: "sync",
+    sources: "Base de dados da JUDIT (cadastro da Receita Federal).",
+    purpose:
+      "Razão social e situação cadastral da empresa, na resposta da própria chamada.",
+    cost: "Cobrada por requisição.",
+    docsUrl: "https://docs.judit.io/registration-data/registration-data",
+  },
   historical_async: {
     label: "Consulta assíncrona",
     endpoint: "POST /requests",

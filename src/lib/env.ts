@@ -77,3 +77,13 @@ export function getServerEnv<K extends keyof ServerEnv>(key: K): ServerEnv[K] {
 
   return result.data as ServerEnv[K];
 }
+
+// Whether a variable is set and valid, without handing its value to the
+// caller. An empty or absent variable counts as not set, even when the
+// schema has a default. Used by the settings page, which shows the state of
+// each integration but never a value.
+export function hasServerEnv(key: keyof ServerEnv): boolean {
+  const value = process.env[key];
+  if (value === undefined || value.trim() === "") return false;
+  return serverEnvSchema.shape[key].safeParse(value).success;
+}

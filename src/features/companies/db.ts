@@ -10,7 +10,8 @@ import type { Company } from "@/db/models";
 import { cnpjSchema, normalizeCnpj } from "./cnpj";
 
 // Persistência de empresas no MongoDB. Nada aqui chama a JUDIT: razão social
-// e situação cadastral ficam nulas até uma consulta real preenchê-las.
+// e situação cadastral ficam nulas até uma consulta de dados cadastrais
+// preenchê-las (src/features/companies/actions.ts).
 
 export async function listCompanies(): Promise<Company[]> {
   const { companies } = collections(await getDb());
@@ -66,4 +67,23 @@ export async function ensureCompany(cnpj: string): Promise<Company> {
     throw new Error("Empresa não encontrada logo após o upsert do CNPJ.");
   }
   return existing;
+}
+
+// Grava o que a consulta de dados cadastrais trouxe. Um campo que a JUDIT
+// não devolveu não apaga o valor que a empresa já tinha.
+export async function updateCompanyRegistration(
+  id: string,
+  data: Pick<Company, "legalName" | "registrationStatus">,
+): Promise<void> {
+  const { companies } = collections(await getDb());
+  const set: Partial<Pick<Company, "legalName" | "registrationStatus">> = {};
+  if (data.legalName) set.legalName = data.legalName;
+  if (data.registrationStatus) {
+    set.registrationStatus = data.registrationStatus;
+  }
+  if (Object.keys(set).length === 0) return;
+  await companies.updateOne(
+    { _id: id },
+    { $set: { ...set, updatedAt: new Date() } },
+  );
 }

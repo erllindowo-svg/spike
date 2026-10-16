@@ -114,7 +114,16 @@ export type Alert = {
 // com endpoint, fluxo, fontes e custo de cada uma fica em
 // src/features/queries/modes.ts.
 export type QueryMode =
-  "datalake_sync" | "historical_async" | "historical_on_demand";
+  | "datalake_sync"
+  | "registration_data"
+  | "historical_async"
+  | "historical_on_demand";
+
+// Modalidades síncronas: a resposta vem na própria chamada.
+export type SyncQueryMode = Extract<
+  QueryMode,
+  "datalake_sync" | "registration_data"
+>;
 
 // Modalidades assíncronas: geram um `request_id` que precisa ser guardado
 // para buscar o resultado depois.
@@ -148,4 +157,35 @@ export type JuditRequest = {
   updatedAt: Date;
   // Última vez que perguntamos o status à JUDIT. Nulo até a primeira.
   lastCheckedAt: Date | null;
+};
+
+// Resultado de uma consulta síncrona, do nosso lado:
+//   ok         a JUDIT respondeu (com ou sem itens)
+//   failed     a JUDIT respondeu com erro
+//   uncertain  sem resposta a tempo: pode ter sido processada (e cobrada)
+export type SyncQueryOutcome = "ok" | "failed" | "uncertain";
+
+// Registro de uma consulta síncrona que chegou à JUDIT (coleção
+// `sync_queries`). Só metadados, para o histórico da página Consultas e para
+// o suporte: os dados devolvidos (processos, dados cadastrais) não ficam
+// aqui. Chamadas barradas antes de sair do servidor (kill switch, allowlist)
+// não são registradas, porque não chegaram à JUDIT.
+export type SyncQuery = {
+  id: string;
+  mode: SyncQueryMode;
+  // Nulo quando a consulta foi feita antes de a empresa ser salva (o
+  // diálogo "Adicionar empresa" consulta primeiro e salva depois).
+  companyId: string | null;
+  searchType: "cnpj";
+  searchKey: string;
+  // `request_id` devolvido pela JUDIT, quando ela devolve; útil para levar
+  // ao suporte da JUDIT.
+  requestId: string | null;
+  outcome: SyncQueryOutcome;
+  // Quantos itens vieram (processos ou cadastros); nulo sem resposta.
+  resultCount: number | null;
+  // Tipo do erro (a `kind` das classes de src/lib/judit/errors.ts), sem
+  // mensagem nem dados.
+  errorKind: string | null;
+  createdAt: Date;
 };

@@ -537,7 +537,7 @@ export function DemoStoreProvider({
               : "Processo não identificado",
             occurredAt: processedAt,
             companyId: tracking.companyId,
-            href: "/alertas",
+            href: "/monitoramentos/alertas",
           },
         });
       }, PROCESSING_DELAY_MS);

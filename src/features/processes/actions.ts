@@ -3,6 +3,7 @@
 import { cnpjSchema } from "@/features/companies/cnpj";
 import { getCompanyByCnpj } from "@/features/companies/db";
 import { juditActionFailure } from "@/features/queries/failure";
+import { logSyncQuery, syncFailureFor } from "@/features/queries/sync-log";
 import { getDataSource } from "@/lib/data";
 import { searchLawsuits } from "@/lib/judit/lawsuits";
 
@@ -68,9 +69,27 @@ export async function searchCompanyLawsuitsAction(
 
     // CNPJ sem máscara (14 caracteres), como a JUDIT devolve em
     // `main_document` e como a página do Hot Storage sugere ("14 para CNPJ").
-    const result = await searchLawsuits({
+    let result;
+    try {
+      result = await searchLawsuits({
+        searchType: "cnpj",
+        searchKey: company.cnpj,
+      });
+    } catch (error) {
+      await logFailure(error, company);
+      throw error;
+    }
+
+    // Histórico da página Consultas: só metadados, nunca os processos.
+    await logSyncQuery({
+      mode: "datalake_sync",
+      companyId: company.id,
       searchType: "cnpj",
       searchKey: company.cnpj,
+      requestId: result.request_id ?? null,
+      outcome: "ok",
+      resultCount: result.lawsuits.length,
+      errorKind: null,
     });
 
     return {
@@ -82,4 +101,21 @@ export async function searchCompanyLawsuitsAction(
   } catch (error) {
     return juditActionFailure(error, "processes");
   }
+}
+
+async function logFailure(
+  error: unknown,
+  company: { id: string; cnpj: string },
+) {
+  const failure = syncFailureFor(error);
+  if (!failure) return;
+  await logSyncQuery({
+    mode: "datalake_sync",
+    companyId: company.id,
+    searchType: "cnpj",
+    searchKey: company.cnpj,
+    requestId: null,
+    resultCount: null,
+    ...failure,
+  });
 }

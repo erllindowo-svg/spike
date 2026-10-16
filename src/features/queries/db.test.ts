@@ -1,5 +1,6 @@
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -16,9 +17,12 @@ import {
   findOpenJuditRequest,
   getJuditRequest,
   listJuditRequests,
+  listRecentJuditRequests,
+  listSyncQueries,
   markJuditRequestCompleted,
   OPEN_QUERY_WINDOW_MS,
   saveJuditRequest,
+  saveSyncQuery,
   updateJuditRequestStatus,
   type NewJuditRequest,
 } from "./db";
@@ -137,5 +141,89 @@ describe("markJuditRequestCompleted", () => {
     const updated = await markJuditRequestCompleted(base.requestId);
 
     expect(updated).toMatchObject({ status: "completed", lastCheckedAt: null });
+  });
+});
+
+// Only Date is faked: the MongoDB driver keeps its real timers. Two saves in
+// the same millisecond would make "newest first" ambiguous.
+function at(iso: string) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(iso));
+}
+
+describe("listRecentJuditRequests", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("lists the requests of every company, newest first", async () => {
+    at("2026-10-16T10:00:00Z");
+    await saveJuditRequest(base);
+    at("2026-10-16T11:00:00Z");
+    await saveJuditRequest({
+      ...base,
+      requestId: "c2a6f0de-0a4e-4b0b-9a43-5d1f0f7f2b11",
+      companyId: "company-2",
+    });
+
+    const requests = await listRecentJuditRequests();
+
+    expect(requests.map((r) => r.companyId)).toEqual([
+      "company-2",
+      "company-1",
+    ]);
+  });
+});
+
+describe("sync_queries", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("records only metadata and lists newest first", async () => {
+    at("2026-10-16T10:00:00Z");
+    await saveSyncQuery({
+      mode: "datalake_sync",
+      companyId: "company-1",
+      searchType: "cnpj",
+      searchKey: "A1B2C3D4E5F668",
+      requestId: "2bf22fa7-4061-4ea6-8e69-b479bc12c24c",
+      outcome: "ok",
+      resultCount: 1,
+      errorKind: null,
+    });
+    at("2026-10-16T11:00:00Z");
+    await saveSyncQuery({
+      mode: "registration_data",
+      // Looked up before the company was saved.
+      companyId: null,
+      searchType: "cnpj",
+      searchKey: "A1B2C3D4E5F668",
+      requestId: null,
+      outcome: "uncertain",
+      resultCount: null,
+      errorKind: "timeout",
+    });
+
+    const queries = await listSyncQueries();
+
+    expect(queries.map((q) => [q.mode, q.outcome])).toEqual([
+      ["registration_data", "uncertain"],
+      ["datalake_sync", "ok"],
+    ]);
+    expect(Object.keys(queries[1]).sort()).toEqual(
+      [
+        "companyId",
+        "createdAt",
+        "errorKind",
+        "id",
+        "mode",
+        "outcome",
+        "requestId",
+        "resultCount",
+        "searchKey",
+        "searchType",
+      ].sort(),
+    );
   });
 });

@@ -5,6 +5,7 @@ import {
   CheckCircle2Icon,
   CloudDownloadIcon,
   FileTextIcon,
+  IdCardIcon,
   LandmarkIcon,
   RadarIcon,
   ScaleIcon,
@@ -45,6 +46,7 @@ import {
 } from "@/features/processes/types";
 import { AsyncQueriesCard } from "@/features/queries/components/async-queries-card";
 import { QUERY_MODES } from "@/features/queries/modes";
+import { useSupportView } from "@/features/settings/support-view";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { SearchTypeBadge } from "@/features/trackings/components/search-type-badge";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
@@ -53,6 +55,7 @@ import { formatRecurrence, isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 
+import { refreshRegistrationDataAction } from "../actions";
 import { RegistrationStatusBadge } from "./registration-status-badge";
 
 type JuditSearch = Extract<SearchCompanyLawsuitsResult, { ok: true }>;
@@ -74,6 +77,8 @@ export function CompanyDetail({
   const [selected, setSelected] = useState<Lawsuit | null>(null);
   const [judit, setJudit] = useState<JuditSearch | null>(null);
   const [searching, startSearch] = useTransition();
+  const [refreshing, startRefresh] = useTransition();
+  const [supportView] = useSupportView();
 
   // No modo "db", os processos não vêm do banco: aparecem só depois de uma
   // consulta ao datalake da JUDIT, feita sob clique porque cada uma é cobrada.
@@ -99,6 +104,33 @@ export function CompanyDetail({
       toast.success(
         `${formatNumber(result.lawsuits.length)} processo(s) na ${QUERY_MODES.datalake_sync.label.toLowerCase()}`,
       );
+    });
+  }
+
+  // Dados cadastrais (POST /entities, cobrada): razão social e situação. O
+  // resultado é gravado na empresa e chega pela nova renderização (refresh()).
+  function refreshRegistration() {
+    startRefresh(async () => {
+      let result;
+      try {
+        result = await refreshRegistrationDataAction(company.cnpj);
+      } catch {
+        toast.error("Sem resposta do servidor da aplicação.");
+        return;
+      }
+      if (!result.ok) {
+        toast.error("Dados cadastrais não consultados", {
+          description: result.message,
+        });
+        return;
+      }
+      if (result.registration.found) {
+        toast.success("Dados cadastrais atualizados", {
+          description: result.registration.legalName ?? undefined,
+        });
+      } else {
+        toast.warning("A JUDIT não encontrou cadastro para este CNPJ.");
+      }
     });
   }
 
@@ -141,11 +173,28 @@ export function CompanyDetail({
               </span>
               <span>Consultada em {formatDate(company.createdAt)}</span>
               {!company.legalName && (
-                <span>Dados cadastrais ainda não retornados.</span>
+                <span>Dados cadastrais ainda não consultados.</span>
               )}
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {fromJudit && (
+              <Button
+                variant="outline"
+                onClick={refreshRegistration}
+                disabled={refreshing}
+                title="Consulta cobrada: razão social e situação na Receita"
+              >
+                {refreshing ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <IdCardIcon data-icon="inline-start" />
+                )}
+                {company.legalName
+                  ? "Atualizar dados cadastrais"
+                  : "Consultar dados cadastrais"}
+              </Button>
+            )}
             <CopyButton
               value={company.cnpj}
               label="Copiar CNPJ"
@@ -272,7 +321,7 @@ export function CompanyDetail({
             {!fromJudit
               ? "Selecione um processo para ver detalhes e movimentações."
               : judit
-                ? `${QUERY_MODES.datalake_sync.label} à JUDIT feita em ${formatDateTime(judit.fetchedAt)}${judit.requestId ? ` · request_id ${judit.requestId}` : ""}. Não fica salvo: recarregar a página limpa a lista.`
+                ? `${QUERY_MODES.datalake_sync.label} à JUDIT feita em ${formatDateTime(judit.fetchedAt)}${supportView && judit.requestId ? ` · request_id ${judit.requestId}` : ""}. Os processos não ficam salvos: recarregar a página limpa a lista (a consulta fica no histórico, em Consultas).`
                 : "Os processos vêm de uma consulta síncrona à JUDIT. Cada consulta é cobrada."}
           </CardDescription>
           <CardAction className="flex items-center gap-3">

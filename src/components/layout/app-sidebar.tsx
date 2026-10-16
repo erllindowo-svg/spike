@@ -1,5 +1,6 @@
 "use client";
 
+import { PanelLeftCloseIcon, PanelLeftOpenIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
@@ -10,41 +11,44 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useSupportView } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 
 import { BrandMark } from "./brand";
 import {
-  integrationNav,
   isNavActive,
   productNav,
   settingsNav,
+  supportNav,
   type NavItem,
 } from "./navigation";
+
+type NavLinkProps = {
+  item: NavItem;
+  badge?: number;
+  size?: "default" | "sm";
+};
 
 function NavLinkButton({
   item,
   badge,
+  size = "default",
   active,
-}: {
-  item: NavItem;
-  badge?: number;
-  active: boolean;
-}) {
+}: NavLinkProps & { active: boolean }) {
   const { isMobile, setOpenMobile } = useSidebar();
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={active}
+        size={size}
         tooltip={item.title}
         render={
           <Link
@@ -67,7 +71,7 @@ function NavLinkButton({
   );
 }
 
-function ActiveNavLink(props: { item: NavItem; badge?: number }) {
+function ActiveNavLink(props: NavLinkProps) {
   const pathname = usePathname();
   return (
     <NavLinkButton {...props} active={isNavActive(pathname, props.item.href)} />
@@ -76,7 +80,7 @@ function ActiveNavLink(props: { item: NavItem; badge?: number }) {
 
 // usePathname suspende em rotas com params dinâmicos (Cache Components);
 // o fallback mantém o link estático até o estado ativo ser resolvido.
-function NavLink(props: { item: NavItem; badge?: number }) {
+function NavLink(props: NavLinkProps) {
   return (
     <Suspense fallback={<NavLinkButton {...props} active={false} />}>
       <ActiveNavLink {...props} />
@@ -84,8 +88,30 @@ function NavLink(props: { item: NavItem; badge?: number }) {
   );
 }
 
+// O menu nasce recolhido, só com os ícones (o nome aparece ao passar o mouse).
+// Quem preferir os nomes expande por aqui, ou com Ctrl+B. No celular o menu
+// é uma gaveta, aberta pelo botão do cabeçalho, e este botão some.
+function ExpandToggle() {
+  const { open, toggleSidebar, isMobile } = useSidebar();
+  if (isMobile) return null;
+  const label = open ? "Recolher menu" : "Expandir menu";
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        size="sm"
+        tooltip={`${label} (Ctrl+B)`}
+        onClick={toggleSidebar}
+      >
+        {open ? <PanelLeftCloseIcon /> : <PanelLeftOpenIcon />}
+        <span>{label}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 export function AppSidebar() {
   const { alerts, webhookEvents } = useDemoStore();
+  const [supportView] = useSupportView();
   const unreadAlerts = alerts.filter((a) => !a.readAt).length;
   const pendingEvents = webhookEvents.filter(
     (e) => e.processingStatus === "failed" || e.processingStatus === "pending",
@@ -117,25 +143,18 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Produto</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {productNav.map((item) => (
                 <NavLink
                   key={item.href}
                   item={item}
-                  badge={item.href === "/alertas" ? unreadAlerts : undefined}
+                  // Os alertas moram em Monitoramentos: o número de não
+                  // lidos aparece nele.
+                  badge={
+                    item.href === "/monitoramentos" ? unreadAlerts : undefined
+                  }
                 />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Integração</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {integrationNav.map((item) => (
-                <NavLink key={item.href} item={item} badge={pendingEvents} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -144,10 +163,13 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
-          <NavLink item={settingsNav} />
+          {supportView && (
+            <NavLink item={supportNav} badge={pendingEvents} size="sm" />
+          )}
+          <ExpandToggle />
+          <NavLink item={settingsNav} size="sm" />
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   );
 }
