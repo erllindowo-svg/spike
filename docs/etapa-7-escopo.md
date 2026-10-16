@@ -476,3 +476,15 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   monitoramento por CPF. Na demonstração, duas pessoas fictícias (CPF
   começando com zeros). OAB e nome continuam fora (R1). **Reiniciar o
   `pnpm dev`** para a migração rodar no Atlas (catálogo, I1).
+- **Fatia 4, Consultar: feita.** Página `/consultar` (item novo no menu;
+  "Consultas" virou "Histórico de consultas") com consultas avulsas guiadas
+  pelo catálogo `src/features/consult/catalog.ts`: contagem (F01), resumo
+  agrupado (F02), lista (F03), dados cadastrais (F08, agora com nome
+  fantasia e situação especial), histórico assíncrono (F07, salva a parte
+  para acompanhar), processo por CNJ na base (F05) e atualizado no tribunal
+  (F04). O tipo do identificador é reconhecido pelo formato; o resultado
+  oferece "Salvar na lista" e "Monitorar". Cada chamada entra no histórico
+  (novas modalidades em `QUERY_MODES`; o histórico aceita CNJ). Na
+  demonstração, as respostas vêm dos dados fictícios, com selo. Ficam para
+  depois: consulta processual assíncrona por CNJ (F06) com resumo por IA
+  (F11), mandados (F09) e execução penal (F10).

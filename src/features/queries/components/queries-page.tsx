@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { normalizeCnpj } from "@/features/parties/cnpj";
-import { displayDocument, partyHref } from "@/features/parties/documents";
+import { partyHref } from "@/features/parties/documents";
+import { formatSearchKey } from "@/features/trackings/format";
 import { useSupportView } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -40,7 +41,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
     parties.map((p) => [`${p.documentType}:${p.document}`, p]),
   );
   const partyOf = (q: QueryView) =>
-    partyByDocument.get(`${q.documentType}:${q.document}`);
+    partyByDocument.get(`${q.searchType}:${q.searchKey}`);
   const [flow, setFlow] = useState<FlowFilter>("all");
   const [query, setQuery] = useState("");
 
@@ -52,7 +53,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
     if (!term) return true;
     const party = partyOf(q);
     return (
-      (documentTerm.length > 0 && q.document.includes(documentTerm)) ||
+      (documentTerm.length > 0 && q.searchKey.includes(documentTerm)) ||
       !!party?.name?.toLowerCase().includes(term)
     );
   });
@@ -169,13 +170,13 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
                           >
                             {party.name ?? (
                               <span className="font-mono text-xs">
-                                {displayDocument(q.documentType, q.document)}
+                                {formatSearchKey(q.searchType, q.searchKey)}
                               </span>
                             )}
                           </Link>
                         ) : (
                           <span className="font-mono text-xs text-muted-foreground">
-                            {displayDocument(q.documentType, q.document)}
+                            {formatSearchKey(q.searchType, q.searchKey)}
                           </span>
                         )}
                       </TableCell>
@@ -212,6 +213,13 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
   );
 }
 
+// Página do que foi consultado: a parte (empresa ou pessoa) ou o processo.
+function targetHref(query: QueryView): string {
+  return query.searchType === "cnj"
+    ? `/processos/${query.searchKey}`
+    : partyHref(query.searchType, query.searchKey);
+}
+
 // O que a consulta trouxe, em palavras. Os dados em si não ficam guardados:
 // a assíncrona é lida na JUDIT pela página da empresa.
 function QueryResult({ query }: { query: QueryView }) {
@@ -219,7 +227,7 @@ function QueryResult({ query }: { query: QueryView }) {
     if (query.asyncStatus === "completed") {
       return (
         <Link
-          href={partyHref(query.documentType, query.document)}
+          href={targetHref(query)}
           className="text-primary underline-offset-4 hover:underline"
         >
           Ver na empresa
@@ -228,7 +236,7 @@ function QueryResult({ query }: { query: QueryView }) {
     }
     return isQueryOpen(query) ? (
       <Link
-        href={partyHref(query.documentType, query.document)}
+        href={targetHref(query)}
         className="underline-offset-4 hover:text-primary hover:underline"
       >
         Verificar status na empresa
@@ -240,6 +248,12 @@ function QueryResult({ query }: { query: QueryView }) {
   if (query.syncOutcome !== "ok" || query.resultCount === null) return "—";
   if (query.mode === "registration_data") {
     return query.resultCount > 0 ? "Cadastro encontrado" : "Sem cadastro";
+  }
+  if (query.mode === "lawsuit_datalake" || query.mode === "lawsuit_on_demand") {
+    return query.resultCount > 0 ? "Processo encontrado" : "Não encontrado";
+  }
+  if (query.mode === "datalake_synthetic") {
+    return `Resumo de ${formatNumber(query.resultCount)} processos`;
   }
   return query.resultCount === 1
     ? "1 processo"

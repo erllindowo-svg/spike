@@ -1,7 +1,7 @@
 import type {
-  DocumentType,
   JuditRequest,
   QueryMode,
+  QuerySearchType,
   ResultDelivery,
   SyncQuery,
   SyncQueryOutcome,
@@ -14,8 +14,9 @@ export type QueryView = {
   flow: "sync" | "async";
   mode: QueryMode;
   partyId: string | null;
-  documentType: DocumentType;
-  document: string;
+  // Documento (CNPJ, CPF) ou número do processo (CNJ), sem máscara.
+  searchType: QuerySearchType;
+  searchKey: string;
   createdAt: Date;
   // request_id da JUDIT: sempre na assíncrona; na síncrona, quando veio.
   requestId: string | null;
@@ -36,8 +37,8 @@ export function fromJuditRequest(request: JuditRequest): QueryView {
     flow: "async",
     mode: request.mode,
     partyId: request.partyId,
-    documentType: request.searchType,
-    document: request.searchKey,
+    searchType: request.searchType,
+    searchKey: request.searchKey,
     createdAt: request.createdAt,
     requestId: request.requestId,
     asyncStatus: request.status,
@@ -54,8 +55,8 @@ export function fromSyncQuery(query: SyncQuery): QueryView {
     flow: "sync",
     mode: query.mode,
     partyId: query.partyId,
-    documentType: query.searchType,
-    document: query.searchKey,
+    searchType: query.searchType,
+    searchKey: query.searchKey,
     createdAt: query.createdAt,
     requestId: query.requestId,
     asyncStatus: null,

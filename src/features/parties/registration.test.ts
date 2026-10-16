@@ -15,6 +15,8 @@ describe("fromJuditEntities", () => {
       found: true,
       name: "FINGI - EM RECUPERACAO JUDICIAL",
       registrationStatus: "Ativa",
+      tradeName: "FING",
+      specialStatus: "RECUPERACAO JUDICIAL",
     });
   });
 
@@ -56,6 +58,8 @@ describe("fromJuditEntities", () => {
       found: false,
       name: null,
       registrationStatus: null,
+      tradeName: null,
+      specialStatus: null,
     });
   });
 

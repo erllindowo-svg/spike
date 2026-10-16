@@ -3,6 +3,7 @@ import {
   FileSearchIcon,
   LayoutDashboardIcon,
   RadarIcon,
+  SearchIcon,
   SettingsIcon,
   WebhookIcon,
   type LucideIcon,
@@ -20,6 +21,7 @@ export type NavItem = {
 // docs/etapa-7-escopo.md). Os alertas ficam dentro de Monitoramentos.
 export const productNav: NavItem[] = [
   { title: "Dashboard", href: "/", icon: LayoutDashboardIcon },
+  { title: "Consultar", href: "/consultar", icon: SearchIcon },
   {
     title: "Empresas e pessoas",
     href: "/empresas",
@@ -27,7 +29,7 @@ export const productNav: NavItem[] = [
     matches: ["/pessoas"],
   },
   { title: "Monitoramentos", href: "/monitoramentos", icon: RadarIcon },
-  { title: "Consultas", href: "/consultas", icon: FileSearchIcon },
+  { title: "Histórico de consultas", href: "/consultas", icon: FileSearchIcon },
 ];
 
 // Itens pequenos do rodapé do menu. O Diagnóstico só aparece com a vista de
@@ -82,8 +84,13 @@ const pages: PageInfo[] = [
     help: "Pessoas físicas que você adicionou ou monitora. O CPF é dado pessoal: aparece mascarado nas listas e completo só na página da pessoa. Consulte e monitore só com base legal.",
   },
   {
+    prefix: "/consultar",
+    title: "Consultar",
+    help: "Consultas avulsas na JUDIT: contagem, resumo agrupado, lista de processos, dados cadastrais e processo por número CNJ. A resposta aparece aqui, sem salvar nada; cada consulta é cobrada e entra no histórico.",
+  },
+  {
     prefix: "/consultas",
-    title: "Consultas",
+    title: "Histórico de consultas",
     help: "Histórico das consultas feitas à JUDIT. A síncrona responde na hora; a assíncrona é criada, processada pela JUDIT e concluída depois. Cada consulta é cobrada.",
   },
   {

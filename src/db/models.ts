@@ -125,15 +125,27 @@ export type Alert = {
 // src/features/queries/modes.ts.
 export type QueryMode =
   | "datalake_sync"
+  | "datalake_count"
+  | "datalake_synthetic"
   | "registration_data"
+  | "lawsuit_datalake"
+  | "lawsuit_on_demand"
   | "historical_async"
   | "historical_on_demand";
 
 // Modalidades síncronas: a resposta vem na própria chamada.
 export type SyncQueryMode = Extract<
   QueryMode,
-  "datalake_sync" | "registration_data"
+  | "datalake_sync"
+  | "datalake_count"
+  | "datalake_synthetic"
+  | "registration_data"
+  | "lawsuit_datalake"
+  | "lawsuit_on_demand"
 >;
+
+// O que se procura numa consulta: um documento (parte) ou um processo (CNJ).
+export type QuerySearchType = DocumentType | "cnj";
 
 // Modalidades assíncronas: geram um `request_id` que precisa ser guardado
 // para buscar o resultado depois.
@@ -186,7 +198,7 @@ export type SyncQuery = {
   // Nulo quando a consulta foi feita antes de a empresa ser salva (o
   // diálogo "Adicionar empresa" consulta primeiro e salva depois).
   partyId: string | null;
-  searchType: DocumentType;
+  searchType: QuerySearchType;
   searchKey: string;
   // `request_id` devolvido pela JUDIT, quando ela devolve; útil para levar
   // ao suporte da JUDIT.

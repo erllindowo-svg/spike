@@ -3,16 +3,21 @@ import type { EntitiesResponse } from "@/lib/judit/schemas/lawsuits";
 import { normalizeCnpj } from "./cnpj";
 
 // Converte a resposta de POST /entities (dados cadastrais) nos campos que a
-// empresa guarda. Função pura: não chama a rede nem o banco.
+// parte guarda (nome e situação) e em dois que só aparecem na tela (nome
+// fantasia e situação especial). Função pura: não chama a rede nem o banco.
 // https://docs.judit.io/registration-data/registration-data
 
 export type RegistrationData = {
-  // A JUDIT devolveu um cadastro para o CNPJ.
+  // A JUDIT devolveu um cadastro para o documento.
   found: boolean;
-  // Razão social (`name`).
+  // Razão social ou nome (`name`).
   name: string | null;
   // Situação na Receita Federal.
   registrationStatus: string | null;
+  // Nome fantasia (`social_name`), só de empresas.
+  tradeName: string | null;
+  // Ex.: "RECUPERACAO JUDICIAL" (`special_status`).
+  specialStatus: string | null;
 };
 
 type Entity = EntitiesResponse["response_data"][number];
@@ -23,12 +28,20 @@ export function fromJuditEntities(
 ): RegistrationData {
   const entity = pickEntity(response.response_data, document);
   if (!entity) {
-    return { found: false, name: null, registrationStatus: null };
+    return {
+      found: false,
+      name: null,
+      registrationStatus: null,
+      tradeName: null,
+      specialStatus: null,
+    };
   }
   return {
     found: true,
     name: text(entity.name),
     registrationStatus: registrationStatus(entity),
+    tradeName: text(entity.social_name),
+    specialStatus: text(entity.special_status),
   };
 }
 

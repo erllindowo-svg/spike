@@ -109,11 +109,14 @@ describe("addPartyAction", () => {
     });
     const init = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(init[0])).toContain("/entities");
-    expect(updatePartyRegistration).toHaveBeenCalledWith("company-1", {
-      found: true,
-      name: "FINGI - EM RECUPERACAO JUDICIAL",
-      registrationStatus: "Ativa",
-    });
+    expect(updatePartyRegistration).toHaveBeenCalledWith(
+      "company-1",
+      expect.objectContaining({
+        found: true,
+        name: "FINGI - EM RECUPERACAO JUDICIAL",
+        registrationStatus: "Ativa",
+      }),
+    );
     expect(saveSyncQuery).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: "registration_data",

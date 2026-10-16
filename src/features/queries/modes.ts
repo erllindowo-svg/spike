@@ -36,6 +36,26 @@ export const QUERY_MODES = {
     cost: "Cobrada por requisição.",
     docsUrl: "https://docs.judit.io/cache-judit/hotstorage",
   },
+  datalake_count: {
+    label: "Contagem de processos",
+    endpoint: "POST /lawsuits/count",
+    flow: "sync",
+    sources: "Base de dados da JUDIT.",
+    purpose:
+      "Só o total de processos, sem a lista. Responde rápido se há processos e mostra o tamanho antes de pedir a lista.",
+    cost: "Cobrada por requisição.",
+    docsUrl: "https://docs.judit.io/cache-judit/count",
+  },
+  datalake_synthetic: {
+    label: "Resumo agrupado",
+    endpoint: "POST /lawsuits/synthetic",
+    flow: "sync",
+    sources: "Base de dados da JUDIT.",
+    purpose:
+      "Quantos processos por tribunal, área, fase e lado da parte, sem a lista. Visão geral para avaliar risco.",
+    cost: "Cobrada por requisição.",
+    docsUrl: "https://docs.judit.io/cache-judit/cache-grouped",
+  },
   registration_data: {
     label: "Consulta de dados cadastrais",
     endpoint: "POST /entities",
@@ -45,6 +65,25 @@ export const QUERY_MODES = {
       "Razão social e situação cadastral da empresa, na resposta da própria chamada.",
     cost: "Cobrada por requisição.",
     docsUrl: "https://docs.judit.io/registration-data/registration-data",
+  },
+  lawsuit_datalake: {
+    label: "Processo na base da JUDIT",
+    endpoint: "GET /lawsuits/{cnj}",
+    flow: "sync",
+    sources: "Base de dados da JUDIT (pode estar defasada).",
+    purpose: "A capa de um processo pelo número CNJ, como está guardada.",
+    cost: "Não informado pela documentação.",
+    docsUrl: "https://docs.judit.io/cache-judit/on-demand",
+  },
+  lawsuit_on_demand: {
+    label: "Processo atualizado no tribunal",
+    endpoint: "POST /lawsuits com on_demand",
+    flow: "sync",
+    sources: "Tribunal em tempo real, quando a base está defasada.",
+    purpose:
+      "O processo pelo número CNJ, com garantia de atualização. Pode levar até 3 minutos.",
+    cost: "Cobrada por requisição.",
+    docsUrl: "https://docs.judit.io/cache-judit/on-demand",
   },
   historical_async: {
     label: "Consulta assíncrona",
