@@ -17,7 +17,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import type { AsyncQueryMode, JuditRequest } from "@/db/models";
+import type { JuditRequest } from "@/db/models";
 import type { PartyRef } from "@/features/parties/documents";
 import type { Lawsuit } from "@/features/processes/types";
 import { SupportOnly, useSupportView } from "@/features/settings/support-view";
@@ -25,7 +25,7 @@ import { SERVER_UNREACHABLE } from "@/lib/demo-store";
 import { formatDateTime } from "@/lib/format";
 
 import { checkAsyncQueryAction, startAsyncQueryAction } from "../actions";
-import { ASYNC_QUERY_MODES, QUERY_MODES } from "../modes";
+import { partyAsyncModes, QUERY_MODES, type PartyAsyncMode } from "../modes";
 import type { ResponsesSummary } from "../responses";
 import { asyncStatusLabel, deliveryLabels } from "../status";
 
@@ -41,7 +41,7 @@ export function AsyncQueriesCard({
   onSelectLawsuit: (lawsuit: Lawsuit) => void;
 }) {
   const [starting, startTransition] = useTransition();
-  const [startingMode, setStartingMode] = useState<AsyncQueryMode | null>(null);
+  const [startingMode, setStartingMode] = useState<PartyAsyncMode | null>(null);
   const [cacheTtl, setCacheTtl] = useState("");
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, ResponsesSummary>>({});
@@ -52,7 +52,7 @@ export function AsyncQueriesCard({
     cacheTtlValue !== undefined &&
     (!Number.isInteger(cacheTtlValue) || cacheTtlValue <= 0);
 
-  function start(mode: AsyncQueryMode) {
+  function start(mode: PartyAsyncMode) {
     setStartingMode(mode);
     startTransition(async () => {
       let result;
@@ -119,7 +119,7 @@ export function AsyncQueriesCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {ASYNC_QUERY_MODES.map((mode) => {
+          {partyAsyncModes(party.documentType).map((mode) => {
             const info = QUERY_MODES[mode];
             const onDemand = mode === "historical_on_demand";
             return (

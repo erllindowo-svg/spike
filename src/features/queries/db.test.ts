@@ -105,13 +105,22 @@ describe("findOpenJuditRequest", () => {
     await saveJuditRequest(base);
 
     expect(
-      await findOpenJuditRequest("company-1", "historical_async"),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+      ),
     ).toMatchObject({ requestId: base.requestId });
     expect(
-      await findOpenJuditRequest("company-1", "historical_on_demand"),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_on_demand",
+      ),
     ).toBeNull();
     expect(
-      await findOpenJuditRequest("company-2", "historical_async"),
+      await findOpenJuditRequest(
+        { partyId: "company-2", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+      ),
     ).toBeNull();
   });
 
@@ -120,7 +129,10 @@ describe("findOpenJuditRequest", () => {
     await markJuditRequestCompleted(base.requestId);
 
     expect(
-      await findOpenJuditRequest("company-1", "historical_async"),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+      ),
     ).toBeNull();
   });
 
@@ -129,7 +141,11 @@ describe("findOpenJuditRequest", () => {
     const later = new Date(Date.now() + OPEN_QUERY_WINDOW_MS + 1000);
 
     expect(
-      await findOpenJuditRequest("company-1", "historical_async", later),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+        later,
+      ),
     ).toBeNull();
   });
 });

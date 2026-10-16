@@ -217,6 +217,48 @@ describe("runConsultAction", () => {
     });
   });
 
+  it("creates the warrants query for a person, saving the person first", async () => {
+    vi.mocked(startAsyncQueryAction).mockResolvedValue({
+      ok: true,
+      request: { requestId: "r-2" } as never,
+    });
+
+    const result = await runConsultAction({
+      feature: "warrants",
+      searchType: "cpf",
+      searchKey: "000.000.001-91",
+    });
+
+    expect(ensureParty).toHaveBeenCalledWith("cpf", "00000000191");
+    expect(startAsyncQueryAction).toHaveBeenCalledWith({
+      mode: "warrant",
+      documentType: "cpf",
+      document: "00000000191",
+    });
+    expect(result).toMatchObject({ ok: true, payload: { kind: "async" } });
+  });
+
+  it("creates the full lawsuit query by CNJ with the AI summary option", async () => {
+    vi.mocked(startAsyncQueryAction).mockResolvedValue({
+      ok: true,
+      request: { requestId: "r-3" } as never,
+    });
+
+    await runConsultAction({
+      feature: "lawsuit_async",
+      searchType: "cnj",
+      searchKey: "0000000-39.2026.8.26.0050",
+      aiSummary: true,
+    });
+
+    expect(ensureParty).not.toHaveBeenCalled();
+    expect(startAsyncQueryAction).toHaveBeenCalledWith({
+      mode: "lawsuit_async",
+      cnj: TEST_CNJ,
+      aiSummary: true,
+    });
+  });
+
   it("keeps a CPF out of JUDIT in restricted mode", async () => {
     const result = await runConsultAction({
       feature: "count",

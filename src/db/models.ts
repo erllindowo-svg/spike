@@ -138,7 +138,10 @@ export type QueryMode =
   | "lawsuit_datalake"
   | "lawsuit_on_demand"
   | "historical_async"
-  | "historical_on_demand";
+  | "historical_on_demand"
+  | "lawsuit_async"
+  | "warrant"
+  | "criminal_execution";
 
 // Modalidades síncronas: a resposta vem na própria chamada.
 export type SyncQueryMode = Extract<
@@ -159,7 +162,11 @@ export type QuerySearchType = DocumentType | "cnj";
 // para buscar o resultado depois.
 export type AsyncQueryMode = Extract<
   QueryMode,
-  "historical_async" | "historical_on_demand"
+  | "historical_async"
+  | "historical_on_demand"
+  | "lawsuit_async"
+  | "warrant"
+  | "criminal_execution"
 >;
 
 // Como o resultado de uma consulta assíncrona chega até nós: perguntando
@@ -174,10 +181,11 @@ export type JuditRequest = {
   id: string;
   // `request_id` devolvido pela JUDIT; único no banco.
   requestId: string;
-  partyId: string;
+  // Nulo numa consulta por processo (CNJ): não há parte.
+  partyId: string | null;
   mode: AsyncQueryMode;
   delivery: ResultDelivery;
-  searchType: DocumentType;
+  searchType: QuerySearchType;
   searchKey: string;
   // Enviado só na modalidade on-demand; nulo quando não enviado.
   cacheTtlInDays: number | null;

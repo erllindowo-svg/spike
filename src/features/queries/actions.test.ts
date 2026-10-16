@@ -144,6 +144,77 @@ describe("startAsyncQueryAction", () => {
     expect(result).toMatchObject({ ok: true });
   });
 
+  it("starts a full lawsuit query by CNJ, with no party and the AI summary", async () => {
+    const fetchMock = mockFetch(createdRequestBody);
+
+    const result = await startAsyncQueryAction({
+      mode: "lawsuit_async",
+      cnj: "0000000-39.2026.8.26.0050",
+      aiSummary: true,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(getPartyByDocument).not.toHaveBeenCalled();
+    expect(sentBody(fetchMock)).toEqual({
+      search: {
+        search_type: "lawsuit_cnj",
+        search_key: "0000000-39.2026.8.26.0050",
+      },
+      judit_ia: ["summary"],
+    });
+    expect(saveJuditRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        partyId: null,
+        mode: "lawsuit_async",
+        searchType: "cnj",
+        searchKey: "00000003920268260050",
+      }),
+    );
+    expect(findOpenJuditRequest).toHaveBeenCalledWith(
+      { partyId: null, searchType: "cnj", searchKey: "00000003920268260050" },
+      "lawsuit_async",
+    );
+  });
+
+  it("asks for arrest warrants only by CPF", async () => {
+    mockFetch(createdRequestBody);
+
+    expect(
+      await startAsyncQueryAction({
+        mode: "warrant",
+        documentType: "cnpj",
+        document: TEST_CNPJ,
+      }),
+    ).toMatchObject({ ok: false, reason: "invalid" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("sends response_type warrant for a person in open mode", async () => {
+    vi.stubEnv("JUDIT_ALLOWLIST", "disabled");
+    const fetchMock = mockFetch(createdRequestBody);
+    // Fictitious CPF (valid check digits, starts with zeros).
+    vi.mocked(getPartyByDocument).mockResolvedValue({
+      ...company,
+      documentType: "cpf",
+      document: "00000000191",
+    });
+
+    const result = await startAsyncQueryAction({
+      mode: "warrant",
+      documentType: "cpf",
+      document: "000.000.001-91",
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(sentBody(fetchMock)).toEqual({
+      search: {
+        search_type: "cpf",
+        search_key: "00000000191",
+        response_type: "warrant",
+      },
+    });
+  });
+
   it("refuses a second query while the same one is still open, without calling JUDIT", async () => {
     vi.mocked(findOpenJuditRequest).mockResolvedValue(storedRequest);
     mockFetch(createdRequestBody);
@@ -156,7 +227,7 @@ describe("startAsyncQueryAction", () => {
 
     expect(result).toMatchObject({ ok: false, reason: "invalid" });
     expect(findOpenJuditRequest).toHaveBeenCalledWith(
-      company.id,
+      { partyId: company.id, searchType: "cnpj", searchKey: TEST_CNPJ },
       "historical_async",
     );
     expect(fetch).not.toHaveBeenCalled();

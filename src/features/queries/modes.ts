@@ -1,5 +1,6 @@
 import type {
   AsyncQueryMode,
+  DocumentType,
   QueryMode,
   TrackingMode,
   TrackingSearchType,
@@ -116,12 +117,50 @@ export const QUERY_MODES = {
     cost: "Custo maior que a consulta assíncrona comum; valores não publicados.",
     docsUrl: "https://docs.judit.io/requests/request-document",
   },
+  lawsuit_async: {
+    label: "Consulta processual completa",
+    endpoint: "POST /requests (search_type lawsuit_cnj)",
+    flow: "async",
+    sources: "Tribunal do processo, com a fotografia mais recente.",
+    purpose:
+      "O processo inteiro pelo número CNJ: capa, partes e andamentos. Pode vir com um resumo escrito por IA (beta).",
+    cost: "Cobrada por requisição; o resumo por IA tem custo não informado.",
+    docsUrl: "https://docs.judit.io/requests/requests",
+  },
+  warrant: {
+    label: "Mandados de prisão",
+    endpoint: "POST /requests (response_type warrant)",
+    flow: "async",
+    sources: "Banco Nacional de Mandados de Prisão (BNMP).",
+    purpose:
+      "Mandados de prisão e de recaptura ligados a um CPF, com a situação de cada um.",
+    cost: "Cobrada por requisição.",
+    docsUrl: "https://docs.judit.io/criminal-consultation/warrant",
+  },
+  criminal_execution: {
+    label: "Execução penal",
+    endpoint: "POST /requests (response_type execution)",
+    flow: "async",
+    sources: "Processos de execução penal nos tribunais.",
+    purpose:
+      "Processos de cumprimento de pena ligados ao documento, com andamentos.",
+    cost: "Cobrada por requisição.",
+    docsUrl: "https://docs.judit.io/criminal-consultation/criminal-execution",
+  },
 } as const satisfies Record<QueryMode, QueryModeInfo>;
 
-export const ASYNC_QUERY_MODES = [
-  "historical_async",
-  "historical_on_demand",
-] as const satisfies readonly AsyncQueryMode[];
+// Consultas assíncronas que se criam a partir da página de uma parte. Os
+// mandados de prisão só existem para pessoa física (CPF).
+export type PartyAsyncMode = Exclude<AsyncQueryMode, "lawsuit_async">;
+
+export function partyAsyncModes(documentType: DocumentType): PartyAsyncMode[] {
+  return [
+    "historical_async",
+    "historical_on_demand",
+    "criminal_execution",
+    ...(documentType === "cpf" ? (["warrant"] as const) : []),
+  ];
+}
 
 export const TRACKING_MODES = {
   tracking_document: {

@@ -33,12 +33,19 @@ import {
 
 // POST /requests. Billable ("Cobrança por requisição"). Creates work on
 // JUDIT's side, so it is never retried automatically (see client.ts).
-// Not exposed on purpose: `judit_ia` (beta, extra feature),
-// `should_search_superior_instances` (+30% cost) and `customer_key`
-// (credential vault).
+// Not exposed on purpose: `should_search_superior_instances` (+30% cost) and
+// `customer_key` (credential vault).
 export async function createRequest(params: {
   searchType: "cpf" | "cnpj" | "oab" | "name" | "lawsuit_cnj";
   searchKey: string;
+  // What comes back: lawsuits (default), arrest warrants
+  // (https://docs.judit.io/criminal-consultation/warrant) or penal executions
+  // (https://docs.judit.io/criminal-consultation/criminal-execution). Both
+  // pages put it inside `search`.
+  responseType?: "lawsuit" | "warrant" | "execution";
+  // AI features on the result (beta). ["summary"] adds a written summary
+  // as one more item of the responses (https://docs.judit.io/requests/requests).
+  juditIa?: "summary"[];
   // Forces a real-time court search instead of the datalake (documents).
   onDemand?: boolean;
   // Accept a cached result if the last extraction is at most N days old.
@@ -73,6 +80,7 @@ export async function createRequest(params: {
       search: {
         search_type: params.searchType,
         search_key: searchKey,
+        ...(params.responseType ? { response_type: params.responseType } : {}),
         ...(params.onDemand ? { on_demand: true } : {}),
         // The request-document table lists cache_ttl_in_days at the top
         // level, but its own example and the OpenAPI spec put it inside
@@ -85,6 +93,7 @@ export async function createRequest(params: {
           : {}),
       },
       ...(params.withAttachments ? { with_attachments: true } : {}),
+      ...(params.juditIa?.length ? { judit_ia: params.juditIa } : {}),
       ...(params.callbackUrl ? { callback_url: params.callbackUrl } : {}),
     },
     schema: requestSchema,

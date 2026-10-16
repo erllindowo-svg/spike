@@ -14,7 +14,10 @@ export type ConsultFeatureId =
   | "registration_on_demand"
   | "history_async"
   | "lawsuit_datalake"
-  | "lawsuit_on_demand";
+  | "lawsuit_on_demand"
+  | "lawsuit_async"
+  | "warrants"
+  | "criminal_execution";
 
 export type ConsultFeature = {
   id: ConsultFeatureId;
@@ -45,6 +48,21 @@ export const CONSULT_FEATURES: readonly ConsultFeature[] = [
   },
   { id: "lawsuit_datalake", mode: "lawsuit_datalake", searchTypes: ["cnj"] },
   { id: "lawsuit_on_demand", mode: "lawsuit_on_demand", searchTypes: ["cnj"] },
+  { id: "lawsuit_async", mode: "lawsuit_async", searchTypes: ["cnj"] },
+  { id: "warrants", mode: "warrant", searchTypes: ["cpf"] },
+  {
+    id: "criminal_execution",
+    mode: "criminal_execution",
+    searchTypes: ["cnpj", "cpf"],
+  },
+];
+
+// Consultas criadas na JUDIT e acompanhadas depois (status e resultado).
+export const ASYNC_CONSULT_FEATURES: readonly ConsultFeatureId[] = [
+  "history_async",
+  "lawsuit_async",
+  "warrants",
+  "criminal_execution",
 ];
 
 export const CONSULT_FEATURE_IDS = CONSULT_FEATURES.map((f) => f.id) as [

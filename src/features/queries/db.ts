@@ -126,18 +126,22 @@ export async function markJuditRequestCompleted(
 // 24 h, ela deixa de contar.
 export const OPEN_QUERY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-// Consulta ainda em aberto, segundo o NOSSO banco, para a mesma empresa e
-// modalidade. O status do banco só muda quando alguém pergunta à JUDIT
-// ("Verificar status") ou quando o webhook avisa o fim (código 600).
+// Consulta ainda em aberto, segundo o NOSSO banco, para o mesmo alvo e a
+// mesma modalidade. O alvo é a parte (consultas por documento) ou, numa
+// consulta por processo, o CNJ. O status do banco só muda quando alguém
+// pergunta à JUDIT ("Verificar status") ou quando o webhook avisa o fim
+// (código 600).
 export async function findOpenJuditRequest(
-  partyId: string,
+  target: { partyId: string | null; searchKey: string },
   mode: JuditRequest["mode"],
   now = new Date(),
 ): Promise<JuditRequest | null> {
   const { juditRequests } = collections(await getDb());
   const doc = await juditRequests.findOne(
     {
-      partyId,
+      ...(target.partyId
+        ? { partyId: target.partyId }
+        : { searchKey: target.searchKey }),
       mode,
       status: { $in: ["pending", "started"] },
       createdAt: { $gt: new Date(now.getTime() - OPEN_QUERY_WINDOW_MS) },

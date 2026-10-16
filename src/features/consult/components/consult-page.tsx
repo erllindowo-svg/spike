@@ -94,6 +94,8 @@ export function ConsultPage() {
   const [result, setResult] = useState<ConsultResult | null>(null);
   const [selected, setSelected] = useState<Lawsuit | null>(null);
   const [adding, setAdding] = useState(false);
+  // Só na consulta processual completa: pedir também o resumo por IA (beta).
+  const [aiSummary, setAiSummary] = useState(false);
   const [running, startRun] = useTransition();
 
   const features = featuresFor(type);
@@ -122,7 +124,12 @@ export function ConsultPage() {
     startRun(async () => {
       try {
         setResult(
-          await runConsultAction({ feature, searchType: type, searchKey: key }),
+          await runConsultAction({
+            feature,
+            searchType: type,
+            searchKey: key,
+            aiSummary: feature === "lawsuit_async" ? aiSummary : undefined,
+          }),
         );
       } catch {
         setResult({ ok: false, reason: "error", message: SERVER_UNREACHABLE });
@@ -241,6 +248,18 @@ export function ConsultPage() {
               );
             })}
           </div>
+          {feature === "lawsuit_async" && (
+            <label className="flex w-fit items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={aiSummary}
+                onChange={(e) => setAiSummary(e.target.checked)}
+                className="size-4 accent-primary"
+              />
+              Pedir também o resumo escrito pela IA da JUDIT (beta, custo não
+              informado)
+            </label>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={run} disabled={!valid || running}>
               {running ? (
@@ -446,19 +465,18 @@ function PayloadView({
         <div className="flex flex-col items-start gap-3 text-sm">
           <p className="flex items-center gap-2">
             <CircleCheckIcon className="size-4 text-success" aria-hidden />
-            Consulta assíncrona criada na JUDIT. O resultado chega depois: veja
-            o andamento na página da parte, que foi adicionada à sua lista.
+            {partyLink
+              ? "Consulta criada na JUDIT. O resultado chega depois: acompanhe na página da parte, que foi adicionada à sua lista."
+              : "Consulta criada na JUDIT. O resultado chega depois: acompanhe no histórico de consultas."}
           </p>
-          {partyLink && (
-            <Button
-              variant="outline"
-              size="sm"
-              nativeButton={false}
-              render={<Link href={partyLink} />}
-            >
-              Acompanhar
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={partyLink ?? "/consultas"} />}
+          >
+            Acompanhar
+          </Button>
         </div>
       );
   }

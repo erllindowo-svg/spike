@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  EyeIcon,
   FileSearchIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -17,6 +18,13 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
@@ -29,6 +37,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { normalizeCnpj } from "@/features/parties/cnpj";
 import { partyHref } from "@/features/parties/documents";
+import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
+import type { Lawsuit } from "@/features/processes/types";
 import { formatSearchKey } from "@/features/trackings/format";
 import { useSupportView } from "@/features/settings/support-view";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
@@ -36,8 +46,10 @@ import { formatDateTime, formatNumber } from "@/lib/format";
 
 import { checkAsyncQueryAction } from "../actions";
 import { QUERY_MODES } from "../modes";
+import type { ResponsesSummary } from "../responses";
 import { asyncStatusLabel, deliveryLabels, syncOutcomeLabels } from "../status";
 import { isQueryOpen, type QueryView } from "../types";
+import { ResponsesSummaryView } from "./responses-summary-view";
 
 type FlowFilter = "all" | QueryView["flow"];
 type StateFilter = "all" | "open" | "done" | "problem";
@@ -249,26 +261,12 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
   );
 }
 
-// Página do que foi consultado: a parte (empresa ou pessoa) ou o processo.
-function targetHref(query: QueryView): string {
-  return query.searchType === "cnj"
-    ? `/processos/${query.searchKey}`
-    : partyHref(query.searchType, query.searchKey);
-}
-
 // O que a consulta trouxe, em palavras. Os dados em si não ficam guardados:
 // a assíncrona é lida na JUDIT pela página da empresa.
 function QueryResult({ query }: { query: QueryView }) {
   if (query.flow === "async") {
-    if (query.asyncStatus === "completed") {
-      return (
-        <Link
-          href={targetHref(query)}
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          Ver na empresa
-        </Link>
-      );
+    if (query.asyncStatus === "completed" && query.requestId) {
+      return <ViewResultButton query={query} requestId={query.requestId} />;
     }
     return isQueryOpen(query) && query.requestId ? (
       <CheckStatusButton requestId={query.requestId} />
@@ -362,5 +360,78 @@ function CheckStatusButton({ requestId }: { requestId: string }) {
       )}
       Verificar status
     </Button>
+  );
+}
+
+// Lê o resultado de uma consulta assíncrona concluída (GET /responses) e
+// mostra num painel lateral. Serve a todos os tipos, inclusive os por CNJ,
+// que não têm página de parte. O resultado não fica salvo.
+function ViewResultButton({
+  query,
+  requestId,
+}: {
+  query: QueryView;
+  requestId: string;
+}) {
+  const [loading, startLoading] = useTransition();
+  const [results, setResults] = useState<ResponsesSummary | null>(null);
+  const [selected, setSelected] = useState<Lawsuit | null>(null);
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="xs"
+        disabled={loading}
+        onClick={() =>
+          startLoading(async () => {
+            try {
+              const result = await checkAsyncQueryAction(requestId);
+              if (!result.ok) {
+                toast.error("Resultado não lido", {
+                  description: result.message,
+                });
+              } else if (result.results) {
+                setResults(result.results);
+              }
+            } catch {
+              toast.error(SERVER_UNREACHABLE);
+            }
+          })
+        }
+      >
+        {loading ? (
+          <Spinner data-icon="inline-start" />
+        ) : (
+          <EyeIcon data-icon="inline-start" />
+        )}
+        Ver resultado
+      </Button>
+      <Sheet
+        open={!!results}
+        onOpenChange={(open) => !open && setResults(null)}
+      >
+        <SheetContent className="w-full gap-0 data-[side=right]:sm:max-w-2xl">
+          <SheetHeader className="border-b">
+            <SheetDescription>
+              {formatSearchKey(query.searchType, query.searchKey)}
+            </SheetDescription>
+            <SheetTitle>{QUERY_MODES[query.mode].label}</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto p-4">
+            {results && (
+              <ResponsesSummaryView
+                results={results}
+                onSelectLawsuit={setSelected}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+      <LawsuitSheet
+        lawsuit={selected}
+        onOpenChange={(open) => !open && setSelected(null)}
+      />
+    </>
   );
 }

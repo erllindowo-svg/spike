@@ -529,3 +529,13 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   de componentes grandes (itens 15 e 16); conferência de entregas perdidas
   (IK10); destino do evento de saída; revisão dos textos de ajuda com o
   usuário.
+- **Fatia 10, consultas assíncronas novas: feita.** Consulta processual
+  completa por CNJ (F06), com resumo por IA opcional (F11, beta, custo não
+  informado; o texto vem com HTML, que a tela remove em vez de
+  interpretar); mandados de prisão por CPF (F09) e execução penal por CPF ou
+  CNPJ (F10). Entram pela página Consultar e pelo card da página da parte;
+  a consulta por CNJ não tem parte (`partyId` nulo), e a regra de "consulta
+  igual em aberto" usa o CNJ. O histórico de consultas ganhou "Ver
+  resultado", que abre o resultado de qualquer consulta assíncrona
+  concluída num painel lateral (mandados, processos de execução e o resumo
+  por IA incluídos). Nada testado ao vivo.

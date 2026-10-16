@@ -41,6 +41,7 @@ import {
 } from "@/lib/judit/lawsuits";
 
 import {
+  ASYNC_CONSULT_FEATURES,
   consultFeature,
   CONSULT_FEATURE_IDS,
   type ConsultFeatureId,
@@ -67,6 +68,8 @@ const inputSchema = z
     feature: z.enum(CONSULT_FEATURE_IDS),
     searchType: z.enum(["cnpj", "cpf", "cnj"]),
     searchKey: z.string(),
+    // Só na consulta processual completa (lawsuit_async).
+    aiSummary: z.boolean().optional(),
   })
   .transform((value, ctx) => {
     if (!consultFeature(value.feature).searchTypes.includes(value.searchType)) {
@@ -93,6 +96,7 @@ export type ConsultInput = {
   feature: ConsultFeatureId;
   searchType: QuerySearchType;
   searchKey: string;
+  aiSummary?: boolean;
 };
 
 export type ConsultResult =
@@ -120,8 +124,8 @@ export async function runConsultAction(
 
   if (getDataSource() !== "db") return demoConsult(query);
 
-  if (query.feature === "history_async") {
-    return startHistory(query.searchType as DocumentType, query.searchKey);
+  if (ASYNC_CONSULT_FEATURES.includes(query.feature)) {
+    return startAsync(query);
   }
 
   try {
@@ -171,6 +175,7 @@ type ParsedQuery = {
   feature: ConsultFeatureId;
   searchType: QuerySearchType;
   searchKey: string;
+  aiSummary?: boolean;
 };
 
 // Uma chamada à JUDIT por consulta. Documentos vão sem máscara, como nas
@@ -285,27 +290,44 @@ async function callJudit(
       };
     }
     case "history_async":
+    case "lawsuit_async":
+    case "warrants":
+    case "criminal_execution":
       throw new Error("Consulta assíncrona não passa por callJudit.");
   }
 }
 
-// O histórico assíncrono é acompanhado na página da parte, então a parte é
-// salva antes (sem consultar dados cadastrais). O resto é a mesma action do
-// card da empresa (teto diário, consulta igual em aberto, webhook).
-async function startHistory(
-  documentType: DocumentType,
-  document: string,
-): Promise<ConsultResult> {
-  try {
-    await ensureParty(documentType, document);
-  } catch (error) {
-    return juditActionFailure(error, "consult");
+// As consultas assíncronas são acompanhadas depois: as por documento na
+// página da parte (por isso a parte é salva antes, sem consultar dados
+// cadastrais), a por CNJ no histórico de consultas. O resto é a mesma action
+// do card da parte (teto diário, consulta igual em aberto, webhook).
+async function startAsync(query: ParsedQuery): Promise<ConsultResult> {
+  let result;
+  if (query.feature === "lawsuit_async") {
+    result = await startAsyncQueryAction({
+      mode: "lawsuit_async",
+      cnj: query.searchKey,
+      aiSummary: query.aiSummary,
+    });
+  } else {
+    const documentType = query.searchType as DocumentType;
+    try {
+      await ensureParty(documentType, query.searchKey);
+    } catch (error) {
+      return juditActionFailure(error, "consult");
+    }
+    const mode =
+      query.feature === "warrants"
+        ? "warrant"
+        : query.feature === "criminal_execution"
+          ? "criminal_execution"
+          : "historical_async";
+    result = await startAsyncQueryAction({
+      mode,
+      documentType,
+      document: query.searchKey,
+    });
   }
-  const result = await startAsyncQueryAction({
-    mode: "historical_async",
-    documentType,
-    document,
-  });
   if (!result.ok) return result;
   return {
     ok: true,
@@ -321,6 +343,15 @@ async function demoConsult(query: ParsedQuery): Promise<ConsultResult> {
     demo: true,
     payload,
   });
+
+  if (ASYNC_CONSULT_FEATURES.includes(query.feature)) {
+    return {
+      ok: false,
+      reason: "unavailable",
+      message:
+        "Na demonstração, as consultas assíncronas não existem: elas são criadas na JUDIT e acompanhadas depois.",
+    };
+  }
 
   if (query.searchType === "cnj") {
     const lawsuit = await getLawsuitByCnj(query.searchKey);
@@ -372,8 +403,7 @@ async function demoConsult(query: ParsedQuery): Promise<ConsultResult> {
       return {
         ok: false,
         reason: "unavailable",
-        message:
-          "Na demonstração, a consulta assíncrona não existe: ela é criada na JUDIT e acompanhada depois.",
+        message: "Consulta não disponível na demonstração.",
       };
   }
 }
