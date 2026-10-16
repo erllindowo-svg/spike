@@ -51,7 +51,7 @@ const stateItems = [
 ];
 
 export function TrackingsPage() {
-  const { trackings, getCompany } = useDemoStore();
+  const { trackings, getParty } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [query, setQuery] = useState("");
   const [type, setType] = useState<TrackingSearchType | "all">("all");
@@ -72,10 +72,10 @@ export function TrackingsPage() {
       return false;
     }
     if (!term) return true;
-    const company = getCompany(t.companyId);
+    const company = getParty(t.partyId);
     return (
       (digits.length > 0 && t.searchKey.toLowerCase().includes(digits)) ||
-      !!company?.legalName?.toLowerCase().includes(term)
+      !!company?.name?.toLowerCase().includes(term)
     );
   });
   const hasFilters = !!term || type !== "all" || state !== "all";

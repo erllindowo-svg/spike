@@ -1,6 +1,6 @@
-import type { Company } from "@/db/models";
+import type { Party } from "@/db/models";
 
-export type { Company };
+export type { Party };
 
 // Valores livres da Receita Federal; a interface só destaca os conhecidos.
 export function getRegistrationStatusTone(

@@ -464,3 +464,15 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   linha "Proteção de custo" em Configurações, com o uso de hoje. Casos H1 a
   H3 no catálogo do diário. A allowlist continua ligada: liberar documentos
   reais é decisão do usuário (S5).
+- **Fatias 2 e 3, partes e telas de pessoas: feitas.** Coleção `parties`
+  (CNPJ e CPF) com migração automática das empresas e de `companyId` para
+  `partyId` (`src/db/migrations.ts`, testada num MongoDB temporário com dados
+  no formato antigo: a coleção antiga fica como `companies_migrated`);
+  módulo de documentos (`src/features/parties/documents.ts`: validação,
+  máscara, rota de cada tipo); CPF mascarado nas listas, nos alertas e nos
+  textos gravados; abas Empresas e Pessoas físicas (`/empresas`,
+  `/pessoas`); página da pessoa (sem nome nem CPF no título da aba);
+  adicionar pessoa; consultas síncrona, assíncrona e de dados cadastrais e
+  monitoramento por CPF. Na demonstração, duas pessoas fictícias (CPF
+  começando com zeros). OAB e nome continuam fora (R1). **Reiniciar o
+  `pnpm dev`** para a migração rodar no Atlas (catálogo, I1).

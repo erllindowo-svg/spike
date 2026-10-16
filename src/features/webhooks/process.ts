@@ -6,7 +6,7 @@ import {
   type CreatedAlert,
   type NewAlert,
 } from "@/features/alerts/db";
-import { formatCnpj } from "@/features/companies/cnpj";
+import { displayDocument } from "@/features/parties/documents";
 import { publishAlertCreated } from "@/features/notifications/outbound";
 import { formatCnj } from "@/features/processes/cnj";
 import {
@@ -292,17 +292,18 @@ function alertBase(
   lawsuitCnj: string | null,
 ) {
   return {
-    companyId: tracking.companyId,
+    partyId: tracking.partyId,
     webhookEventId: event.id,
     trackingId: tracking.id,
     lawsuitCnj,
   };
 }
 
+// Vai para o texto do alerta, gravado no banco: o CPF entra mascarado.
 function trackingLabel(tracking: Tracking): string {
-  return tracking.searchType === "cnpj"
-    ? `monitoramento do CNPJ ${formatCnpj(tracking.searchKey)}`
-    : `monitoramento do processo ${formatCnj(tracking.searchKey)}`;
+  return tracking.searchType === "cnj"
+    ? `monitoramento do processo ${formatCnj(tracking.searchKey)}`
+    : `monitoramento do ${tracking.searchType.toUpperCase()} ${displayDocument(tracking.searchType, tracking.searchKey)}`;
 }
 
 function describeError(

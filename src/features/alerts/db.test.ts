@@ -27,7 +27,7 @@ vi.mock("@/db", () => ({ getDb: async () => testDb.current!.db }));
 
 function alert(dedupeKey: string): NewAlert {
   return {
-    companyId: null,
+    partyId: null,
     webhookEventId: null,
     trackingId: null,
     lawsuitCnj: null,

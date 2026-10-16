@@ -7,7 +7,7 @@ import { buildAlertCreatedEvent, publishAlertCreated } from "./outbound";
 // Fictitious alert, with lawsuit data that must not leave the app.
 const alert: Alert = {
   id: "a0000000-0000-4000-8000-000000000001",
-  companyId: "c0000000-0000-4000-8000-000000000001",
+  partyId: "c0000000-0000-4000-8000-000000000001",
   webhookEventId: "e0000000-0000-4000-8000-000000000001",
   trackingId: "t0000000-0000-4000-8000-000000000001",
   lawsuitCnj: "00012340320268260100",
@@ -30,7 +30,7 @@ describe("outbound alert.created", () => {
       alertId: alert.id,
       alertType: "new_lawsuit",
       trackingId: alert.trackingId,
-      companyId: alert.companyId,
+      partyId: alert.partyId,
       occurredAt: "2026-10-16T12:00:00.000Z",
     });
     expect(JSON.stringify(event)).not.toContain("0001234");

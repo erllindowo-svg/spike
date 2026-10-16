@@ -1,11 +1,13 @@
-import { formatCnpj } from "@/features/companies/cnpj";
+import { displayDocument } from "@/features/parties/documents";
 import { formatCnj } from "@/features/processes/cnj";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
 import type { TrackingSearchType } from "./types";
 
+// Como o identificador aparece em listas: CNPJ e CNJ inteiros, CPF mascarado
+// (dado pessoal; escolha R6 do escopo).
 export function formatSearchKey(type: TrackingSearchType, key: string): string {
-  return type === "cnpj" ? formatCnpj(key) : formatCnj(key);
+  return type === "cnj" ? formatCnj(key) : displayDocument(type, key);
 }
 
 // Último evento recebido por reference_id (tracking_id da JUDIT).

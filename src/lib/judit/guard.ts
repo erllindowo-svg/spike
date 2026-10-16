@@ -1,6 +1,6 @@
 import "server-only";
 
-import { normalizeCnpj } from "@/features/companies/cnpj";
+import { normalizeCnpj } from "@/features/parties/cnpj";
 import { normalizeCnj } from "@/features/processes/cnj";
 import { getServerEnv } from "@/lib/env";
 

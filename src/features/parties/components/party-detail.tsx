@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ActivityFeed } from "@/features/activity/components/activity-feed";
-import { formatCnpj } from "@/features/companies/cnpj";
-import type { Company } from "@/features/companies/types";
+import { DOCUMENTS, formatDocument } from "@/features/parties/documents";
+import type { Party } from "@/features/parties/types";
 import type { JuditRequest } from "@/db/models";
 import {
   DistributionCard,
@@ -37,8 +37,8 @@ import {
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
 import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import {
-  searchCompanyLawsuitsAction,
-  type SearchCompanyLawsuitsResult,
+  searchPartyLawsuitsAction,
+  type SearchPartyLawsuitsResult,
 } from "@/features/processes/actions";
 import {
   summarizeDistribution,
@@ -58,15 +58,15 @@ import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { refreshRegistrationDataAction } from "../actions";
 import { RegistrationStatusBadge } from "./registration-status-badge";
 
-type JuditSearch = Extract<SearchCompanyLawsuitsResult, { ok: true }>;
+type JuditSearch = Extract<SearchPartyLawsuitsResult, { ok: true }>;
 
-export function CompanyDetail({
-  company,
+export function PartyDetail({
+  party,
   lawsuits: demoLawsuits,
   asyncQueries,
   distribution: demoDistribution,
 }: {
-  company: Company;
+  party: Party;
   lawsuits: Lawsuit[];
   // Consultas assíncronas gravadas no MongoDB; vazio no modo demo.
   asyncQueries: JuditRequest[];
@@ -79,6 +79,11 @@ export function CompanyDetail({
   const [searching, startSearch] = useTransition();
   const [refreshing, startRefresh] = useTransition();
   const [supportView] = useSupportView();
+  const info = DOCUMENTS[party.documentType];
+  const isCompany = party.documentType === "cnpj";
+  const ref = { documentType: party.documentType, document: party.document };
+  // Na página da pessoa, o pronome muda: "desta empresa" / "desta pessoa".
+  const ofThis = isCompany ? "desta empresa" : "desta pessoa";
 
   // No modo "db", os processos não vêm do banco: aparecem só depois de uma
   // consulta ao datalake da JUDIT, feita sob clique porque cada uma é cobrada.
@@ -93,7 +98,7 @@ export function CompanyDetail({
 
   function searchJudit() {
     startSearch(async () => {
-      const result = await searchCompanyLawsuitsAction(company.cnpj);
+      const result = await searchPartyLawsuitsAction(ref);
       if (!result.ok) {
         toast.error("Consulta à JUDIT não concluída", {
           description: result.message,
@@ -107,13 +112,13 @@ export function CompanyDetail({
     });
   }
 
-  // Dados cadastrais (POST /entities, cobrada): razão social e situação. O
-  // resultado é gravado na empresa e chega pela nova renderização (refresh()).
+  // Dados cadastrais (POST /entities, cobrada): nome e situação. O resultado
+  // é gravado na parte e chega pela nova renderização (refresh()).
   function refreshRegistration() {
     startRefresh(async () => {
       let result;
       try {
-        result = await refreshRegistrationDataAction(company.cnpj);
+        result = await refreshRegistrationDataAction(ref);
       } catch {
         toast.error("Sem resposta do servidor da aplicação.");
         return;
@@ -126,10 +131,12 @@ export function CompanyDetail({
       }
       if (result.registration.found) {
         toast.success("Dados cadastrais atualizados", {
-          description: result.registration.legalName ?? undefined,
+          description: result.registration.name ?? undefined,
         });
       } else {
-        toast.warning("A JUDIT não encontrou cadastro para este CNPJ.");
+        toast.warning(
+          `A JUDIT não encontrou cadastro para este ${info.label}.`,
+        );
       }
     });
   }
@@ -137,14 +144,14 @@ export function CompanyDetail({
   const lawsuitCnjs = new Set(lawsuits.map((l) => l.cnj));
   const linkedTrackings = trackings.filter(
     (t) =>
-      t.companyId === company.id ||
-      (t.searchType === "cnpj" && t.searchKey === company.cnpj) ||
+      t.partyId === party.id ||
+      (t.searchType === party.documentType && t.searchKey === party.document) ||
       (t.searchType === "cnj" && lawsuitCnjs.has(t.searchKey)),
   );
-  const cnpjTracking = linkedTrackings.find(
-    (t) => t.searchType === "cnpj" && !isTrackingClosed(t),
+  const documentTracking = linkedTrackings.find(
+    (t) => t.searchType === party.documentType && !isTrackingClosed(t),
   );
-  const companyActivity = activity.filter((a) => a.companyId === company.id);
+  const partyActivity = activity.filter((a) => a.partyId === party.id);
   const activeCount = lawsuits.filter((l) => l.status === "active").length;
   const tribunals = new Set(lawsuits.map((l) => l.tribunal)).size;
   const lastMovement = lawsuits
@@ -159,20 +166,23 @@ export function CompanyDetail({
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-heading text-xl font-semibold tracking-tight">
-                {company.legalName ?? (
+                {party.name ?? (
                   <span className="text-muted-foreground">
-                    Razão social indisponível
+                    {isCompany
+                      ? "Razão social não consultada"
+                      : "Nome não consultado"}
                   </span>
                 )}
               </h2>
-              <RegistrationStatusBadge status={company.registrationStatus} />
+              <RegistrationStatusBadge status={party.registrationStatus} />
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="font-mono text-foreground">
-                CNPJ {formatCnpj(company.cnpj)}
+                {info.label}{" "}
+                {formatDocument(party.documentType, party.document)}
               </span>
-              <span>Consultada em {formatDate(company.createdAt)}</span>
-              {!company.legalName && (
+              <span>Adicionada em {formatDate(party.createdAt)}</span>
+              {!party.name && (
                 <span>Dados cadastrais ainda não consultados.</span>
               )}
             </div>
@@ -183,40 +193,40 @@ export function CompanyDetail({
                 variant="outline"
                 onClick={refreshRegistration}
                 disabled={refreshing}
-                title="Consulta cobrada: razão social e situação na Receita"
+                title="Consulta cobrada: nome e situação na Receita"
               >
                 {refreshing ? (
                   <Spinner data-icon="inline-start" />
                 ) : (
                   <IdCardIcon data-icon="inline-start" />
                 )}
-                {company.legalName
+                {party.name
                   ? "Atualizar dados cadastrais"
                   : "Consultar dados cadastrais"}
               </Button>
             )}
             <CopyButton
-              value={company.cnpj}
-              label="Copiar CNPJ"
-              successMessage="CNPJ copiado."
+              value={party.document}
+              label={`Copiar ${info.label}`}
+              successMessage={`${info.label} copiado.`}
             />
-            {cnpjTracking ? (
+            {documentTracking ? (
               <span className="inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 text-sm">
                 <CheckCircle2Icon className="size-4 text-success" aria-hidden />
-                Monitorado por CNPJ
-                <TrackingStatusBadge tracking={cnpjTracking} />
+                Monitorado por {info.label}
+                <TrackingStatusBadge tracking={documentTracking} />
               </span>
             ) : (
               <Button
                 onClick={() =>
                   openNewTracking({
-                    searchType: "cnpj",
-                    searchKey: company.cnpj,
+                    searchType: party.documentType,
+                    searchKey: party.document,
                   })
                 }
               >
                 <RadarIcon data-icon="inline-start" />
-                Monitorar CNPJ
+                Monitorar {info.label}
               </Button>
             )}
           </div>
@@ -224,7 +234,7 @@ export function CompanyDetail({
       </Card>
 
       <section
-        aria-label="Indicadores da empresa"
+        aria-label={`Indicadores ${ofThis}`}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         <StatCard
@@ -258,13 +268,13 @@ export function CompanyDetail({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
         <DistributionCard
           data={distribution}
-          description="Processos desta empresa por agrupamento."
+          description={`Processos ${ofThis} por agrupamento.`}
         />
         <Card>
           <CardHeader>
             <CardTitle>Monitoramentos vinculados</CardTitle>
             <CardDescription>
-              Por CNPJ e por processos da empresa.
+              {`Por ${info.label} e por processos ${isCompany ? "da empresa" : "da pessoa"}.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -272,7 +282,7 @@ export function CompanyDetail({
               <EmptyState
                 icon={RadarIcon}
                 title="Nenhum monitoramento"
-                description="Monitore o CNPJ para ser avisado sobre novos processos."
+                description={`Monitore o ${info.label} para ser avisado sobre novos processos.`}
                 className="py-6"
               />
             ) : (
@@ -305,11 +315,11 @@ export function CompanyDetail({
           <CardHeader>
             <CardTitle>Atividade recente</CardTitle>
             <CardDescription>
-              Eventos relacionados a esta empresa.
+              {`Eventos relacionados ${isCompany ? "a esta empresa" : "a esta pessoa"}.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ActivityFeed items={companyActivity} limit={5} />
+            <ActivityFeed items={partyActivity} limit={5} />
           </CardContent>
         </Card>
       </div>
@@ -359,7 +369,7 @@ export function CompanyDetail({
             emptyDescription={
               fromJudit
                 ? judit
-                  ? "A consulta síncrona não retornou processos para este CNPJ."
+                  ? `A consulta síncrona não retornou processos para este ${info.label}.`
                   : "Clique em “Fazer consulta síncrona” para buscar os processos."
                 : undefined
             }
@@ -369,7 +379,7 @@ export function CompanyDetail({
 
       {fromJudit && (
         <AsyncQueriesCard
-          cnpj={company.cnpj}
+          party={ref}
           queries={asyncQueries}
           onSelectLawsuit={setSelected}
         />

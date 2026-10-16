@@ -19,7 +19,7 @@ import type { AlertType } from "./types";
 
 export type NewAlert = Pick<
   Alert,
-  | "companyId"
+  | "partyId"
   | "webhookEventId"
   | "trackingId"
   | "lawsuitCnj"

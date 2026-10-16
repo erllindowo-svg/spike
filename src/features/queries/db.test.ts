@@ -36,7 +36,7 @@ vi.mock("@/db", () => ({ getDb: async () => testDb.current!.db }));
 
 const base: NewJuditRequest = {
   requestId: "84b4d8f5-50f8-4c14-818f-912c722a6908",
-  companyId: "company-1",
+  partyId: "company-1",
   mode: "historical_async",
   delivery: "polling",
   searchType: "cnpj",
@@ -66,7 +66,7 @@ describe("judit_requests", () => {
       mode: "historical_on_demand",
       cacheTtlInDays: 7,
     });
-    await saveJuditRequest({ ...base, requestId: "other", companyId: "c-2" });
+    await saveJuditRequest({ ...base, requestId: "other", partyId: "c-2" });
 
     const list = await listJuditRequests("company-1");
 
@@ -163,15 +163,12 @@ describe("listRecentJuditRequests", () => {
     await saveJuditRequest({
       ...base,
       requestId: "c2a6f0de-0a4e-4b0b-9a43-5d1f0f7f2b11",
-      companyId: "company-2",
+      partyId: "company-2",
     });
 
     const requests = await listRecentJuditRequests();
 
-    expect(requests.map((r) => r.companyId)).toEqual([
-      "company-2",
-      "company-1",
-    ]);
+    expect(requests.map((r) => r.partyId)).toEqual(["company-2", "company-1"]);
   });
 });
 
@@ -184,7 +181,7 @@ describe("sync_queries", () => {
     at("2026-10-16T10:00:00Z");
     await saveSyncQuery({
       mode: "datalake_sync",
-      companyId: "company-1",
+      partyId: "company-1",
       searchType: "cnpj",
       searchKey: "A1B2C3D4E5F668",
       requestId: "2bf22fa7-4061-4ea6-8e69-b479bc12c24c",
@@ -196,7 +193,7 @@ describe("sync_queries", () => {
     await saveSyncQuery({
       mode: "registration_data",
       // Looked up before the company was saved.
-      companyId: null,
+      partyId: null,
       searchType: "cnpj",
       searchKey: "A1B2C3D4E5F668",
       requestId: null,
@@ -213,7 +210,7 @@ describe("sync_queries", () => {
     ]);
     expect(Object.keys(queries[1]).sort()).toEqual(
       [
-        "companyId",
+        "partyId",
         "createdAt",
         "errorKind",
         "id",

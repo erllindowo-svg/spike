@@ -3,16 +3,26 @@
 // (ver toModel em collections.ts). Campos que a JUDIT pode não fornecer são
 // `null`, nunca omitidos, para que a interface trate a ausência explicitamente.
 
-export type TrackingSearchType = "cnpj" | "cnj";
+// Documentos que identificam uma parte (empresa ou pessoa física). OAB e
+// nome ficam para depois (escolha R1 em docs/etapa-7-escopo.md).
+export type DocumentType = "cnpj" | "cpf";
+
+export type TrackingSearchType = DocumentType | "cnj";
 
 export type WebhookProcessingStatus =
   "pending" | "processing" | "processed" | "failed" | "ignored";
 
-export type Company = {
+// Parte: uma empresa (CNPJ) ou uma pessoa física (CPF) que o app acompanha.
+// Uma coleção só para as duas (escolha R2): monitoramentos, consultas e
+// alertas apontam para a parte, seja qual for o documento.
+export type Party = {
   id: string;
-  // Somente os 14 caracteres, sem máscara (aceita o CNPJ alfanumérico).
-  cnpj: string;
-  legalName: string | null;
+  documentType: DocumentType;
+  // Sem máscara: 14 caracteres no CNPJ (aceita o alfanumérico), 11 dígitos
+  // no CPF.
+  document: string;
+  // Razão social (empresa) ou nome (pessoa), dos dados cadastrais.
+  name: string | null;
   registrationStatus: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -40,7 +50,7 @@ export type Tracking = {
   id: string;
   // Nulo enquanto o monitoramento ainda não foi confirmado pela JUDIT.
   juditTrackingId: string | null;
-  companyId: string | null;
+  partyId: string | null;
   mode: TrackingMode;
   searchType: TrackingSearchType;
   searchKey: string;
@@ -90,7 +100,7 @@ export type WebhookEvent = {
 
 export type Alert = {
   id: string;
-  companyId: string | null;
+  partyId: string | null;
   // Evento que gerou o alerta. Num alerta deduplicado, é a primeira entrega.
   webhookEventId: string | null;
   // Monitoramento do app (o `id` local, não o tracking_id da JUDIT).
@@ -144,10 +154,10 @@ export type JuditRequest = {
   id: string;
   // `request_id` devolvido pela JUDIT; único no banco.
   requestId: string;
-  companyId: string;
+  partyId: string;
   mode: AsyncQueryMode;
   delivery: ResultDelivery;
-  searchType: "cnpj";
+  searchType: DocumentType;
   searchKey: string;
   // Enviado só na modalidade on-demand; nulo quando não enviado.
   cacheTtlInDays: number | null;
@@ -175,8 +185,8 @@ export type SyncQuery = {
   mode: SyncQueryMode;
   // Nulo quando a consulta foi feita antes de a empresa ser salva (o
   // diálogo "Adicionar empresa" consulta primeiro e salva depois).
-  companyId: string | null;
-  searchType: "cnpj";
+  partyId: string | null;
+  searchType: DocumentType;
   searchKey: string;
   // `request_id` devolvido pela JUDIT, quando ela devolve; útil para levar
   // ao suporte da JUDIT.

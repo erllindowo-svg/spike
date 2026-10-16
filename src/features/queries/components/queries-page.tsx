@@ -19,7 +19,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { formatCnpj, normalizeCnpj } from "@/features/companies/cnpj";
+import { normalizeCnpj } from "@/features/parties/cnpj";
+import { displayDocument, partyHref } from "@/features/parties/documents";
 import { useSupportView } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -31,23 +32,28 @@ import { isQueryOpen, type QueryView } from "../types";
 type FlowFilter = "all" | QueryView["flow"];
 
 export function QueriesPage({ queries }: { queries: QueryView[] }) {
-  const { companies } = useDemoStore();
+  const { parties } = useDemoStore();
   const [supportView] = useSupportView();
-  // Pelo CNPJ, e não pelo companyId: uma consulta feita antes de salvar a
-  // empresa não tem companyId, mas a empresa pode ter sido salva depois.
-  const companyByCnpj = new Map(companies.map((c) => [c.cnpj, c]));
+  // Pelo documento, e não pelo partyId: uma consulta feita antes de salvar a
+  // parte não tem partyId, mas a parte pode ter sido salva depois.
+  const partyByDocument = new Map(
+    parties.map((p) => [`${p.documentType}:${p.document}`, p]),
+  );
+  const partyOf = (q: QueryView) =>
+    partyByDocument.get(`${q.documentType}:${q.document}`);
   const [flow, setFlow] = useState<FlowFilter>("all");
   const [query, setQuery] = useState("");
 
   const term = query.trim().toLowerCase();
-  const cnpjTerm = normalizeCnpj(term);
+  // Letras e dígitos: serve para CNPJ e para CPF.
+  const documentTerm = normalizeCnpj(term);
   const filtered = queries.filter((q) => {
     if (flow !== "all" && q.flow !== flow) return false;
     if (!term) return true;
-    const company = companyByCnpj.get(q.cnpj);
+    const party = partyOf(q);
     return (
-      (cnpjTerm.length > 0 && q.cnpj.includes(cnpjTerm)) ||
-      !!company?.legalName?.toLowerCase().includes(term)
+      (documentTerm.length > 0 && q.document.includes(documentTerm)) ||
+      !!party?.name?.toLowerCase().includes(term)
     );
   });
 
@@ -93,7 +99,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por razão social ou CNPJ"
+              placeholder="Buscar por nome, CNPJ ou CPF"
               aria-label="Buscar consultas"
               className="pl-8"
             />
@@ -142,7 +148,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
               </TableHeader>
               <TableBody>
                 {filtered.map((q) => {
-                  const company = companyByCnpj.get(q.cnpj);
+                  const party = partyOf(q);
                   const status =
                     q.flow === "async"
                       ? asyncStatusLabel(q.asyncStatus ?? "")
@@ -153,23 +159,23 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
                         {formatDateTime(q.createdAt)}
                       </TableCell>
                       <TableCell className="max-w-56">
-                        {/* Sem empresa salva (consulta feita antes de
+                        {/* Sem parte salva (consulta feita antes de
                             salvar, que falhou), não há página para abrir. */}
-                        {company ? (
+                        {party ? (
                           <Link
-                            href={`/empresas/${q.cnpj}`}
+                            href={partyHref(party.documentType, party.document)}
                             className="block truncate rounded-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-                            title={company.legalName ?? undefined}
+                            title={party.name ?? undefined}
                           >
-                            {company.legalName ?? (
+                            {party.name ?? (
                               <span className="font-mono text-xs">
-                                {formatCnpj(q.cnpj)}
+                                {displayDocument(q.documentType, q.document)}
                               </span>
                             )}
                           </Link>
                         ) : (
                           <span className="font-mono text-xs text-muted-foreground">
-                            {formatCnpj(q.cnpj)}
+                            {displayDocument(q.documentType, q.document)}
                           </span>
                         )}
                       </TableCell>
@@ -213,7 +219,7 @@ function QueryResult({ query }: { query: QueryView }) {
     if (query.asyncStatus === "completed") {
       return (
         <Link
-          href={`/empresas/${query.cnpj}`}
+          href={partyHref(query.documentType, query.document)}
           className="text-primary underline-offset-4 hover:underline"
         >
           Ver na empresa
@@ -222,7 +228,7 @@ function QueryResult({ query }: { query: QueryView }) {
     }
     return isQueryOpen(query) ? (
       <Link
-        href={`/empresas/${query.cnpj}`}
+        href={partyHref(query.documentType, query.document)}
         className="underline-offset-4 hover:text-primary hover:underline"
       >
         Verificar status na empresa

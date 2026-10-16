@@ -245,7 +245,7 @@ describe("reservations from stage 2", () => {
     await trackingsCollection().insertOne({
       _id: "legacy-1",
       juditTrackingId: null,
-      companyId: null,
+      partyId: null,
       searchType: "cnpj",
       searchKey: CNPJ,
       status: null,

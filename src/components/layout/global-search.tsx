@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
-import { isValidCnpj, normalizeCnpj } from "@/features/companies/cnpj";
+import { isValidCnpj, normalizeCnpj } from "@/features/parties/cnpj";
 import { isValidCnj, normalizeCnj } from "@/features/processes/cnj";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { useDemoStore } from "@/lib/demo-store";
@@ -16,7 +16,7 @@ export function GlobalSearch() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  const { companies, lawsuits, dataSource } = useDemoStore();
+  const { parties, lawsuits, dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export function GlobalSearch() {
         });
         return;
       }
-      const company = companies.find((c) => c.cnpj === cnpj);
+      const company = parties.find((c) => c.document === cnpj);
       setQuery("");
       // CNPJ fora da lista: a lista de Empresas oferece adicionar ou monitorar.
       router.push(company ? `/empresas/${cnpj}` : `/empresas?q=${cnpj}`);

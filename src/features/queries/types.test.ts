@@ -13,7 +13,7 @@ import {
 const asyncRequest: JuditRequest = {
   id: "q-async",
   requestId: "84b4d8f5-50f8-4c14-818f-912c722a6908",
-  companyId: "company-1",
+  partyId: "company-1",
   mode: "historical_async",
   delivery: "webhook",
   searchType: "cnpj",
@@ -28,7 +28,7 @@ const asyncRequest: JuditRequest = {
 const syncQuery: SyncQuery = {
   id: "q-sync",
   mode: "datalake_sync",
-  companyId: "company-1",
+  partyId: "company-1",
   searchType: "cnpj",
   searchKey: "A1B2C3D4E5F668",
   requestId: null,

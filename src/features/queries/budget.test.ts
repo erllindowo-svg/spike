@@ -36,7 +36,7 @@ async function seed(at: Date) {
   await db().syncQueries.insertOne({
     _id: randomUUID(),
     mode: "datalake_sync",
-    companyId: null,
+    partyId: null,
     searchType: "cnpj",
     searchKey: "A1B2C3D4E5F668",
     requestId: null,
@@ -48,7 +48,7 @@ async function seed(at: Date) {
   await db().juditRequests.insertOne({
     _id: randomUUID(),
     requestId: randomUUID(),
-    companyId: "company-1",
+    partyId: "company-1",
     mode: "historical_async",
     delivery: "polling",
     searchType: "cnpj",
@@ -63,7 +63,7 @@ async function seed(at: Date) {
     await db().trackings.insertOne({
       _id: randomUUID(),
       juditTrackingId,
-      companyId: null,
+      partyId: null,
       mode: "tracking_document",
       searchType: "cnpj",
       searchKey: `KEY${randomUUID()}`,

@@ -10,7 +10,7 @@ export type RegistrationData = {
   // A JUDIT devolveu um cadastro para o CNPJ.
   found: boolean;
   // Razão social (`name`).
-  legalName: string | null;
+  name: string | null;
   // Situação na Receita Federal.
   registrationStatus: string | null;
 };
@@ -19,31 +19,32 @@ type Entity = EntitiesResponse["response_data"][number];
 
 export function fromJuditEntities(
   response: EntitiesResponse,
-  cnpj: string,
+  document: string,
 ): RegistrationData {
-  const entity = pickEntity(response.response_data, cnpj);
+  const entity = pickEntity(response.response_data, document);
   if (!entity) {
-    return { found: false, legalName: null, registrationStatus: null };
+    return { found: false, name: null, registrationStatus: null };
   }
   return {
     found: true,
-    legalName: text(entity.name),
+    name: text(entity.name),
     registrationStatus: registrationStatus(entity),
   };
 }
 
-// A resposta é uma lista. Preferimos o cadastro cujo documento é o CNPJ
-// pedido; sem ele, o primeiro cadastro de empresa. A documentação não diz
-// quando a lista teria mais de um item para uma busca por CNPJ.
-function pickEntity(entities: Entity[], cnpj: string): Entity | null {
-  const target = normalizeCnpj(cnpj);
+// A resposta é uma lista. Preferimos o cadastro cujo documento é o pedido
+// (CNPJ ou CPF); sem ele, o primeiro da lista. A documentação não diz quando
+// a lista teria mais de um item para uma busca por documento.
+// normalizeCnpj serve aos dois: tira a máscara e deixa letras e dígitos.
+function pickEntity(entities: Entity[], document: string): Entity | null {
+  const target = normalizeCnpj(document);
   return (
     entities.find(
       (e) =>
         typeof e.main_document === "string" &&
         normalizeCnpj(e.main_document) === target,
     ) ??
-    entities.find((e) => e.entity_type === "company") ??
+    entities[0] ??
     null
   );
 }

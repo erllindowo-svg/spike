@@ -25,34 +25,43 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
 
-import { addCompanyAction, type AddCompanyResult } from "../actions";
-import { cnpjSchema, formatCnpj, normalizeCnpj } from "../cnpj";
+import { addPartyAction, type AddPartyResult } from "../actions";
+import {
+  documentSchema,
+  DOCUMENTS,
+  formatDocument,
+  normalizeDocument,
+  partyHref,
+  type DocumentType,
+} from "../documents";
 
-// Adicionar uma empresa à lista sem criar um monitoramento (círculo 1 do
-// escopo, C1-6). Dois caminhos, com o custo explícito:
+// Adicionar uma empresa ou pessoa física à lista sem criar um monitoramento
+// (círculos 1 e 2 do escopo). Dois caminhos, com o custo explícito:
 //
-//   Salvar sem consultar         grátis; a empresa fica só com o CNPJ
-//   Consultar na JUDIT e salvar  cobrado; preenche razão social e situação
+//   Salvar sem consultar         grátis; a parte fica só com o documento
+//   Consultar na JUDIT e salvar  cobrado; preenche nome e situação cadastral
 //
-// A validação do CNPJ se repete no servidor (addCompanyAction).
+// A validação do documento se repete no servidor (addPartyAction).
 
-export function AddCompanyDialog({
+export function AddPartyDialog({
+  documentType,
   open,
   onOpenChange,
-  defaultCnpj,
+  defaultDocument,
 }: {
+  documentType: DocumentType;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  defaultCnpj?: string;
+  defaultDocument?: string;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        {/* A key zera o formulário a cada abertura. */}
+        {/* Montado só aberto: cada abertura começa do zero. */}
         {open && (
-          <AddCompanyForm
-            key={defaultCnpj ?? ""}
-            defaultCnpj={defaultCnpj}
+          <AddPartyForm
+            documentType={documentType}
+            defaultDocument={defaultDocument}
             onDone={() => onOpenChange(false)}
           />
         )}
@@ -61,35 +70,47 @@ export function AddCompanyDialog({
   );
 }
 
-function AddCompanyForm({
-  defaultCnpj,
+function AddPartyForm({
+  documentType,
+  defaultDocument,
   onDone,
 }: {
-  defaultCnpj?: string;
+  documentType: DocumentType;
+  defaultDocument?: string;
   onDone: () => void;
 }) {
   const router = useRouter();
-  const { companies } = useDemoStore();
+  const { parties } = useDemoStore();
+  const info = DOCUMENTS[documentType];
+  const isCompany = documentType === "cnpj";
   const [value, setValue] = useState(
-    defaultCnpj ? formatCnpj(defaultCnpj) : "",
+    defaultDocument ? formatDocument(documentType, defaultDocument) : "",
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<"lookup" | "plain" | null>(null);
 
-  const existing = companies.find((c) => c.cnpj === normalizeCnpj(value));
+  const existing = parties.find(
+    (p) =>
+      p.documentType === documentType &&
+      p.document === normalizeDocument(documentType, value),
+  );
 
   async function save(lookup: boolean) {
     if (pending) return;
-    const parsed = cnpjSchema.safeParse(value);
+    const parsed = documentSchema(documentType).safeParse(value);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "CNPJ inválido");
+      setError(parsed.error.issues[0]?.message ?? `${info.label} inválido`);
       return;
     }
 
     setPending(lookup ? "lookup" : "plain");
-    let result: AddCompanyResult;
+    let result: AddPartyResult;
     try {
-      result = await addCompanyAction({ cnpj: parsed.data, lookup });
+      result = await addPartyAction({
+        documentType,
+        document: parsed.data,
+        lookup,
+      });
     } catch {
       setPending(null);
       setError(SERVER_UNREACHABLE);
@@ -102,19 +123,20 @@ function AddCompanyForm({
     }
 
     onDone();
+    const label = isCompany ? "Empresa adicionada" : "Pessoa adicionada";
     const registration = result.registration;
     if (registration && !registration.found) {
-      toast.warning("Empresa adicionada sem dados cadastrais", {
-        description: "A JUDIT não encontrou cadastro para este CNPJ.",
+      toast.warning(`${label} sem dados cadastrais`, {
+        description: `A JUDIT não encontrou cadastro para este ${info.label}.`,
       });
     } else {
-      toast.success("Empresa adicionada", {
+      toast.success(label, {
         description: registration
-          ? (registration.legalName ?? "Cadastro encontrado, sem razão social.")
-          : "Os dados cadastrais podem ser consultados na página da empresa.",
+          ? (registration.name ?? "Cadastro encontrado, sem nome.")
+          : "Os dados cadastrais podem ser consultados na página dela.",
       });
     }
-    router.push(`/empresas/${result.cnpj}`);
+    router.push(partyHref(result.party.documentType, result.party.document));
   }
 
   return (
@@ -127,19 +149,21 @@ function AddCompanyForm({
       noValidate
     >
       <DialogHeader>
-        <DialogTitle>Adicionar empresa</DialogTitle>
+        <DialogTitle>
+          Adicionar {isCompany ? "empresa" : "pessoa física"}
+        </DialogTitle>
         <DialogDescription>
-          A empresa entra na sua lista sem criar um monitoramento. Depois, na
-          página dela, você consulta os processos ou começa a monitorar.
+          Entra na sua lista sem criar um monitoramento. Depois, na página dela,
+          você consulta os processos ou começa a monitorar.
         </DialogDescription>
       </DialogHeader>
 
       <Field data-invalid={!!error}>
-        <FieldLabel htmlFor="company-cnpj">CNPJ</FieldLabel>
+        <FieldLabel htmlFor="party-document">{info.label}</FieldLabel>
         <Input
-          id="company-cnpj"
+          id="party-document"
           autoFocus
-          placeholder="00.000.000/0000-00"
+          placeholder={info.placeholder}
           value={value}
           aria-invalid={!!error}
           onChange={(e) => {
@@ -152,8 +176,10 @@ function AddCompanyForm({
         ) : (
           <FieldDescription>
             {existing
-              ? `Já está na lista: ${existing.legalName ?? "razão social não consultada"}.`
-              : "Aceita o CNPJ numérico e o alfanumérico."}
+              ? `Já está na lista: ${existing.name ?? "nome não consultado"}.`
+              : isCompany
+                ? "Aceita o CNPJ numérico e o alfanumérico."
+                : "CPF é dado pessoal: use só com base legal para consultar."}
           </FieldDescription>
         )}
       </Field>
@@ -161,9 +187,9 @@ function AddCompanyForm({
       <Alert>
         <InfoIcon />
         <AlertDescription>
-          A consulta de dados cadastrais é cobrada por requisição e preenche a
-          razão social e a situação na Receita. Sem ela, a empresa é salva só
-          com o CNPJ.
+          A consulta de dados cadastrais é cobrada por requisição e preenche o
+          nome e a situação na Receita. Sem ela, a parte é salva só com o
+          documento.
         </AlertDescription>
       </Alert>
 

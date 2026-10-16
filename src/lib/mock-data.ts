@@ -3,10 +3,10 @@
 
 import type { ActivityItem } from "@/features/activity/types";
 import type { AlertView } from "@/features/alerts/types";
-import type { Company } from "@/features/companies/types";
+import type { Party } from "@/features/parties/types";
 import { computeCnjCheckDigits } from "@/features/processes/cnj";
 import type {
-  CompanyRole,
+  PartyRole,
   Lawsuit,
   LawsuitMovement,
   LawsuitStatus,
@@ -23,7 +23,7 @@ const at = (iso: string) => new Date(`${iso}-03:00`);
 const mockId = (prefix: number, n: number) =>
   `00000000-0000-4000-8${String(prefix).padStart(3, "0")}-${String(n).padStart(12, "0")}`;
 
-// Empresas
+// Partes: empresas (CNPJ) e pessoas físicas (CPF)
 
 type CompanyKey =
   | "aurora"
@@ -94,24 +94,53 @@ const companyRows: [
   ],
 ];
 
-export const companies: Company[] = companyRows.map(
-  ([, cnpj, legalName, registrationStatus, createdAt], index) => ({
+// CPFs com dígitos verificadores válidos, mas evidentemente fictícios
+// (começam com zeros); nomes inventados.
+type PersonKey = "joana" | "carlos";
+
+const personRows: [PersonKey, string, string, string][] = [
+  ["joana", "00000000191", "Joana Exemplo Souza", "2026-09-10T15:20"],
+  ["carlos", "00000000272", "Carlos Fictício Lima", "2026-10-04T09:45"],
+];
+
+const companyParties: Party[] = companyRows.map(
+  ([, document, name, registrationStatus, createdAt], index) => ({
     id: mockId(1, index + 1),
-    cnpj,
-    legalName,
+    documentType: "cnpj",
+    document,
+    name,
     registrationStatus,
     createdAt: at(createdAt),
     updatedAt: at("2026-10-09T08:00"),
   }),
 );
 
-const companyId = (key: CompanyKey) =>
-  companies[companyRows.findIndex(([k]) => k === key)].id;
+const personParties: Party[] = personRows.map(
+  ([, document, name, createdAt], index) => ({
+    id: mockId(9, index + 1),
+    documentType: "cpf",
+    document,
+    name,
+    registrationStatus: "Regular",
+    createdAt: at(createdAt),
+    updatedAt: at("2026-10-09T08:00"),
+  }),
+);
+
+export const parties: Party[] = [...companyParties, ...personParties];
+
+const partyId = (key: CompanyKey | PersonKey) => {
+  const companyIndex = companyRows.findIndex(([k]) => k === key);
+  if (companyIndex >= 0) return companyParties[companyIndex].id;
+  return personParties[personRows.findIndex(([k]) => k === key)].id;
+};
 
 // Processos
 
+type PartyKey = CompanyKey | PersonKey;
+
 type LawsuitRow = {
-  company: CompanyKey | null;
+  company: PartyKey | null;
   seq: string;
   year: number;
   court: "8.26" | "8.19" | "8.13" | "8.16" | "5.02" | "5.15" | "4.03" | "4.04";
@@ -119,7 +148,7 @@ type LawsuitRow = {
   area: string | null;
   className: string | null;
   subject: string | null;
-  role: CompanyRole | null;
+  role: PartyRole | null;
   status: LawsuitStatus | null;
   distributed: string | null;
   lastMovement: string | null;
@@ -149,7 +178,7 @@ const judgingBodyByCourt: Record<LawsuitRow["court"], string> = {
 };
 
 const L = (
-  company: CompanyKey | null,
+  company: PartyKey | null,
   seq: string,
   year: number,
   court: LawsuitRow["court"],
@@ -157,7 +186,7 @@ const L = (
   area: string | null,
   className: string | null,
   subject: string | null,
-  role: CompanyRole | null,
+  role: PartyRole | null,
   status: LawsuitStatus | null,
   distributed: string | null,
   lastMovement: string | null,
@@ -214,6 +243,10 @@ const lawsuitRows: LawsuitRow[] = [
   L("semNome", "1001811", 2026, "5.02", "0012", "Trabalhista", null, null, "passive", "active", "2026-09-30", "2026-10-05T11:00", null),
   L("ipe", "1010044", 2026, "8.16", "0014", "Consumidor", "Procedimento do Juizado Especial Cível", "Entrega de mercadoria", "passive", "active", "2026-08-25", "2026-10-04T15:10", 3900),
   L(null, "0718455", 2024, "8.26", "0100", "Cível", "Procedimento Comum Cível", "Contratos", null, "active", "2024-10-01", "2026-10-08T17:30", 75000),
+  // Pessoas físicas fictícias.
+  L("joana", "1012345", 2025, "8.26", "0100", "Família", "Divórcio Consensual", "Dissolução", "active", "archived", "2025-02-10", "2025-08-21T14:00", null),
+  L("joana", "1023456", 2026, "8.19", "0001", "Consumidor", "Procedimento do Juizado Especial Cível", "Cobrança indevida", "active", "active", "2026-05-06", "2026-10-03T10:30", 7400),
+  L("carlos", "1034567", 2024, "5.15", "0010", "Trabalhista", "Ação Trabalhista - Rito Ordinário", "Vínculo empregatício", "active", "active", "2024-09-12", "2026-09-30T16:05", 45000),
 ];
 
 const movementTemplates = [
@@ -263,13 +296,13 @@ export const lawsuits: Lawsuit[] = lawsuitRows.map((row, index) => {
   return {
     id: mockId(2, index + 1),
     cnj: `${row.seq}${checkDigits}${rest}`,
-    companyId: row.company ? companyId(row.company) : null,
+    partyId: row.company ? partyId(row.company) : null,
     tribunal: tribunalByCourt[row.court],
     area: row.area,
     className: row.className,
     subject: row.subject,
     judgingBody: row.className ? judgingBodyByCourt[row.court] : null,
-    companyRole: row.role,
+    partyRole: row.role,
     status: row.status,
     distributedAt: row.distributed ? at(`${row.distributed}T09:00`) : null,
     lastMovementAt: row.lastMovement ? at(row.lastMovement) : null,
@@ -287,7 +320,7 @@ const T = (
   n: number,
   searchType: Tracking["searchType"],
   searchKey: string,
-  company: CompanyKey | null,
+  company: PartyKey | null,
   status: string,
   recurrenceDays: number,
   createdAt: string,
@@ -295,7 +328,7 @@ const T = (
 ): Tracking => ({
   id: mockId(3, n),
   juditTrackingId: `f3a1c2d4-0000-4000-9000-${String(n).padStart(12, "0")}`,
-  companyId: company ? companyId(company) : null,
+  partyId: company ? partyId(company) : null,
   mode: trackingModeFor(searchType),
   searchType,
   searchKey,
@@ -401,6 +434,16 @@ export const trackings: Tracking[] = [
     1,
     "2026-09-10T08:30",
     "2026-10-08T17:35",
+  ),
+  T(
+    10,
+    "cpf",
+    "00000000272",
+    "carlos",
+    "updated",
+    7,
+    "2026-10-04T10:00",
+    "2026-10-09T06:12",
   ),
 ];
 
@@ -631,7 +674,7 @@ const A = (
 ): AlertView => ({
   id: alertId(n),
   type,
-  companyId: company ? companyId(company) : null,
+  partyId: company ? partyId(company) : null,
   webhookEventId: eventN ? mockId(4, eventN) : null,
   trackingId: null,
   lawsuitCnj,
@@ -749,7 +792,7 @@ const act = (
   title,
   description,
   occurredAt: at(occurredAt),
-  companyId: company ? companyId(company) : null,
+  partyId: company ? partyId(company) : null,
   href,
 });
 
@@ -850,7 +893,7 @@ export const activity: ActivityItem[] = [
 // são linhas fictícias no mesmo formato das gravadas no modo "db".
 
 const companyCnpj = (key: CompanyKey) =>
-  companies[companyRows.findIndex(([k]) => k === key)].cnpj;
+  companyParties[companyRows.findIndex(([k]) => k === key)].document;
 
 const Q = (
   n: number,
@@ -863,8 +906,9 @@ const Q = (
   id: mockId(7, n),
   flow,
   mode,
-  companyId: companyId(company),
-  cnpj: companyCnpj(company),
+  partyId: partyId(company),
+  documentType: "cnpj",
+  document: companyCnpj(company),
   createdAt: at(createdAt),
   requestId: flow === "async" ? mockId(8, n) : null,
   asyncStatus: null,

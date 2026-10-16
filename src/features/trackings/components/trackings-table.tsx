@@ -40,6 +40,7 @@ import {
   type Tracking,
 } from "@/features/trackings/types";
 import { useSupportView } from "@/features/settings/support-view";
+import { partyHref } from "@/features/parties/documents";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -60,7 +61,7 @@ export function TrackingsTable({
   variant?: "full" | "compact";
 }) {
   const {
-    getCompany,
+    getParty,
     lawsuits,
     alerts,
     webhookEvents,
@@ -75,8 +76,10 @@ export function TrackingsTable({
   const trackingResults = useTrackingResults();
 
   function identifierHref(tracking: Tracking): string | null {
-    if (tracking.searchType === "cnpj") {
-      return tracking.companyId ? `/empresas/${tracking.searchKey}` : null;
+    if (tracking.searchType !== "cnj") {
+      return tracking.partyId
+        ? partyHref(tracking.searchType, tracking.searchKey)
+        : null;
     }
     return lawsuits.some((l) => l.cnj === tracking.searchKey)
       ? `/processos/${tracking.searchKey}`
@@ -116,7 +119,7 @@ export function TrackingsTable({
         </TableHeader>
         <TableBody>
           {trackings.map((tracking) => {
-            const company = getCompany(tracking.companyId);
+            const company = getParty(tracking.partyId);
             const href = identifierHref(tracking);
             const identifier = formatSearchKey(
               tracking.searchType,
@@ -157,10 +160,10 @@ export function TrackingsTable({
                   }
                 >
                   {company ? (
-                    <span title={company.legalName ?? undefined}>
-                      {company.legalName ?? (
+                    <span title={company.name ?? undefined}>
+                      {company.name ?? (
                         <span className="text-muted-foreground">
-                          Razão social indisponível
+                          Nome não consultado
                         </span>
                       )}
                     </span>
@@ -213,7 +216,14 @@ export function TrackingsTable({
                       <DropdownMenuContent align="end" className="w-52">
                         {company && (
                           <DropdownMenuItem
-                            render={<Link href={`/empresas/${company.cnpj}`} />}
+                            render={
+                              <Link
+                                href={partyHref(
+                                  company.documentType,
+                                  company.document,
+                                )}
+                              />
+                            }
                           >
                             <Building2Icon />
                             Ver empresa

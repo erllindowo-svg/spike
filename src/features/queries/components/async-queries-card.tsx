@@ -18,6 +18,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import type { AsyncQueryMode, JuditRequest } from "@/db/models";
+import type { PartyRef } from "@/features/parties/documents";
 import type { Lawsuit } from "@/features/processes/types";
 import { SupportOnly, useSupportView } from "@/features/settings/support-view";
 import { formatDateTime } from "@/lib/format";
@@ -30,11 +31,11 @@ import { asyncStatusLabel, deliveryLabels } from "../status";
 import { ResponsesSummaryView } from "./responses-summary-view";
 
 export function AsyncQueriesCard({
-  cnpj,
+  party,
   queries,
   onSelectLawsuit,
 }: {
-  cnpj: string;
+  party: PartyRef;
   queries: JuditRequest[];
   onSelectLawsuit: (lawsuit: Lawsuit) => void;
 }) {
@@ -55,8 +56,8 @@ export function AsyncQueriesCard({
     startTransition(async () => {
       const result = await startAsyncQueryAction(
         mode === "historical_on_demand"
-          ? { mode, cnpj, cacheTtlInDays: cacheTtlValue }
-          : { mode, cnpj },
+          ? { mode, ...party, cacheTtlInDays: cacheTtlValue }
+          : { mode, ...party },
       );
       setStartingMode(null);
       if (!result.ok) {
@@ -177,7 +178,7 @@ export function AsyncQueriesCard({
 
         {queries.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nenhuma consulta assíncrona criada para esta empresa.
+            Nenhuma consulta assíncrona criada para este documento.
           </p>
         ) : (
           <ul className="flex flex-col divide-y">

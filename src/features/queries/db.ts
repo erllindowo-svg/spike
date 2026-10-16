@@ -14,7 +14,7 @@ function toJuditRequest(doc: JuditRequestDoc): JuditRequest {
   return {
     id: doc._id,
     requestId: doc.requestId,
-    companyId: doc.companyId,
+    partyId: doc.partyId,
     mode: doc.mode,
     delivery: doc.delivery,
     searchType: doc.searchType,
@@ -30,7 +30,7 @@ function toJuditRequest(doc: JuditRequestDoc): JuditRequest {
 export type NewJuditRequest = Pick<
   JuditRequest,
   | "requestId"
-  | "companyId"
+  | "partyId"
   | "mode"
   | "delivery"
   | "searchType"
@@ -58,11 +58,11 @@ export async function saveJuditRequest(
 }
 
 export async function listJuditRequests(
-  companyId: string,
+  partyId: string,
 ): Promise<JuditRequest[]> {
   const { juditRequests } = collections(await getDb());
   const docs = await juditRequests
-    .find({ companyId })
+    .find({ partyId })
     .sort({ createdAt: -1 })
     .toArray();
   return docs.map(toJuditRequest);
@@ -130,14 +130,14 @@ export const OPEN_QUERY_WINDOW_MS = 24 * 60 * 60 * 1000;
 // modalidade. O status do banco só muda quando alguém pergunta à JUDIT
 // ("Verificar status") ou quando o webhook avisa o fim (código 600).
 export async function findOpenJuditRequest(
-  companyId: string,
+  partyId: string,
   mode: JuditRequest["mode"],
   now = new Date(),
 ): Promise<JuditRequest | null> {
   const { juditRequests } = collections(await getDb());
   const doc = await juditRequests.findOne(
     {
-      companyId,
+      partyId,
       mode,
       status: { $in: ["pending", "started"] },
       createdAt: { $gt: new Date(now.getTime() - OPEN_QUERY_WINDOW_MS) },

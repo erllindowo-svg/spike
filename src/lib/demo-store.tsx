@@ -14,14 +14,15 @@ import {
   markAllAlertsReadAction,
 } from "@/features/alerts/actions";
 import type { AlertView } from "@/features/alerts/types";
-import { formatCnpj } from "@/features/companies/cnpj";
-import type { Company } from "@/features/companies/types";
+import type { Party } from "@/features/parties/types";
 import { formatCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
 import { trackingModeFor } from "@/features/queries/modes";
+import { formatSearchKey } from "@/features/trackings/format";
 import {
   getTrackingDisplayState,
   isTrackingClosed,
+  searchTypeLabels,
   type NewTrackingInput,
   type Tracking,
 } from "@/features/trackings/types";
@@ -158,22 +159,20 @@ const trackingErrorMessages = {
 
 function trackingActivity(
   tracking: Tracking,
-  company: Company | null,
+  company: Party | null,
   title: string,
 ): ActivityItem {
-  const identifier =
-    tracking.searchType === "cnpj"
-      ? `CNPJ ${formatCnpj(tracking.searchKey)}`
-      : `CNJ ${formatCnj(tracking.searchKey)}`;
+  const identifier = `${searchTypeLabels[tracking.searchType]} ${formatSearchKey(
+    tracking.searchType,
+    tracking.searchKey,
+  )}`;
   return {
     id: newId(),
     kind: "tracking_created",
     title,
-    description: company?.legalName
-      ? `${identifier} · ${company.legalName}`
-      : identifier,
+    description: company?.name ? `${identifier} · ${company.name}` : identifier,
     occurredAt: tracking.createdAt,
-    companyId: tracking.companyId,
+    partyId: tracking.partyId,
     href: "/monitoramentos",
   };
 }
@@ -193,9 +192,9 @@ export type SimulationResult =
 
 type DemoStore = DemoState & {
   dataSource: DataSource;
-  companies: Company[];
+  parties: Party[];
   lawsuits: Lawsuit[];
-  getCompany: (id: string | null) => Company | null;
+  getParty: (id: string | null) => Party | null;
   addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
   markAlertRead: (id: string) => void;
@@ -212,13 +211,13 @@ const PROCESSING_DELAY_MS = 1500;
 export function DemoStoreProvider({
   dataSource,
   initialState,
-  companies,
+  parties,
   lawsuits,
   children,
 }: {
   dataSource: DataSource;
   initialState: DemoState;
-  companies: Company[];
+  parties: Party[];
   lawsuits: Lawsuit[];
   children: React.ReactNode;
 }) {
@@ -233,10 +232,10 @@ export function DemoStoreProvider({
     : state.webhookEvents;
 
   const companiesById = useMemo(
-    () => new Map(companies.map((c) => [c.id, c])),
-    [companies],
+    () => new Map(parties.map((c) => [c.id, c])),
+    [parties],
   );
-  const getCompany = useCallback(
+  const getParty = useCallback(
     (id: string | null) => (id ? (companiesById.get(id) ?? null) : null),
     [companiesById],
   );
@@ -264,7 +263,7 @@ export function DemoStoreProvider({
           type: "addActivity",
           activity: trackingActivity(
             result.tracking,
-            getCompany(result.tracking.companyId),
+            getParty(result.tracking.partyId),
             sent
               ? "Monitoramento criado na JUDIT"
               : "Monitoramento reservado no banco",
@@ -296,7 +295,7 @@ export function DemoStoreProvider({
         // Sem ID da JUDIT: nenhum monitoramento real foi criado. A criação
         // "confirmada" e o status "created" são simulados.
         juditTrackingId: null,
-        companyId: input.companyId ?? null,
+        partyId: input.partyId ?? null,
         mode: trackingModeFor(input.searchType),
         searchType: input.searchType,
         searchKey: input.searchKey,
@@ -315,13 +314,13 @@ export function DemoStoreProvider({
         tracking,
         activity: trackingActivity(
           tracking,
-          getCompany(tracking.companyId),
+          getParty(tracking.partyId),
           "Monitoramento criado (demonstração)",
         ),
       });
       return { ok: true, tracking };
     },
-    [dataSource, state.trackings, getCompany],
+    [dataSource, state.trackings, getParty],
   );
 
   // Só para a demonstração. No modo "db", pausar chama a JUDIT
@@ -404,7 +403,7 @@ export function DemoStoreProvider({
       const lawsuit =
         tracking?.searchType === "cnj"
           ? (lawsuits.find((l) => l.cnj === tracking.searchKey) ?? null)
-          : (lawsuits.find((l) => l.companyId === tracking?.companyId) ?? null);
+          : (lawsuits.find((l) => l.partyId === tracking?.partyId) ?? null);
       const callbackId = newId();
       const receivedAt = new Date();
       const step =
@@ -455,7 +454,7 @@ export function DemoStoreProvider({
           title: "Webhook recebido (simulado)",
           description: "response_created aguardando processamento",
           occurredAt: receivedAt,
-          companyId: tracking?.companyId ?? null,
+          partyId: tracking?.partyId ?? null,
           href: "/webhooks",
         },
       });
@@ -492,7 +491,7 @@ export function DemoStoreProvider({
               description:
                 "reference_id sem monitoramento local correspondente",
               occurredAt: processedAt,
-              companyId: null,
+              partyId: null,
               href: "/webhooks",
             },
           });
@@ -503,7 +502,7 @@ export function DemoStoreProvider({
         const alert: AlertView = {
           id: newId(),
           type: isNewLawsuit ? "new_lawsuit" : "lawsuit_movement",
-          companyId: tracking.companyId,
+          partyId: tracking.partyId,
           webhookEventId: event.id,
           trackingId: tracking.id,
           lawsuitCnj: lawsuit?.cnj ?? null,
@@ -536,7 +535,7 @@ export function DemoStoreProvider({
               ? `${formatCnj(lawsuit.cnj)} · ${lawsuit.tribunal}`
               : "Processo não identificado",
             occurredAt: processedAt,
-            companyId: tracking.companyId,
+            partyId: tracking.partyId,
             href: "/monitoramentos/alertas",
           },
         });
@@ -559,9 +558,9 @@ export function DemoStoreProvider({
       alerts,
       webhookEvents,
       dataSource,
-      companies,
+      parties,
       lawsuits,
-      getCompany,
+      getParty,
       addTracking,
       setTrackingPaused,
       markAlertRead,
@@ -575,9 +574,9 @@ export function DemoStoreProvider({
       alerts,
       webhookEvents,
       dataSource,
-      companies,
+      parties,
       lawsuits,
-      getCompany,
+      getParty,
       addTracking,
       setTrackingPaused,
       markAlertRead,

@@ -46,7 +46,7 @@ describe("grouped counts", () => {
   const tracking = (status: string | null): Tracking => ({
     id: status ?? "none",
     juditTrackingId: null,
-    companyId: null,
+    partyId: null,
     mode: "tracking_document",
     searchType: "cnpj",
     searchKey: "A1B2C3D4E5F668",

@@ -13,7 +13,7 @@ describe("fromJuditEntities", () => {
   it("reads the legal name and the active flag", () => {
     expect(fromJuditEntities(parse(entityCnpjBody), DOC_CNPJ)).toEqual({
       found: true,
-      legalName: "FINGI - EM RECUPERACAO JUDICIAL",
+      name: "FINGI - EM RECUPERACAO JUDICIAL",
       registrationStatus: "Ativa",
     });
   });
@@ -48,13 +48,13 @@ describe("fromJuditEntities", () => {
         },
       ],
     };
-    expect(fromJuditEntities(parse(body), DOC_CNPJ).legalName).toBe("CERTA");
+    expect(fromJuditEntities(parse(body), DOC_CNPJ).name).toBe("CERTA");
   });
 
   it("reports not found on an empty list", () => {
     expect(fromJuditEntities(parse({ response_data: [] }), DOC_CNPJ)).toEqual({
       found: false,
-      legalName: null,
+      name: null,
       registrationStatus: null,
     });
   });
@@ -67,7 +67,7 @@ describe("fromJuditEntities", () => {
     };
     expect(fromJuditEntities(parse(body), DOC_CNPJ)).toMatchObject({
       found: true,
-      legalName: null,
+      name: null,
       registrationStatus: null,
     });
   });

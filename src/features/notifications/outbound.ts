@@ -25,7 +25,7 @@ export type AlertCreatedEvent = {
   alertId: string;
   alertType: string;
   trackingId: string | null;
-  companyId: string | null;
+  partyId: string | null;
   occurredAt: string;
 };
 
@@ -36,7 +36,7 @@ export function buildAlertCreatedEvent(alert: Alert): AlertCreatedEvent {
     alertId: alert.id,
     alertType: alert.type,
     trackingId: alert.trackingId,
-    companyId: alert.companyId,
+    partyId: alert.partyId,
     occurredAt: alert.createdAt.toISOString(),
   };
 }

@@ -349,6 +349,18 @@ Antes de qualquer chamada cobrada, quatro barreiras, nesta ordem: kill switch (`
 
 **H3. "A mesma chamada à JUDIT já está em andamento".** _Previsto (testado)._ Duplo clique, duas abas ou um botão sem bloqueio mandaram a mesma busca enquanto a primeira não tinha respondido. Nada foi cobrado na segunda. Lição: a proteção vale para criações (POST, PATCH, DELETE); leituras podem rodar juntas.
 
+### I. Partes: empresas e pessoas físicas (círculo 2 da etapa 7)
+
+A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), e o campo `companyId` virou `partyId` em monitoramentos, consultas e alertas. Quem faz a mudança no banco é `migrateCompaniesToParties` (`src/db/migrations.ts`), na conexão, antes dos índices. Ela pode rodar de novo sem efeito e guarda a coleção antiga como `companies_migrated`.
+
+**I1. Depois da atualização, as empresas sumiram da lista (ou os links quebraram).** _Previsto._
+
+- Sinal: Empresas vazia, monitoramentos sem empresa, mas os dados continuam no Atlas.
+- Hipótese principal: o `pnpm dev` estava rodando antes da atualização. Ele recompila o código, mas guarda a conexão aberta (`globalThis` em `src/db/index.ts`), e a migração só roda ao conectar. O código novo lê `parties`, que ainda não existe.
+- Teste que separou: Atlas → coleções. Com `companies` e sem `parties`, a migração não rodou.
+- Correção: reiniciar o `pnpm dev`. Mesma família do G4 e do D6.
+- Lição de suporte: código novo e dados velhos convivem até a migração rodar; "atualizei e sumiu" quase sempre é isso, não perda de dados.
+
 ### Modelo para novos casos
 
 ```

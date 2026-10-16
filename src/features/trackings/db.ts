@@ -14,8 +14,9 @@ import {
 } from "@/db/collections";
 import { isDuplicateKeyError } from "@/db/errors";
 import type { Tracking, TrackingCreation } from "@/db/models";
-import { ensureCompany } from "@/features/companies/db";
-import { cnpjSchema } from "@/features/companies/cnpj";
+import { ensureParty } from "@/features/parties/db";
+import { cnpjSchema } from "@/features/parties/cnpj";
+import { cpfSchema } from "@/features/parties/cpf";
 import { cnjSchema } from "@/features/processes/cnj";
 import { trackingModeFor } from "@/features/queries/modes";
 
@@ -44,6 +45,11 @@ const newTrackingSchema = z.discriminatedUnion("searchType", [
     recurrenceDays: recurrenceDaysSchema,
   }),
   z.object({
+    searchType: z.literal("cpf"),
+    searchKey: cpfSchema,
+    recurrenceDays: recurrenceDaysSchema,
+  }),
+  z.object({
     searchType: z.literal("cnj"),
     searchKey: cnjSchema,
     recurrenceDays: recurrenceDaysSchema,
@@ -67,7 +73,7 @@ function toTracking(doc: TrackingDoc): Tracking {
   return {
     id: doc._id,
     juditTrackingId: doc.juditTrackingId,
-    companyId: doc.companyId,
+    partyId: doc.partyId,
     mode: doc.mode ?? trackingModeFor(doc.searchType),
     searchType: doc.searchType,
     searchKey: doc.searchKey,
@@ -104,18 +110,18 @@ export async function reserveTracking(
   }
   const { searchType, searchKey, recurrenceDays } = parsed.data;
 
-  // Monitorar um CNPJ registra a empresa. Não precisa de transação: se o
-  // monitoramento for recusado como duplicado, a empresa criada continua
-  // válida e útil. Um CNJ ainda não é ligado a nenhuma empresa, porque não há
-  // coleção de processos.
-  const companyId =
-    searchType === "cnpj" ? (await ensureCompany(searchKey)).id : null;
+  // Monitorar um documento (CNPJ ou CPF) registra a parte. Não precisa de
+  // transação: se o monitoramento for recusado como duplicado, a parte criada
+  // continua válida e útil. Um CNJ ainda não é ligado a nenhuma parte,
+  // porque não há coleção de processos.
+  const partyId =
+    searchType === "cnj" ? null : (await ensureParty(searchType, searchKey)).id;
 
   const now = new Date();
   const doc: TrackingDoc = {
     _id: randomUUID(),
     juditTrackingId: null,
-    companyId,
+    partyId,
     mode: trackingModeFor(searchType),
     searchType,
     searchKey,

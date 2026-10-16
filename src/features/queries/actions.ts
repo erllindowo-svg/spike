@@ -4,8 +4,8 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import type { JuditRequest } from "@/db/models";
-import { cnpjSchema } from "@/features/companies/cnpj";
-import { getCompanyByCnpj } from "@/features/companies/db";
+import { getPartyByDocument } from "@/features/parties/db";
+import { partyRefSchema } from "@/features/parties/documents";
 import { productCallbackUrl } from "@/features/webhooks/callback";
 import { processEventsForReference } from "@/features/webhooks/process";
 import { getDataSource } from "@/lib/data";
@@ -37,7 +37,7 @@ import { summarizeResponses, type ResponsesSummary } from "./responses";
 // entrega se perde, mas o resultado não.
 //
 // Como em searchCompanyLawsuitsAction, nada aqui confia no navegador: modo
-// "db", empresa cadastrada, kill switch e allowlist do client.
+// "db", parte cadastrada, teto diário e as proteções do client.
 
 type Unavailable = {
   ok: false;
@@ -45,15 +45,19 @@ type Unavailable = {
   message: string;
 };
 
-const startInputSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("historical_async"), cnpj: cnpjSchema }),
-  z.object({
-    mode: z.literal("historical_on_demand"),
-    cnpj: cnpjSchema,
-    // A documentação define "integer (> 0)" e não informa limite superior.
-    cacheTtlInDays: z.number().int().positive().optional(),
-  }),
-]);
+// A consulta histórica por documento aceita CPF, CNPJ, OAB e nome
+// (https://docs.judit.io/requests/request-document); o app usa CPF e CNPJ.
+const startInputSchema = z.intersection(
+  partyRefSchema,
+  z.discriminatedUnion("mode", [
+    z.object({ mode: z.literal("historical_async") }),
+    z.object({
+      mode: z.literal("historical_on_demand"),
+      // A documentação define "integer (> 0)" e não informa limite superior.
+      cacheTtlInDays: z.number().int().positive().optional(),
+    }),
+  ]),
+);
 
 export type StartAsyncQueryInput = z.input<typeof startInputSchema>;
 
@@ -67,7 +71,11 @@ export async function startAsyncQueryAction(
 
   const parsed = startInputSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, reason: "invalid", message: "Dados inválidos." };
+    return {
+      ok: false,
+      reason: "invalid",
+      message: parsed.error.issues[0]?.message ?? "Dados inválidos.",
+    };
   }
   const query = parsed.data;
   const cacheTtlInDays =
@@ -76,12 +84,12 @@ export async function startAsyncQueryAction(
       : null;
 
   try {
-    const company = await getCompanyByCnpj(query.cnpj);
-    if (!company) {
+    const party = await getPartyByDocument(query.documentType, query.document);
+    if (!party) {
       return {
         ok: false,
         reason: "invalid",
-        message: "Empresa não cadastrada na aplicação.",
+        message: "Parte não cadastrada na aplicação.",
       };
     }
 
@@ -89,13 +97,13 @@ export async function startAsyncQueryAction(
     // o mesmo resultado. Regra simples, por consulta prévia: dois envios no
     // mesmo instante (dois cliques, duas abas) ainda passam juntos. O
     // monitoramento, cobrado a cada recorrência, tem a regra no índice único.
-    const open = await findOpenJuditRequest(company.id, query.mode);
+    const open = await findOpenJuditRequest(party.id, query.mode);
     if (open) {
       return {
         ok: false,
         reason: "invalid",
         message:
-          'Já existe uma consulta igual em andamento para esta empresa. Use "Verificar status" nela antes de criar outra.',
+          'Já existe uma consulta igual em andamento para esta parte. Use "Verificar status" nela antes de criar outra.',
       };
     }
 
@@ -109,8 +117,8 @@ export async function startAsyncQueryAction(
     // cache_ttl_in_days só junto com ele (a página on-demand diz que ele só
     // tem efeito com on_demand: true).
     const created = await createRequest({
-      searchType: "cnpj",
-      searchKey: company.cnpj,
+      searchType: party.documentType,
+      searchKey: party.document,
       onDemand: query.mode === "historical_on_demand",
       cacheTtlInDays: cacheTtlInDays ?? undefined,
       callbackUrl: callbackUrl ?? undefined,
@@ -125,11 +133,11 @@ export async function startAsyncQueryAction(
 
     const request = await saveJuditRequest({
       requestId: created.request_id,
-      companyId: company.id,
+      partyId: party.id,
       mode: query.mode,
       delivery: callbackUrl ? "webhook" : "polling",
-      searchType: "cnpj",
-      searchKey: company.cnpj,
+      searchType: party.documentType,
+      searchKey: party.document,
       cacheTtlInDays,
       status: created.status,
     });
@@ -173,12 +181,12 @@ export async function checkAsyncQueryAction(
         message: "Consulta não encontrada nesta aplicação.",
       };
     }
-    const company = await getCompanyByCnpj(stored.searchKey);
-    if (!company) {
+    const party = await getPartyByDocument(stored.searchType, stored.searchKey);
+    if (!party) {
       return {
         ok: false,
         reason: "invalid",
-        message: "Empresa não cadastrada na aplicação.",
+        message: "Parte não cadastrada na aplicação.",
       };
     }
 
@@ -200,7 +208,7 @@ export async function checkAsyncQueryAction(
     }
 
     const list = await listResponses({ requestId: stored.requestId });
-    const results = summarizeResponses(list, company);
+    const results = summarizeResponses(list, party);
 
     refresh();
     return { ok: true, request, results };

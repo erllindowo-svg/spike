@@ -72,7 +72,7 @@ async function seedRequest(requestId = REQUEST_ID) {
   await db().juditRequests.insertOne({
     _id: randomUUID(),
     requestId,
-    companyId: COMPANY_ID,
+    partyId: COMPANY_ID,
     mode: "historical_async",
     delivery: "webhook",
     searchType: "cnpj",
@@ -92,7 +92,7 @@ async function seedTracking(mode: TrackingMode = "tracking_document") {
   await db().trackings.insertOne({
     _id: id,
     juditTrackingId: TRACKING_ID,
-    companyId: byCnj ? null : COMPANY_ID,
+    partyId: byCnj ? null : COMPANY_ID,
     mode,
     searchType: byCnj ? "cnj" : "cnpj",
     searchKey: byCnj ? CNJ : CNPJ,
@@ -206,7 +206,7 @@ describe("processWebhookEvent: trackings", () => {
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({
       type: "new_lawsuit",
-      companyId: COMPANY_ID,
+      partyId: COMPANY_ID,
       trackingId,
       webhookEventId: cached,
       lawsuitCnj: LAWSUIT_CNJ,

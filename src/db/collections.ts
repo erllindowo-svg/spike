@@ -2,7 +2,7 @@ import type { Db } from "mongodb";
 
 import type {
   Alert,
-  Company,
+  Party,
   JuditRequest,
   SyncQuery,
   Tracking,
@@ -15,7 +15,7 @@ import type {
 // identificadores sejam simples strings em toda a aplicação.
 type Doc<T extends { id: string }> = Omit<T, "id"> & { _id: string };
 
-export type CompanyDoc = Doc<Company>;
+export type PartyDoc = Doc<Party>;
 // Campos criados na etapa 4. Documentos gravados antes (etapa 2) não os
 // têm; toTracking (src/features/trackings/db.ts) aplica os equivalentes.
 type TrackingStage4Field =
@@ -46,7 +46,7 @@ export type SyncQueryDoc = Doc<SyncQuery>;
 
 export function collections(db: Db) {
   return {
-    companies: db.collection<CompanyDoc>("companies"),
+    parties: db.collection<PartyDoc>("parties"),
     trackings: db.collection<TrackingDoc>("trackings"),
     webhookEvents: db.collection<WebhookEventDoc>("webhook_events"),
     alerts: db.collection<AlertDoc>("alerts"),
@@ -78,6 +78,7 @@ export const JUDIT_REQUESTS_REQUEST_ID_INDEX =
 export const WEBHOOK_EVENTS_CALLBACK_ID_INDEX =
   "webhook_events_callback_id_unique";
 export const ALERTS_DEDUPE_KEY_INDEX = "alerts_dedupe_key_unique";
+export const PARTIES_DOCUMENT_INDEX = "parties_document_unique";
 
 // Índices e regras de unicidade. O MongoDB não tem migrations como o SQL:
 // createIndex é idempotente (não faz nada se o índice já existe igual), então
@@ -85,7 +86,7 @@ export const ALERTS_DEDUPE_KEY_INDEX = "alerts_dedupe_key_unique";
 // removê-lo antes; isso fica para quando acontecer.
 export async function ensureIndexes(db: Db): Promise<void> {
   const {
-    companies,
+    parties,
     trackings,
     webhookEvents,
     alerts,
@@ -94,9 +95,11 @@ export async function ensureIndexes(db: Db): Promise<void> {
   } = collections(db);
 
   await Promise.all([
-    companies.createIndex(
-      { cnpj: 1 },
-      { name: "companies_cnpj_unique", unique: true },
+    // Uma parte por documento. O tipo entra na chave porque CNPJ e CPF são
+    // números de famílias diferentes.
+    parties.createIndex(
+      { documentType: 1, document: 1 },
+      { name: PARTIES_DOCUMENT_INDEX, unique: true },
     ),
 
     // Só vale para IDs preenchidos: vários monitoramentos ainda não enviados
@@ -109,7 +112,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
         partialFilterExpression: { juditTrackingId: { $type: "string" } },
       },
     ),
-    trackings.createIndex({ companyId: 1 }, { name: "trackings_company_id" }),
+    trackings.createIndex({ partyId: 1 }, { name: "trackings_party_id" }),
     // No máximo um monitoramento não excluído por identificador. A regra fica
     // no banco, e não só no código, porque duas requisições simultâneas
     // passariam juntas por uma consulta prévia.
@@ -141,7 +144,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
       { name: "webhook_events_processing_status" },
     ),
 
-    alerts.createIndex({ companyId: 1 }, { name: "alerts_company_id" }),
+    alerts.createIndex({ partyId: 1 }, { name: "alerts_party_id" }),
     // Só para busca (alertas de um evento). A unicidade fica no índice de
     // baixo: um evento pode não gerar alerta, e o mesmo fato pode chegar em
     // dois eventos (versão do cache e versão atualizada).
@@ -172,8 +175,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
       { name: JUDIT_REQUESTS_REQUEST_ID_INDEX, unique: true },
     ),
     juditRequests.createIndex(
-      { companyId: 1, createdAt: -1 },
-      { name: "judit_requests_company_id_created_at" },
+      { partyId: 1, createdAt: -1 },
+      { name: "judit_requests_party_id_created_at" },
     ),
     // Histórico da página Consultas, do mais novo para o mais antigo. Sem
     // regra de unicidade: cada chamada é um registro, e a JUDIT nem sempre

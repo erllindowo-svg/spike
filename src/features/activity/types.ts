@@ -11,6 +11,6 @@ export type ActivityItem = {
   title: string;
   description: string;
   occurredAt: Date;
-  companyId: string | null;
+  partyId: string | null;
   href: string | null;
 };

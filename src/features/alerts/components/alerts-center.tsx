@@ -36,6 +36,7 @@ import {
   type AlertType,
   type AlertView,
 } from "@/features/alerts/types";
+import { partyHref } from "@/features/parties/documents";
 import { formatCnj } from "@/features/processes/cnj";
 import { SupportOnly } from "@/features/settings/support-view";
 import { formatSearchKey } from "@/features/trackings/format";
@@ -60,7 +61,7 @@ export function AlertsCenter() {
     alerts: allAlerts,
     trackings,
     dataSource,
-    getCompany,
+    getParty,
     markAlertRead,
     markAllAlertsRead,
   } = useDemoStore();
@@ -224,7 +225,7 @@ export function AlertsCenter() {
               <ul className="divide-y">
                 {group.items.map((alert) => {
                   const { icon: Icon, className } = alertTypeStyles[alert.type];
-                  const company = getCompany(alert.companyId);
+                  const company = getParty(alert.partyId);
                   return (
                     <li
                       key={alert.id}
@@ -272,9 +273,7 @@ export function AlertsCenter() {
                         </span>
                         <span className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                           {company && (
-                            <span>
-                              {company.legalName ?? "Razão social indisponível"}
-                            </span>
+                            <span>{company.name ?? "Nome não consultado"}</span>
                           )}
                           {alert.lawsuitCnj && (
                             <span className="font-mono">
@@ -322,8 +321,8 @@ function AlertSheet({
   alert: AlertView | null;
   onClose: () => void;
 }) {
-  const { getCompany, webhookEvents } = useDemoStore();
-  const company = alert ? getCompany(alert.companyId) : null;
+  const { getParty, webhookEvents } = useDemoStore();
+  const company = alert ? getParty(alert.partyId) : null;
   const event = alert?.webhookEventId
     ? webhookEvents.find((e) => e.id === alert.webhookEventId)
     : undefined;
@@ -355,14 +354,16 @@ function AlertSheet({
                     <StatusBadge tone="info">Não lido</StatusBadge>
                   )}
                 </dd>
-                <dt className="text-muted-foreground">Empresa</dt>
+                <dt className="text-muted-foreground">
+                  {company?.documentType === "cpf" ? "Pessoa" : "Empresa"}
+                </dt>
                 <dd>
                   {company ? (
                     <Link
-                      href={`/empresas/${company.cnpj}`}
+                      href={partyHref(company.documentType, company.document)}
                       className="text-primary underline-offset-4 hover:underline"
                     >
-                      {company.legalName ?? "Razão social indisponível"}
+                      {company.name ?? "Nome não consultado"}
                     </Link>
                   ) : (
                     <span className="text-muted-foreground">Não associada</span>

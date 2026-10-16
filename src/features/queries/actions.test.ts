@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Party } from "@/db/models";
 import type { JuditRequest } from "@/db/models";
-import { getCompanyByCnpj } from "@/features/companies/db";
+import { getPartyByDocument } from "@/features/parties/db";
 import { processEventsForReference } from "@/features/webhooks/process";
 import {
   applicationErrorItem,
@@ -23,7 +24,7 @@ import {
 // refresh() only works inside a real Next.js request.
 // The daily cap reads the database; covered in src/features/queries/budget.test.ts.
 vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
-vi.mock("@/features/companies/db", () => ({ getCompanyByCnpj: vi.fn() }));
+vi.mock("@/features/parties/db", () => ({ getPartyByDocument: vi.fn() }));
 vi.mock("./db", () => ({
   findOpenJuditRequest: vi.fn(),
   getJuditRequest: vi.fn(),
@@ -38,10 +39,11 @@ vi.mock("@/features/webhooks/process", () => ({
 
 const TEST_CNPJ = "A1B2C3D4E5F668";
 const REQUEST_ID = createdRequestBody.request_id;
-const company = {
+const company: Party = {
   id: "company-1",
-  cnpj: TEST_CNPJ,
-  legalName: null,
+  documentType: "cnpj",
+  document: TEST_CNPJ,
+  name: null,
   registrationStatus: null,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -49,7 +51,7 @@ const company = {
 const storedRequest: JuditRequest = {
   id: "row-1",
   requestId: REQUEST_ID,
-  companyId: company.id,
+  partyId: company.id,
   mode: "historical_async",
   delivery: "polling",
   searchType: "cnpj",
@@ -91,7 +93,7 @@ beforeEach(() => {
   vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "");
   vi.stubEnv("JUDIT_WEBHOOK_TOKEN", "");
   vi.mocked(processEventsForReference).mockReset().mockResolvedValue([]);
-  vi.mocked(getCompanyByCnpj).mockReset().mockResolvedValue(company);
+  vi.mocked(getPartyByDocument).mockReset().mockResolvedValue(company);
   vi.mocked(getJuditRequest).mockReset().mockResolvedValue(storedRequest);
   vi.mocked(findOpenJuditRequest).mockReset().mockResolvedValue(null);
   vi.mocked(saveJuditRequest)
@@ -110,7 +112,8 @@ describe("startAsyncQueryAction", () => {
     expect(
       await startAsyncQueryAction({
         mode: "historical_async",
-        cnpj: TEST_CNPJ,
+        documentType: "cnpj",
+        document: TEST_CNPJ,
       }),
     ).toMatchObject({ ok: false, reason: "unavailable" });
     expect(fetch).not.toHaveBeenCalled();
@@ -121,7 +124,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: "A1B2C3D4/E5F6-68",
+      documentType: "cnpj",
+      document: "A1B2C3D4/E5F6-68",
     });
 
     expect(sentBody(fetchMock)).toEqual({
@@ -129,7 +133,7 @@ describe("startAsyncQueryAction", () => {
     });
     expect(saveJuditRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
-      companyId: company.id,
+      partyId: company.id,
       mode: "historical_async",
       delivery: "polling",
       searchType: "cnpj",
@@ -146,7 +150,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: false, reason: "invalid" });
@@ -167,7 +172,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: true });
@@ -185,7 +191,11 @@ describe("startAsyncQueryAction", () => {
     vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
     const fetchMock = mockFetch(createdRequestBody);
 
-    await startAsyncQueryAction({ mode: "historical_async", cnpj: TEST_CNPJ });
+    await startAsyncQueryAction({
+      mode: "historical_async",
+      documentType: "cnpj",
+      document: TEST_CNPJ,
+    });
 
     expect(sentBody(fetchMock)).not.toHaveProperty("callback_url");
     expect(saveJuditRequest).toHaveBeenCalledWith(
@@ -204,7 +214,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: false, reason: "error" });
@@ -216,7 +227,8 @@ describe("startAsyncQueryAction", () => {
 
     await startAsyncQueryAction({
       mode: "historical_on_demand",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
       cacheTtlInDays: 7,
     });
 
@@ -240,7 +252,8 @@ describe("startAsyncQueryAction", () => {
     expect(
       await startAsyncQueryAction({
         mode: "historical_on_demand",
-        cnpj: TEST_CNPJ,
+        documentType: "cnpj",
+        document: TEST_CNPJ,
         cacheTtlInDays: 0,
       }),
     ).toMatchObject({ ok: false, reason: "invalid" });
@@ -249,11 +262,19 @@ describe("startAsyncQueryAction", () => {
 
   it("does not call JUDIT for a CNPJ outside the allowlist", async () => {
     const other = "11222333000181";
-    vi.mocked(getCompanyByCnpj).mockResolvedValue({ ...company, cnpj: other });
+    vi.mocked(getPartyByDocument).mockResolvedValue({
+      ...company,
+      documentType: "cnpj",
+      document: other,
+    });
     mockFetch();
 
     expect(
-      await startAsyncQueryAction({ mode: "historical_async", cnpj: other }),
+      await startAsyncQueryAction({
+        mode: "historical_async",
+        documentType: "cnpj",
+        document: other,
+      }),
     ).toMatchObject({ ok: false, reason: "not_allowed" });
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -266,7 +287,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: false, reason: "error" });
@@ -349,7 +371,7 @@ describe("checkAsyncQueryAction", () => {
         applicationErrors: [
           "LAWSUIT_NOT_FOUND: Lawsuit 0000000-00.0000.0.00.0000 not found in datalake or court.",
         ],
-        lawsuits: [{ cnj: "99999999999999999999", companyId: company.id }],
+        lawsuits: [{ cnj: "99999999999999999999", partyId: company.id }],
       },
     });
   });

@@ -11,13 +11,18 @@ import { connection } from "next/server";
 //   copiados (continuam na JUDIT) e a atividade não é persistida; aparecem
 //   vazios. Nada aqui chama a JUDIT.
 
-import type { Alert, JuditRequest, WebhookEvent } from "@/db/models";
+import type {
+  Alert,
+  DocumentType,
+  JuditRequest,
+  WebhookEvent,
+} from "@/db/models";
 import type { ActivityItem } from "@/features/activity/types";
 import * as alertsDb from "@/features/alerts/db";
 import { isAlertType, type AlertView } from "@/features/alerts/types";
-import { normalizeCnpj } from "@/features/companies/cnpj";
-import * as companiesDb from "@/features/companies/db";
-import type { Company } from "@/features/companies/types";
+import { normalizeDocument } from "@/features/parties/documents";
+import * as partiesDb from "@/features/parties/db";
+import type { Party } from "@/features/parties/types";
 import { normalizeCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
 import * as queriesDb from "@/features/queries/db";
@@ -51,26 +56,35 @@ async function usingDatabase(): Promise<boolean> {
   return true;
 }
 
-export async function listCompanies(): Promise<Company[]> {
-  if (await usingDatabase()) return companiesDb.listCompanies();
-  return [...mock.companies].sort((a, b) =>
-    (a.legalName ?? a.cnpj).localeCompare(b.legalName ?? b.cnpj, "pt-BR"),
+export async function listParties(): Promise<Party[]> {
+  if (await usingDatabase()) return partiesDb.listParties();
+  return [...mock.parties].sort((a, b) =>
+    (a.name ?? a.document).localeCompare(b.name ?? b.document, "pt-BR"),
   );
 }
 
-export async function getCompanyByCnpj(cnpj: string): Promise<Company | null> {
-  if (await usingDatabase()) return companiesDb.getCompanyByCnpj(cnpj);
-  const normalized = normalizeCnpj(cnpj);
-  return mock.companies.find((c) => c.cnpj === normalized) ?? null;
+export async function getPartyByDocument(
+  type: DocumentType,
+  document: string,
+): Promise<Party | null> {
+  if (await usingDatabase()) {
+    return partiesDb.getPartyByDocument(type, document);
+  }
+  const normalized = normalizeDocument(type, document);
+  return (
+    mock.parties.find(
+      (p) => p.documentType === type && p.document === normalized,
+    ) ?? null
+  );
 }
 
 // Processos virão da JUDIT (etapa 3 em diante); ainda não são persistidos.
 export async function listLawsuits(filter?: {
-  companyId?: string;
+  partyId?: string;
 }): Promise<Lawsuit[]> {
   if (await usingDatabase()) return [];
   return mock.lawsuits
-    .filter((l) => !filter?.companyId || l.companyId === filter.companyId)
+    .filter((l) => !filter?.partyId || l.partyId === filter.partyId)
     .sort(
       (a, b) =>
         (b.lastMovementAt?.getTime() ?? 0) - (a.lastMovementAt?.getTime() ?? 0),
@@ -86,9 +100,9 @@ export async function getLawsuitByCnj(cnj: string): Promise<Lawsuit | null> {
 // Consultas assíncronas criadas na JUDIT (coleção judit_requests). Só existem
 // no modo "db": a demonstração não chama a JUDIT.
 export async function listAsyncQueries(
-  companyId: string,
+  partyId: string,
 ): Promise<JuditRequest[]> {
-  if (await usingDatabase()) return queriesDb.listJuditRequests(companyId);
+  if (await usingDatabase()) return queriesDb.listJuditRequests(partyId);
   return [];
 }
 
@@ -179,6 +193,13 @@ function toEventView(event: WebhookEvent, alerts: Alert[]): WebhookEventView {
 // demonstração para que o build nunca dependa do banco. No modo "db", as
 // páginas desses parâmetros só consultam o banco na requisição.
 export const staticParamSamples = {
-  companies: () => mock.companies.map((c) => ({ cnpj: c.cnpj })),
+  companies: () =>
+    mock.parties
+      .filter((p) => p.documentType === "cnpj")
+      .map((p) => ({ cnpj: p.document })),
+  people: () =>
+    mock.parties
+      .filter((p) => p.documentType === "cpf")
+      .map((p) => ({ cpf: p.document })),
   lawsuits: () => mock.lawsuits.map((l) => ({ cnj: l.cnj })),
 };

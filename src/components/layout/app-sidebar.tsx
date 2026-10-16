@@ -23,7 +23,7 @@ import { useDemoStore } from "@/lib/demo-store";
 
 import { BrandMark } from "./brand";
 import {
-  isNavActive,
+  isNavItemActive,
   productNav,
   settingsNav,
   supportNav,
@@ -74,7 +74,7 @@ function NavLinkButton({
 function ActiveNavLink(props: NavLinkProps) {
   const pathname = usePathname();
   return (
-    <NavLinkButton {...props} active={isNavActive(pathname, props.item.href)} />
+    <NavLinkButton {...props} active={isNavItemActive(pathname, props.item)} />
   );
 }
 

@@ -1,8 +1,8 @@
-import { normalizeCnpj } from "@/features/companies/cnpj";
+import { normalizeCnpj } from "@/features/parties/cnpj";
 import type { Lawsuit as JuditLawsuit } from "@/lib/judit/schemas/lawsuits";
 
 import { normalizeCnj } from "./cnj";
-import type { CompanyRole, Lawsuit, LawsuitStatus } from "./types";
+import type { PartyRole, Lawsuit, LawsuitStatus } from "./types";
 
 // Converte um processo do datalake da JUDIT (POST /lawsuits) no modelo de
 // exibição da aplicação. Função pura: não chama a rede nem o banco.
@@ -15,21 +15,21 @@ import type { CompanyRole, Lawsuit, LawsuitStatus } from "./types";
 
 export function fromJuditLawsuit(
   item: JuditLawsuit,
-  // Empresa do CNPJ consultado. Sem empresa (monitoramento por CNJ), o
-  // processo fica sem empresa e sem lado.
-  company: { id: string; cnpj: string } | null,
+  // Parte do documento consultado (empresa ou pessoa). Sem parte
+  // (monitoramento por CNJ), o processo fica sem parte e sem lado.
+  party: { id: string; document: string } | null,
 ): Lawsuit {
   const cnj = normalizeCnj(item.code);
   return {
     id: `${cnj}-${item.instance ?? 1}`,
     cnj,
-    companyId: company?.id ?? null,
+    partyId: party?.id ?? null,
     tribunal: text(item.tribunal_acronym) ?? "Não informado",
     area: text(item.area),
     className: firstName(item.classifications),
     subject: firstName(item.subjects),
     judgingBody: firstName(item.courts) ?? text(item.county),
-    companyRole: company ? companyRole(item.parties, company.cnpj) : null,
+    partyRole: party ? partyRole(item.parties, party.document) : null,
     status: status(item.status, item.situation),
     distributedAt: date(item.distribution_date),
     lastMovementAt: date(item.last_step?.step_date),
@@ -62,18 +62,20 @@ function date(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-const sides: Record<string, CompanyRole> = {
+const sides: Record<string, PartyRole> = {
   ACTIVE: "active",
   PASSIVE: "passive",
   INTERESTED: "interested",
 };
 
-// Lado da empresa: a parte cujo documento é o CNPJ consultado. Sem
-// documento correspondente, o lado fica desconhecido (não adivinhamos pelo
-// nome, que pode ser homônimo).
-function companyRole(parties: unknown, cnpj: string): CompanyRole | null {
+// Lado da parte consultada: a parte do processo cujo documento é o
+// consultado. Sem documento correspondente, o lado fica desconhecido (não
+// adivinhamos pelo nome, que pode ser homônimo). normalizeCnpj serve aos dois
+// documentos: tira a máscara e deixa letras e dígitos (o CPF fica só com os
+// dígitos).
+function partyRole(parties: unknown, document: string): PartyRole | null {
   if (!Array.isArray(parties)) return null;
-  const target = normalizeCnpj(cnpj);
+  const target = normalizeCnpj(document);
   for (const party of parties) {
     if (typeof party !== "object" || party === null) continue;
     const documents = [

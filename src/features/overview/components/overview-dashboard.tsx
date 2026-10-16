@@ -66,17 +66,19 @@ export function OverviewDashboard({
   lawsuitsCount: number;
   distribution: DistributionData;
 }) {
-  const { companies, trackings, alerts } = useDemoStore();
+  const { parties, trackings, alerts } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [supportView] = useSupportView();
 
   const activeTrackings = trackings.filter(
     (t) => getTrackingDisplayState(t) === "active",
   ).length;
-  const companiesWithTracking = new Set(
+  const companies = parties.filter((p) => p.documentType === "cnpj").length;
+  const people = parties.length - companies;
+  const monitoredParties = new Set(
     trackings
-      .filter((t) => t.searchType === "cnpj" && !isTrackingClosed(t))
-      .map((t) => t.searchKey),
+      .filter((t) => t.searchType !== "cnj" && !isTrackingClosed(t))
+      .map((t) => `${t.searchType}:${t.searchKey}`),
   ).size;
   const unread = alerts
     .filter((a) => !a.readAt)
@@ -91,7 +93,7 @@ export function OverviewDashboard({
 
   return (
     <>
-      <PageIntro description="Resumo do que o app acompanha: empresas, monitoramentos, alertas e consultas.">
+      <PageIntro description="Resumo do que o app acompanha: empresas, pessoas, monitoramentos, alertas e consultas.">
         <Button
           variant="outline"
           nativeButton={false}
@@ -111,13 +113,13 @@ export function OverviewDashboard({
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         <StatCard
-          label="Empresas"
-          value={formatNumber(companies.length)}
-          hint={plural(
-            companiesWithTracking,
-            "monitorada por CNPJ",
-            "monitoradas por CNPJ",
-          )}
+          label="Empresas e pessoas"
+          value={formatNumber(parties.length)}
+          hint={`${plural(companies, "empresa", "empresas")}, ${plural(
+            people,
+            "pessoa",
+            "pessoas",
+          )}; ${plural(monitoredParties, "monitorada", "monitoradas")}`}
           icon={Building2Icon}
         />
         <StatCard
@@ -167,9 +169,7 @@ export function OverviewDashboard({
               <ul className="flex flex-col divide-y">
                 {unread.slice(0, 5).map((alert) => {
                   const { icon: Icon, className } = alertTypeStyles[alert.type];
-                  const company = companies.find(
-                    (c) => c.id === alert.companyId,
-                  );
+                  const party = parties.find((c) => c.id === alert.partyId);
                   return (
                     <li key={alert.id}>
                       <Link
@@ -193,7 +193,7 @@ export function OverviewDashboard({
                             {alert.title}
                           </span>
                           <span className="truncate text-xs text-muted-foreground">
-                            {company?.legalName ?? alert.description}
+                            {party?.name ?? alert.description}
                           </span>
                         </span>
                         <time

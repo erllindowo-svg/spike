@@ -99,5 +99,5 @@ export const TRACKING_MODES = {
 
 // Hoje cada tipo de identificador tem uma só modalidade de monitoramento.
 export function trackingModeFor(searchType: TrackingSearchType): TrackingMode {
-  return searchType === "cnpj" ? "tracking_document" : "tracking_lawsuit";
+  return searchType === "cnj" ? "tracking_lawsuit" : "tracking_document";
 }

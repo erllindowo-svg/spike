@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2Icon, InfoIcon, ScaleIcon } from "lucide-react";
+import { Building2Icon, InfoIcon, ScaleIcon, UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useState } from "react";
 import { toast } from "sonner";
@@ -33,10 +33,10 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  cnpjSchema,
-  formatCnpj,
-  normalizeCnpj,
-} from "@/features/companies/cnpj";
+  documentSchema,
+  formatDocument,
+  normalizeDocument,
+} from "@/features/parties/documents";
 import { cnjSchema, formatCnj, normalizeCnj } from "@/features/processes/cnj";
 import { TRACKING_MODES, trackingModeFor } from "@/features/queries/modes";
 import {
@@ -101,6 +101,54 @@ const recurrenceItems = recurrenceOptions.map((days) => ({
   label: formatRecurrence(days),
 }));
 
+// Cada tipo de identificador: rótulo, validação, formato e ajuda.
+const searchTypeFields: Record<
+  TrackingSearchType,
+  {
+    toggle: string;
+    icon: typeof Building2Icon;
+    label: string;
+    placeholder: string;
+    help: string;
+  }
+> = {
+  cnpj: {
+    toggle: "Por CNPJ",
+    icon: Building2Icon,
+    label: "CNPJ da empresa",
+    placeholder: "00.000.000/0000-00",
+    help: "Novos processos em que este CNPJ aparecer serão notificados.",
+  },
+  cpf: {
+    toggle: "Por CPF",
+    icon: UserIcon,
+    label: "CPF da pessoa",
+    placeholder: "000.000.000-00",
+    help: "Novos processos em que este CPF aparecer serão notificados. CPF é dado pessoal: monitore só com base legal.",
+  },
+  cnj: {
+    toggle: "Por número CNJ",
+    icon: ScaleIcon,
+    label: "Número do processo (CNJ)",
+    placeholder: "0000000-00.0000.0.00.0000",
+    help: "Movimentações deste processo serão notificadas.",
+  },
+};
+
+const SEARCH_TYPES: TrackingSearchType[] = ["cnpj", "cpf", "cnj"];
+
+function schemaFor(type: TrackingSearchType) {
+  return type === "cnj" ? cnjSchema : documentSchema(type);
+}
+
+function formatKey(type: TrackingSearchType, key: string): string {
+  return type === "cnj" ? formatCnj(key) : formatDocument(type, key);
+}
+
+function normalizeKey(type: TrackingSearchType, key: string): string {
+  return type === "cnj" ? normalizeCnj(key) : normalizeDocument(type, key);
+}
+
 function NewTrackingForm({
   defaults,
   onDone,
@@ -109,44 +157,48 @@ function NewTrackingForm({
   onDone: () => void;
 }) {
   const router = useRouter();
-  const { addTracking, companies, lawsuits, dataSource } = useDemoStore();
+  const { addTracking, parties, lawsuits, dataSource } = useDemoStore();
   const [saving, setSaving] = useState(false);
   const [searchType, setSearchType] = useState<TrackingSearchType>(
     defaults.searchType ?? "cnpj",
   );
-  const [values, setValues] = useState<Record<TrackingSearchType, string>>({
-    cnpj:
-      defaults.searchType === "cnpj" && defaults.searchKey
-        ? formatCnpj(defaults.searchKey)
-        : "",
-    cnj:
-      defaults.searchType === "cnj" && defaults.searchKey
-        ? formatCnj(defaults.searchKey)
-        : "",
-  });
+  const [values, setValues] = useState<Record<TrackingSearchType, string>>(
+    () =>
+      Object.fromEntries(
+        SEARCH_TYPES.map((type) => [
+          type,
+          defaults.searchType === type && defaults.searchKey
+            ? formatKey(type, defaults.searchKey)
+            : "",
+        ]),
+      ) as Record<TrackingSearchType, string>,
+  );
   // Padrão de 30 dias: no modo "db", cada execução na JUDIT pode ser cobrada.
   const [recurrence, setRecurrence] = useState("30");
   const [error, setError] = useState<string | null>(null);
 
   const value = values[searchType];
-  const matchedCompany =
-    searchType === "cnpj"
-      ? companies.find((c) => c.cnpj === normalizeCnpj(value))
-      : undefined;
+  const field = searchTypeFields[searchType];
+  const matchedParty =
+    searchType === "cnj"
+      ? undefined
+      : parties.find(
+          (p) =>
+            p.documentType === searchType &&
+            p.document === normalizeKey(searchType, value),
+        );
   const matchedLawsuit =
     searchType === "cnj"
       ? lawsuits.find((l) => l.cnj === normalizeCnj(value))
       : undefined;
-  const lawsuitCompany = matchedLawsuit?.companyId
-    ? companies.find((c) => c.id === matchedLawsuit.companyId)
+  const lawsuitParty = matchedLawsuit?.partyId
+    ? parties.find((p) => p.id === matchedLawsuit.partyId)
     : undefined;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (saving) return;
-    const parsed = (searchType === "cnpj" ? cnpjSchema : cnjSchema).safeParse(
-      value,
-    );
+    const parsed = schemaFor(searchType).safeParse(value);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Identificador inválido");
       return;
@@ -156,10 +208,10 @@ function NewTrackingForm({
     const result = await addTracking({
       searchType,
       searchKey: parsed.data,
-      companyId:
-        searchType === "cnpj"
-          ? (matchedCompany?.id ?? null)
-          : (matchedLawsuit?.companyId ?? null),
+      partyId:
+        searchType === "cnj"
+          ? (matchedLawsuit?.partyId ?? null)
+          : (matchedParty?.id ?? null),
       recurrenceDays: Number(recurrence),
     });
     setSaving(false);
@@ -192,13 +244,23 @@ function NewTrackingForm({
     });
   }
 
+  const matchDescription =
+    searchType === "cnj"
+      ? matchedLawsuit
+        ? `Processo no ${matchedLawsuit.tribunal}${lawsuitParty?.name ? ` · ${lawsuitParty.name}` : ""}`
+        : null
+      : matchedParty
+        ? `${dataSource === "db" ? "Já na lista" : "Encontrado nos dados de demonstração"}: ${matchedParty.name ?? "nome não consultado"}.`
+        : null;
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
       <DialogHeader>
         <DialogTitle>Novo monitoramento</DialogTitle>
         <DialogDescription>
-          Escolha o que acompanhar: uma empresa, para descobrir novos processos,
-          ou um processo específico, para receber suas movimentações.
+          Escolha o que acompanhar: uma empresa ou uma pessoa, para descobrir
+          novos processos, ou um processo específico, para receber suas
+          movimentações.
         </DialogDescription>
       </DialogHeader>
 
@@ -218,73 +280,47 @@ function NewTrackingForm({
               }
             }}
           >
-            <ToggleGroupItem value="cnpj" className="flex-1">
-              <Building2Icon data-icon="inline-start" />
-              Por CNPJ
-            </ToggleGroupItem>
-            <ToggleGroupItem value="cnj" className="flex-1">
-              <ScaleIcon data-icon="inline-start" />
-              Por número CNJ
-            </ToggleGroupItem>
+            {SEARCH_TYPES.map((type) => {
+              const Icon = searchTypeFields[type].icon;
+              return (
+                <ToggleGroupItem key={type} value={type} className="flex-1">
+                  <Icon data-icon="inline-start" />
+                  {searchTypeFields[type].toggle}
+                </ToggleGroupItem>
+              );
+            })}
           </ToggleGroup>
           <FieldDescription>
             {searchTypeDescriptions[searchType]}.
           </FieldDescription>
         </Field>
 
-        {searchType === "cnpj" ? (
-          <Field data-invalid={!!error}>
-            <FieldLabel htmlFor="tracking-cnpj">CNPJ da empresa</FieldLabel>
-            <Input
-              id="tracking-cnpj"
-              autoFocus
-              inputMode="text"
-              placeholder="00.000.000/0000-00"
-              value={values.cnpj}
-              aria-invalid={!!error}
-              onChange={(e) => {
-                setValues((v) => ({ ...v, cnpj: e.target.value }));
-                setError(null);
-              }}
-            />
-            {error ? (
-              <FieldError>{error}</FieldError>
-            ) : (
-              <FieldDescription>
-                {matchedCompany
-                  ? `${dataSource === "db" ? "Empresa já na lista" : "Empresa encontrada nos dados de demonstração"}: ${matchedCompany.legalName ?? "razão social não consultada"}.`
-                  : "Novos processos em que este CNPJ aparecer serão notificados."}
-              </FieldDescription>
-            )}
-          </Field>
-        ) : (
-          <Field data-invalid={!!error}>
-            <FieldLabel htmlFor="tracking-cnj">
-              Número do processo (CNJ)
-            </FieldLabel>
-            <Input
-              id="tracking-cnj"
-              autoFocus
-              inputMode="numeric"
-              placeholder="0000000-00.0000.0.00.0000"
-              value={values.cnj}
-              aria-invalid={!!error}
-              onChange={(e) => {
-                setValues((v) => ({ ...v, cnj: e.target.value }));
-                setError(null);
-              }}
-            />
-            {error ? (
-              <FieldError>{error}</FieldError>
-            ) : (
-              <FieldDescription>
-                {matchedLawsuit
-                  ? `Processo no ${matchedLawsuit.tribunal}${lawsuitCompany?.legalName ? ` · ${lawsuitCompany.legalName}` : ""}`
-                  : "Movimentações deste processo serão notificadas."}
-              </FieldDescription>
-            )}
-          </Field>
-        )}
+        <Field data-invalid={!!error}>
+          <FieldLabel htmlFor={`tracking-${searchType}`}>
+            {field.label}
+          </FieldLabel>
+          <Input
+            key={searchType}
+            id={`tracking-${searchType}`}
+            autoFocus
+            inputMode={searchType === "cnpj" ? "text" : "numeric"}
+            placeholder={field.placeholder}
+            value={value}
+            aria-invalid={!!error}
+            onChange={(e) => {
+              const next = e.target.value;
+              setValues((v) => ({ ...v, [searchType]: next }));
+              setError(null);
+            }}
+          />
+          {error ? (
+            <FieldError>{error}</FieldError>
+          ) : (
+            <FieldDescription>
+              {matchDescription ?? field.help}
+            </FieldDescription>
+          )}
+        </Field>
 
         <Field>
           <FieldLabel htmlFor="tracking-recurrence">Recorrência</FieldLabel>

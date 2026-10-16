@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import type { Tracking } from "@/db/models";
-import { getCompanyByCnpj } from "@/features/companies/db";
+import { getPartyByDocument } from "@/features/parties/db";
 import { assertDailyBudget } from "@/features/queries/budget";
 import {
   juditActionFailure,
@@ -390,7 +390,7 @@ function normalizeKey(key: string): string {
 }
 
 function juditSearchType(tracking: Pick<Tracking, "searchType">) {
-  return tracking.searchType === "cnpj" ? "cnpj" : "lawsuit_cnj";
+  return tracking.searchType === "cnj" ? "lawsuit_cnj" : tracking.searchType;
 }
 
 // --- Monitoramentos confirmados -------------------------------------------
@@ -473,14 +473,14 @@ export async function trackingResultsAction(
       createdAtGte: dateOnly(new Date(tracking.createdAt.getTime() - day)),
       createdAtLte: dateOnly(new Date(Date.now() + day)),
     });
-    const company =
-      tracking.searchType === "cnpj"
-        ? await getCompanyByCnpj(tracking.searchKey)
-        : null;
+    const party =
+      tracking.searchType === "cnj"
+        ? null
+        : await getPartyByDocument(tracking.searchType, tracking.searchKey);
     return {
       ok: true,
       tracking,
-      results: summarizeResponses(list, company),
+      results: summarizeResponses(list, party),
     };
   } catch (error) {
     return juditActionFailure(error, "trackings");

@@ -25,11 +25,11 @@ export type ResponsesSummary = {
   ignoredResponses: number;
 };
 
-// `company` é a empresa do CNPJ consultado, usada para descobrir o lado dela
-// em cada processo. Um monitoramento por CNJ pode não ter empresa.
+// `party` é a parte do documento consultado, usada para descobrir o lado dela
+// em cada processo. Um monitoramento por CNJ pode não ter parte.
 export function summarizeResponses(
   list: ResponseList,
-  company: { id: string; cnpj: string } | null,
+  party: { id: string; document: string } | null,
 ): ResponsesSummary {
   const summary: ResponsesSummary = {
     lawsuits: [],
@@ -54,7 +54,7 @@ export function summarizeResponses(
       summary.ignoredResponses++;
       continue;
     }
-    summary.lawsuits.push(fromJuditLawsuit(lawsuit.data, company));
+    summary.lawsuits.push(fromJuditLawsuit(lawsuit.data, party));
   }
   return summary;
 }

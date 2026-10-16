@@ -1,6 +1,12 @@
 "use client";
 
-import { Building2Icon, PlusIcon, RadarIcon, SearchIcon } from "lucide-react";
+import {
+  Building2Icon,
+  PlusIcon,
+  RadarIcon,
+  SearchIcon,
+  UserIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -19,36 +25,47 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  formatCnpj,
-  isValidCnpj,
-  normalizeCnpj,
-} from "@/features/companies/cnpj";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatNumber } from "@/lib/format";
 
-import { AddCompanyDialog } from "./add-company-dialog";
+import {
+  displayDocument,
+  DOCUMENTS,
+  formatDocument,
+  isValidDocument,
+  normalizeDocument,
+  partyHref,
+  type DocumentType,
+} from "../documents";
+import { AddPartyDialog } from "./add-party-dialog";
 import { RegistrationStatusBadge } from "./registration-status-badge";
 
-export type CompanyLawsuitSummary = Record<
+export type PartyLawsuitSummary = Record<
   string,
   { total: number; active: number }
 >;
 
-export function CompaniesList({
+// Lista de empresas (CNPJ) ou de pessoas físicas (CPF): a mesma tela, com os
+// textos e o documento de cada tipo (documents.ts).
+export function PartiesList({
+  documentType,
   lawsuitSummary,
 }: {
-  lawsuitSummary: CompanyLawsuitSummary;
+  documentType: DocumentType;
+  lawsuitSummary: PartyLawsuitSummary;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { companies, trackings, dataSource } = useDemoStore();
+  const { parties: allParties, trackings, dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
-  // Adicionar empresa sem monitorar só existe no modo "db": a demonstração
-  // tem uma lista fixa de empresas fictícias.
-  const [adding, setAdding] = useState<{ cnpj?: string } | null>(null);
+  const info = DOCUMENTS[documentType];
+  const isCompany = documentType === "cnpj";
+  const parties = allParties.filter((p) => p.documentType === documentType);
+  // Adicionar sem monitorar só existe no modo "db": a demonstração tem uma
+  // lista fixa de partes fictícias.
+  const [adding, setAdding] = useState<{ document?: string } | null>(null);
   const queryParam = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(queryParam);
   const [syncedParam, setSyncedParam] = useState(queryParam);
@@ -59,33 +76,41 @@ export function CompaniesList({
   }
 
   const term = query.trim().toLowerCase();
-  const cnpjTerm = normalizeCnpj(term);
-  const filtered = companies.filter(
-    (c) =>
+  const documentTerm = normalizeDocument(documentType, term);
+  const filtered = parties.filter(
+    (p) =>
       !term ||
-      c.legalName?.toLowerCase().includes(term) ||
-      (cnpjTerm.length > 0 && c.cnpj.includes(cnpjTerm)),
+      p.name?.toLowerCase().includes(term) ||
+      (documentTerm.length > 0 && p.document.includes(documentTerm)),
   );
-  const trackedCnpjs = new Set(
+  const trackedDocuments = new Set(
     trackings
-      .filter((t) => t.searchType === "cnpj" && !isTrackingClosed(t))
+      .filter((t) => t.searchType === documentType && !isTrackingClosed(t))
       .map((t) => t.searchKey),
   );
-  const canTrackQuery =
-    isValidCnpj(term) && !companies.some((c) => c.cnpj === cnpjTerm);
+  const canAddQuery =
+    isValidDocument(documentType, term) &&
+    !parties.some((p) => p.document === documentTerm);
+  const EmptyIcon = isCompany ? Building2Icon : UserIcon;
 
   return (
     <>
-      <PageIntro description="Empresas que você adicionou ou monitora. Abra uma empresa para consultar os processos e ver os monitoramentos vinculados.">
+      <PageIntro
+        description={
+          isCompany
+            ? "Empresas que você adicionou ou monitora. Abra uma empresa para consultar os processos e ver os monitoramentos vinculados."
+            : "Pessoas físicas que você adicionou ou monitora. O CPF aparece mascarado na lista; completo, só na página da pessoa."
+        }
+      >
         {dataSource === "db" && (
           <Button variant="outline" onClick={() => setAdding({})}>
             <PlusIcon data-icon="inline-start" />
-            Adicionar empresa
+            Adicionar {isCompany ? "empresa" : "pessoa"}
           </Button>
         )}
-        <Button onClick={() => openNewTracking({ searchType: "cnpj" })}>
+        <Button onClick={() => openNewTracking({ searchType: documentType })}>
           <RadarIcon data-icon="inline-start" />
-          Monitorar CNPJ
+          Monitorar {info.label}
         </Button>
       </PageIntro>
 
@@ -99,43 +124,51 @@ export function CompaniesList({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por razão social ou CNPJ"
-              aria-label="Buscar empresas"
+              placeholder={`Buscar por ${isCompany ? "razão social" : "nome"} ou ${info.label}`}
+              aria-label={`Buscar ${info.partyLabelPlural.toLowerCase()}`}
               className="pl-8"
             />
           </div>
           <span className="text-sm text-muted-foreground">
-            {formatNumber(filtered.length)} de {formatNumber(companies.length)}{" "}
-            empresas
+            {formatNumber(filtered.length)} de {formatNumber(parties.length)}{" "}
+            {info.partyLabelPlural.toLowerCase()}
           </span>
         </div>
         <CardContent className="px-2">
           {filtered.length === 0 ? (
             <EmptyState
-              icon={Building2Icon}
-              title="Nenhuma empresa encontrada"
+              icon={EmptyIcon}
+              title={
+                parties.length === 0 && !term
+                  ? `Nenhuma ${isCompany ? "empresa" : "pessoa"} na lista`
+                  : `Nenhuma ${isCompany ? "empresa" : "pessoa"} encontrada`
+              }
               description={
-                canTrackQuery
+                canAddQuery
                   ? dataSource === "db"
-                    ? `O CNPJ ${formatCnpj(cnpjTerm)} ainda não está na lista. Adicione a empresa (com ou sem consulta aos dados cadastrais) ou comece a monitorá-la.`
-                    : "Este CNPJ não está nos dados de demonstração."
-                  : "Tente outra razão social ou um CNPJ completo."
+                    ? `O ${info.label} ${formatDocument(documentType, documentTerm)} ainda não está na lista. Adicione (com ou sem consulta aos dados cadastrais) ou comece a monitorar.`
+                    : `Este ${info.label} não está nos dados de demonstração.`
+                  : term
+                    ? `Tente outro nome ou um ${info.label} completo.`
+                    : `Adicione um ${info.label} ou crie um monitoramento para ele entrar na lista.`
               }
               action={
-                canTrackQuery ? (
+                canAddQuery ? (
                   <div className="flex flex-wrap justify-center gap-2">
                     {dataSource === "db" && (
-                      <Button onClick={() => setAdding({ cnpj: cnpjTerm })}>
+                      <Button
+                        onClick={() => setAdding({ document: documentTerm })}
+                      >
                         <PlusIcon data-icon="inline-start" />
-                        Adicionar empresa
+                        Adicionar {isCompany ? "empresa" : "pessoa"}
                       </Button>
                     )}
                     <Button
                       variant="outline"
                       onClick={() =>
                         openNewTracking({
-                          searchType: "cnpj",
-                          searchKey: cnpjTerm,
+                          searchType: documentType,
+                          searchKey: documentTerm,
                         })
                       }
                     >
@@ -143,36 +176,36 @@ export function CompaniesList({
                       Monitorar
                     </Button>
                   </div>
-                ) : (
+                ) : term ? (
                   <Button variant="outline" onClick={() => setQuery("")}>
                     Limpar busca
                   </Button>
-                )
+                ) : undefined
               }
             />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Razão social</TableHead>
-                  <TableHead>CNPJ</TableHead>
+                  <TableHead>{isCompany ? "Razão social" : "Nome"}</TableHead>
+                  <TableHead>{info.label}</TableHead>
                   <TableHead>Situação cadastral</TableHead>
                   <TableHead className="text-right">Processos</TableHead>
                   <TableHead className="text-right">Em andamento</TableHead>
                   <TableHead>Monitoramento</TableHead>
-                  <TableHead className="text-right">Consultada em</TableHead>
+                  <TableHead className="text-right">Adicionada em</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((company) => {
-                  const summary = lawsuitSummary[company.id] ?? {
+                {filtered.map((party) => {
+                  const summary = lawsuitSummary[party.id] ?? {
                     total: 0,
                     active: 0,
                   };
-                  const href = `/empresas/${company.cnpj}`;
+                  const href = partyHref(documentType, party.document);
                   return (
                     <TableRow
-                      key={company.id}
+                      key={party.id}
                       className="cursor-pointer"
                       onClick={() => router.push(href)}
                     >
@@ -182,19 +215,21 @@ export function CompaniesList({
                           onClick={(e) => e.stopPropagation()}
                           className="block truncate rounded-sm font-medium outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                         >
-                          {company.legalName ?? (
+                          {party.name ?? (
                             <span className="font-normal text-muted-foreground italic">
-                              Razão social indisponível
+                              {isCompany
+                                ? "Razão social não consultada"
+                                : "Nome não consultado"}
                             </span>
                           )}
                         </Link>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {formatCnpj(company.cnpj)}
+                        {displayDocument(documentType, party.document)}
                       </TableCell>
                       <TableCell>
                         <RegistrationStatusBadge
-                          status={company.registrationStatus}
+                          status={party.registrationStatus}
                         />
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
@@ -204,8 +239,10 @@ export function CompaniesList({
                         {formatNumber(summary.active)}
                       </TableCell>
                       <TableCell>
-                        {trackedCnpjs.has(company.cnpj) ? (
-                          <StatusBadge tone="success">Por CNPJ</StatusBadge>
+                        {trackedDocuments.has(party.document) ? (
+                          <StatusBadge tone="success">
+                            Por {info.label}
+                          </StatusBadge>
                         ) : (
                           <span className="text-sm text-muted-foreground">
                             —
@@ -213,7 +250,7 @@ export function CompaniesList({
                         )}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {formatDate(company.createdAt)}
+                        {formatDate(party.createdAt)}
                       </TableCell>
                     </TableRow>
                   );
@@ -224,10 +261,11 @@ export function CompaniesList({
         </CardContent>
       </Card>
 
-      <AddCompanyDialog
+      <AddPartyDialog
+        documentType={documentType}
         open={adding !== null}
         onOpenChange={(open) => !open && setAdding(null)}
-        defaultCnpj={adding?.cnpj}
+        defaultDocument={adding?.document}
       />
     </>
   );

@@ -6,8 +6,9 @@ import Link from "next/link";
 import { CopyButton } from "@/components/shared/copy-button";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { partyHref } from "@/features/parties/documents";
 import { formatCnj } from "@/features/processes/cnj";
-import { companyRoleLabels, type Lawsuit } from "@/features/processes/types";
+import { partyRoleLabels, type Lawsuit } from "@/features/processes/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
 import { isTrackingClosed } from "@/features/trackings/types";
@@ -69,8 +70,8 @@ export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
 }
 
 export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
-  const { getCompany, dataSource } = useDemoStore();
-  const company = getCompany(lawsuit.companyId);
+  const { getParty, dataSource } = useDemoStore();
+  const company = getParty(lawsuit.partyId);
 
   return (
     <div className="flex flex-col gap-5">
@@ -95,7 +96,7 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
         <InfoItem label="Classe processual">{lawsuit.className}</InfoItem>
         <InfoItem label="Assunto">{lawsuit.subject}</InfoItem>
         <InfoItem label="Papel da empresa">
-          {lawsuit.companyRole ? companyRoleLabels[lawsuit.companyRole] : null}
+          {lawsuit.partyRole ? partyRoleLabels[lawsuit.partyRole] : null}
         </InfoItem>
         <InfoItem label="Distribuição">
           {lawsuit.distributedAt ? formatDate(lawsuit.distributedAt) : null}
@@ -103,13 +104,19 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
         <InfoItem label="Valor da causa">
           {lawsuit.amount !== null ? formatCurrency(lawsuit.amount) : null}
         </InfoItem>
-        <InfoItem label="Empresa relacionada">
+        <InfoItem
+          label={
+            company?.documentType === "cpf"
+              ? "Pessoa relacionada"
+              : "Empresa relacionada"
+          }
+        >
           {company ? (
             <Link
-              href={`/empresas/${company.cnpj}`}
+              href={partyHref(company.documentType, company.document)}
               className="text-primary underline-offset-4 hover:underline"
             >
-              {company.legalName ?? "Razão social indisponível"}
+              {company.name ?? "Nome não consultado"}
             </Link>
           ) : null}
         </InfoItem>

@@ -9,7 +9,7 @@ import { NewTrackingDialogProvider } from "@/features/trackings/components/new-t
 import {
   getDataSource,
   getInitialState,
-  listCompanies,
+  listParties,
   listLawsuits,
 } from "@/lib/data";
 import { DemoStoreProvider } from "@/lib/demo-store";
@@ -32,9 +32,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 }
 
 async function AppData({ children }: { children: React.ReactNode }) {
-  const [initialState, companies, lawsuits] = await Promise.all([
+  const [initialState, parties, lawsuits] = await Promise.all([
     getInitialState(),
-    listCompanies(),
+    listParties(),
     listLawsuits(),
   ]);
 
@@ -42,7 +42,7 @@ async function AppData({ children }: { children: React.ReactNode }) {
     <DemoStoreProvider
       dataSource={getDataSource()}
       initialState={initialState}
-      companies={companies}
+      parties={parties}
       lawsuits={lawsuits}
     >
       <NewTrackingDialogProvider>
