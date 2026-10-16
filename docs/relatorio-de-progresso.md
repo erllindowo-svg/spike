@@ -1,23 +1,23 @@
 # Relatório de progresso: Raio-X Jurídico
 
-Última atualização: 2026-10-15, fim da noite (etapa 6 em `main`; etapas 7 e 8 decididas). Registros detalhados:
+Última atualização: 2026-10-16, madrugada (etapa 7: círculos 1 e 2 implementados na `feat/product-review`). Registros detalhados:
 [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md) e
 [`docs/logs/2026-10-14-sessao.md`](logs/2026-10-14-sessao.md).
 
 ## Onde estamos
 
-| Etapa (AGENTS.md, seção 6)                  | Estado                                                                    |
-| ------------------------------------------- | ------------------------------------------------------------------------- |
-| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                       |
-| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                             |
-| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                     |
-| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                 |
-| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.  |
-| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                           |
-| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real. |
-| 7. Produto: revisão visual e dois produtos  | Não iniciada. Termina o produto (`AGENTS.md`, seção 6).                   |
-| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                 |
-| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").               |
+| Etapa (AGENTS.md, seção 6)                  | Estado                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                                      |
+| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                                            |
+| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                                    |
+| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                                |
+| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.                 |
+| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                                          |
+| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real.                |
+| 7. Produto: revisão visual e dois produtos  | Em andamento: uso guiado feito, círculos 1 e 2 implementados (`docs/etapa-7-escopo.md`). |
+| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                                |
+| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").                              |
 
 ### Estado do Git
 
@@ -33,7 +33,9 @@
 - Etapa 6 mergeada na `main` (PR #6, `b3b727d`).
 - Etapa 7 na branch `feat/product-review` (a partir de `b3b727d`). Primeiro
   commit: as decisões de 2026-10-15 sobre as etapas 7 e 8 (`AGENTS.md`,
-  plano e diário).
+  plano e diário). Depois, o círculo 1 (`c8c94d6`, `379e2e4`) e as 14
+  fatias do círculo 2 (último commit `f7c9028`), uma por commit. **Não
+  enviada** ao GitHub; sem merge, por decisão do usuário.
 
 ## Etapa 3: o que existe
 
@@ -333,10 +335,14 @@ produto.
 
 ## Pendências conhecidas
 
-- No modo `db`, "Abrir processo" leva a `/processos/[cnj]`, que dá 404.
-  Caminho natural: `GET /lawsuits/{cnj}` (CNJ fictício já na allowlist).
-- Razão social vazia no modo `db`: viria de `POST /entities` (`getEntity`
-  já existe no client; nenhuma tela usa).
+- **Reiniciar o `pnpm dev`** antes de usar o app: a migração de
+  `companies` para `parties` e os índices novos só rodam ao conectar
+  (catálogo I1 e G4).
+- Nada do círculo 2 que chama a JUDIT pela primeira vez foi testado ao
+  vivo: dados cadastrais (`POST /entities`), `step_terms`, saldo e consumo,
+  consulta processual por CNJ com resumo por IA, mandados, execução penal.
+- Decisões suas: destino do evento de saída, textos de ajuda, liberar
+  documentos reais (S5; a allowlist continua ligada).
 - "Conferir na JUDIT" (envio incerto) só foi testada com `fetch` simulado.
   Os filtros de `GET /tracking` não são usados; a comparação é feita no
   nosso código (caso C12).
@@ -351,11 +357,11 @@ produto.
 
 ## Próxima sessão, em ordem
 
-1. **Etapa 7 (produto),** na branch `feat/product-review`: começar pelo uso
-   guiado (você usa o app com tarefas concretas e anota onde trava), depois
-   o fluxo desejado no papel e as fatias. Plano em
-   [`docs/plano-etapas-6-7.md`](plano-etapas-6-7.md), seção "Etapa 7
-   redefinida".
+1. **Etapa 7 (produto),** na branch `feat/product-review`: reiniciar o
+   `pnpm dev`; testar ao vivo, uma por vez, as chamadas novas do círculo 2
+   (começando por "Consultar dados cadastrais" com o CNPJ de teste); usar o
+   app e anotar os pontos do círculo 3. Candidatos já listados no fim de
+   [`docs/etapa-7-escopo.md`](etapa-7-escopo.md).
 2. **Fechamento da etapa 7:** dois produtos separados. O protótipo fica só
    com dados fictícios; o `main` vira o app real, só com banco e chave, sem
    código de demonstração. Depois, README e teste do clone limpo. Aí o
@@ -364,6 +370,7 @@ produto.
 
 ## Como retomar com o agente
 
-> Leia `docs/relatorio-de-progresso.md`, a seção 6 do `AGENTS.md` e a seção
-> "Etapa 7 redefinida" de `docs/plano-etapas-6-7.md`. Vamos começar a etapa 7
-> pelo uso guiado, na branch `feat/product-review`.
+> Leia `docs/relatorio-de-progresso.md`, a seção 6 do `AGENTS.md` e
+> `docs/etapa-7-escopo.md` (do "Círculo 2: plano" até o fim). O círculo 2
+> está implementado na branch `feat/product-review`. Vamos fazer os testes
+> ao vivo das chamadas novas e depois abrir o círculo 3.
