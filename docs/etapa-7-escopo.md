@@ -488,3 +488,10 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   demonstração, as respostas vêm dos dados fictícios, com selo. Ficam para
   depois: consulta processual assíncrona por CNJ (F06) com resumo por IA
   (F11), mandados (F09) e execução penal (F10).
+- **Fatia 5, barra de pesquisa: feita.** Sugestões enquanto se digita
+  (`src/components/layout/search-suggestions.ts`, função pura testada):
+  partes salvas pelo nome ou por parte do documento (com "monitorada"),
+  monitoramentos por CNJ e processos conhecidos; para um CNPJ, CPF ou CNJ
+  completo e válido, o item explícito "Consultar na JUDIT", que abre a
+  página Consultar já preenchida. Nada é consultado só por digitar. Busca
+  por nome na JUDIT continua fora (R1: homônimos, sem nome de teste).
