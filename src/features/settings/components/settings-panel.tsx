@@ -6,8 +6,10 @@ import {
   LifeBuoyIcon,
   RotateCcwIcon,
   ShieldCheckIcon,
+  WalletIcon,
   WebhookIcon,
 } from "lucide-react";
+import { Fragment, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { PageIntro } from "@/components/shared/page-intro";
@@ -21,12 +23,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  readJuditAccountAction,
+  type AccountResult,
+} from "@/features/settings/account-actions";
 import type {
   IntegrationId,
   IntegrationStatus,
 } from "@/features/settings/status";
 import { useSupportView } from "@/features/settings/support-view";
-import { useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import type { BillingConsumption } from "@/lib/judit/account";
+import { formatDate, formatNumber } from "@/lib/format";
 
 const integrationInfo: Record<
   IntegrationId,
@@ -84,6 +93,8 @@ export function SettingsPanel({
           </ul>
         </CardContent>
       </Card>
+
+      <JuditAccountCard />
 
       <SupportViewCard />
 
@@ -144,5 +155,133 @@ function SupportViewCard() {
         </CardAction>
       </CardHeader>
     </Card>
+  );
+}
+
+// Saldo e consumo da conta na JUDIT, por clique (F27 e F28 do mapa).
+function JuditAccountCard() {
+  const { dataSource } = useDemoStore();
+  const [result, setResult] = useState<AccountResult | null>(null);
+  const [loading, startLoading] = useTransition();
+
+  if (dataSource !== "db") return null;
+
+  return (
+    <Card className="max-w-3xl">
+      <CardHeader>
+        <CardTitle>Conta na JUDIT</CardTitle>
+        <CardDescription>
+          Saldo de créditos (contas pré-pagas) e consumo do ciclo de
+          faturamento, lidos na JUDIT só quando você pede. O consumo exige uma
+          chave administrativa.
+        </CardDescription>
+        <CardAction>
+          <Button
+            variant="outline"
+            disabled={loading}
+            onClick={() =>
+              startLoading(async () => {
+                try {
+                  setResult(await readJuditAccountAction());
+                } catch {
+                  setResult({ ok: false, message: SERVER_UNREACHABLE });
+                }
+              })
+            }
+          >
+            {loading ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <WalletIcon data-icon="inline-start" />
+            )}
+            Consultar saldo e consumo
+          </Button>
+        </CardAction>
+      </CardHeader>
+      {result && (
+        <CardContent className="flex flex-col gap-4 text-sm">
+          {!result.ok ? (
+            <p className="text-destructive">{result.message}</p>
+          ) : (
+            <>
+              <section className="flex flex-col gap-1.5">
+                <h3 className="font-medium">Consumo do ciclo</h3>
+                {result.consumption.ok ? (
+                  <ConsumptionView value={result.consumption.value} />
+                ) : (
+                  <p className="text-muted-foreground">
+                    {result.consumption.message}
+                  </p>
+                )}
+              </section>
+              <section className="flex flex-col gap-1.5">
+                <h3 className="font-medium">Saldo de créditos</h3>
+                {result.balance.ok ? (
+                  result.balance.value.length > 0 ? (
+                    <dl className="grid grid-cols-[12rem_1fr] gap-x-3 gap-y-1">
+                      {result.balance.value.map(([key, value]) => (
+                        <Fragment key={key}>
+                          <dt className="font-mono text-xs text-muted-foreground">
+                            {key}
+                          </dt>
+                          <dd className="tabular-nums">{value}</dd>
+                        </Fragment>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      A JUDIT respondeu sem campos simples.
+                    </p>
+                  )
+                ) : (
+                  <p className="text-muted-foreground">
+                    {result.balance.message}
+                  </p>
+                )}
+              </section>
+            </>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function ConsumptionView({ value }: { value: BillingConsumption }) {
+  const { consumption, max_consumption: max, remaining } = value;
+  if (consumption === undefined || max === undefined) {
+    return (
+      <p className="text-muted-foreground">A resposta veio sem os totais.</p>
+    );
+  }
+  const percent = max > 0 ? Math.min(100, (consumption / max) * 100) : 0;
+  const cycle =
+    value.cycle_started_at && value.cycle_ended_at
+      ? `Ciclo de ${formatDate(new Date(value.cycle_started_at))} a ${formatDate(new Date(value.cycle_ended_at))}.`
+      : null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p>
+        <span className="font-medium tabular-nums">
+          {formatNumber(consumption)}
+        </span>{" "}
+        de {formatNumber(max)} consumidos
+        {remaining !== undefined && ` · restam ${formatNumber(remaining)}`}
+      </p>
+      <div
+        className="h-2 w-full max-w-md overflow-hidden rounded-full bg-muted"
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={consumption}
+        aria-label="Consumo do ciclo"
+      >
+        <div
+          className="h-full rounded-full bg-primary/80"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      {cycle && <p className="text-xs text-muted-foreground">{cycle}</p>}
+    </div>
   );
 }

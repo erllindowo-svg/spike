@@ -7,7 +7,7 @@ import "server-only";
 // headers or full payloads. They hold only what is needed to diagnose:
 // method, path (without query string), status and a truncated body.
 
-export type JuditService = "lawsuits" | "requests" | "tracking";
+export type JuditService = "lawsuits" | "requests" | "tracking" | "users";
 
 export type JuditCallInfo = {
   service: JuditService;

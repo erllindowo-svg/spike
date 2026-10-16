@@ -403,3 +403,11 @@ Registradas em vez de escolhidas em silêncio.
     client envia `notification_filters: { step_terms: [...] }` no topo do
     corpo, como o exemplo indica. Lido em 2026-10-16; não testado ao vivo.
     Dúvida aberta: o filtro vale também para quem lê por polling?
+45. **Resposta do saldo de créditos sem formato.** A página
+    [credits](https://docs.judit.io/resource/consumption/credits) mostra
+    `GET https://users.production.judit.io/credits/balance` e exemplos de
+    chamada, mas nenhum exemplo de resposta nem a lista de campos ("traz o
+    saldo de créditos remanescente"). O client aceita qualquer objeto e a
+    tela mostra os campos que vierem. Lido em 2026-10-16; não testado ao
+    vivo. Nem esta página nem a do consumo do ciclo dizem se a leitura é
+    cobrada: o app só lê por clique.

@@ -36,6 +36,8 @@ const BASE_URLS: Record<JuditService, string> = {
   lawsuits: "https://lawsuits.production.judit.io",
   requests: "https://requests.production.judit.io",
   tracking: "https://tracking.production.judit.io",
+  // Account: credit balance (https://docs.judit.io/resource/consumption/credits).
+  users: "https://users.production.judit.io",
 };
 
 const DEFAULT_TIMEOUT_MS = 15_000;

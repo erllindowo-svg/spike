@@ -503,3 +503,10 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   item 44: a página da JUDIT tem a frase truncada e o exemplo inválido; não
   testado ao vivo). Os e-mails da própria JUDIT (F22) ficaram de fora:
   mandam dados de processo para fora do app, decisão do usuário.
+- **Fatia 7, conta na JUDIT: feita.** Cartão "Conta na JUDIT" em
+  Configurações: saldo de créditos (F27) e consumo do ciclo (F28), lidos só
+  por clique (a documentação não diz se as leituras são cobradas), cada um
+  com o seu erro (o consumo exige chave administrativa). Serviço novo no
+  client (`users.production.judit.io`, `src/lib/judit/account.ts`). O
+  formato da resposta do saldo não é documentado (README item 45): a tela
+  mostra os campos simples que vierem. Não testado ao vivo.
