@@ -1,22 +1,23 @@
 # Relatório de progresso: Raio-X Jurídico
 
-Última atualização: 2026-10-15, noite (etapa 6 implementada; etapa 7 redefinida como etapa de produto). Registros detalhados:
+Última atualização: 2026-10-15, fim da noite (etapa 6 em `main`; etapas 7 e 8 decididas). Registros detalhados:
 [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md) e
 [`docs/logs/2026-10-14-sessao.md`](logs/2026-10-14-sessao.md).
 
 ## Onde estamos
 
-| Etapa (AGENTS.md, seção 6)                  | Estado                                                                   |
-| ------------------------------------------- | ------------------------------------------------------------------------ |
-| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                      |
-| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                            |
-| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                    |
-| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                |
-| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado. |
-| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                          |
-| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15: entrega real processada pelo túnel.         |
-| 7. Produto: fluxos e experiência            | Redefinida em 2026-10-15 (`docs/plano-etapas-6-7.md`). Não iniciada.     |
-| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").              |
+| Etapa (AGENTS.md, seção 6)                  | Estado                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                       |
+| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                             |
+| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                     |
+| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                 |
+| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.  |
+| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                           |
+| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real. |
+| 7. Produto: revisão visual e dois produtos  | Não iniciada. Termina o produto (`AGENTS.md`, seção 6).                   |
+| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                 |
+| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").               |
 
 ### Estado do Git
 
@@ -29,9 +30,10 @@
   levados para a `feat/judit-tracking`, que foi enviada com o PR da etapa 4.
   PR #4 mergeado em 2026-10-15 (`main` em `2881807`).
 - Etapa 5 mergeada na `main` (PR #5, `2785610`).
-- Etapa 6 na branch `feat/judit-webhook-processing` (a partir de
-  `2785610`): um commit por fatia (6a a 6d) e um de documentação. **Não
-  enviada** ao GitHub.
+- Etapa 6 mergeada na `main` (PR #6, `b3b727d`).
+- Etapa 7 na branch `feat/product-review` (a partir de `b3b727d`). Primeiro
+  commit: as decisões de 2026-10-15 sobre as etapas 7 e 8 (`AGENTS.md`,
+  plano e diário).
 
 ## Etapa 3: o que existe
 
@@ -343,14 +345,19 @@ produto.
 
 ## Próxima sessão, em ordem
 
-1. Esvaziar `JUDIT_WEBHOOK_PUBLIC_ORIGIN` no `.env.local` (o túnel foi
-   desligado), depois push e PR da `feat/judit-webhook-processing` (você).
-2. **Etapa 7 (produto):** começar pelo uso guiado. Plano em
+1. **Etapa 7 (produto),** na branch `feat/product-review`: começar pelo uso
+   guiado (você usa o app com tarefas concretas e anota onde trava), depois
+   o fluxo desejado no papel e as fatias. Plano em
    [`docs/plano-etapas-6-7.md`](plano-etapas-6-7.md), seção "Etapa 7
    redefinida".
-3. **Auditoria completa do código**, no modo descrito no `AGENTS.md`.
+2. **Fechamento da etapa 7:** dois produtos separados. O protótipo fica só
+   com dados fictícios; o `main` vira o app real, só com banco e chave, sem
+   código de demonstração. Depois, README e teste do clone limpo. Aí o
+   produto está terminado.
+3. **Etapa 8, opcional:** itens abertos, auditoria e correções.
 
 ## Como retomar com o agente
 
-> Leia `docs/relatorio-de-progresso.md` e a seção "Etapa 7 redefinida" de
-> `docs/plano-etapas-6-7.md`. Vamos começar a etapa 7 pelo uso guiado.
+> Leia `docs/relatorio-de-progresso.md`, a seção 6 do `AGENTS.md` e a seção
+> "Etapa 7 redefinida" de `docs/plano-etapas-6-7.md`. Vamos começar a etapa 7
+> pelo uso guiado, na branch `feat/product-review`.

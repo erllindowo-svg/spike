@@ -53,24 +53,37 @@ escopo proposta pelo usuário:
    - componentes grandes e rótulos montados com `toLowerCase` (itens 15, 16);
    - opcional: conferência de entregas perdidas por `GET /responses` (IK10);
    - monitoramentos com webhook, quando houver um endereço fixo.
+4. **Fechamento: dois produtos separados (o produto termina aqui).**
+   - **Protótipo:** um produto à parte, gerado a partir do app revisado, só
+     com dados fictícios e só com o código necessário para eles (sem banco,
+     sem JUDIT), com tag própria. Sucessor da tag `prototype-v0.1.0`. Como
+     separar (branch própria, pasta ou repositório) é decidido nesse momento.
+   - **App real, no `main`:** reduzido para funcionar só com banco e chave
+     da JUDIT. Sai todo o código de demonstração (`mock-data.ts`, a parte de
+     demonstração do `demo-store.tsx` e de `data.ts`; cerca de 1.600 linhas
+     e 22 arquivos que testam o modo). Sem configuração, mostra na tela o que
+     falta, em vez de quebrar.
+   - README da raiz atualizado (está desatualizado desde a etapa 2) e teste
+     do clone limpo dos dois produtos: clonar numa pasta nova e seguir só o
+     README.
 
-### Etapa 8 (proposta do usuário, 2026-10-15): "projeto finalizado"
+### Etapa 8: opcional, pode ser feita depois (decisão de 2026-10-15)
 
-- **8A. Reprodutibilidade e pontas soltas.** Quem clona o repositório
-  consegue rodar sem precisar depurar nada. Proposta de três níveis, cada um
-  com instruções próprias: (1) demonstração, sem nada configurado; (2) banco,
-  com MongoDB local ou Atlas; (3) JUDIT real, com chave própria, kill switch,
-  allowlist e túnel. Critério de pronto: o teste do clone limpo (clonar numa
-  pasta nova, seguir só o README, anotar cada travada; cada travada vira um
-  item). Primeiro achado: o README da raiz está desatualizado desde a etapa 2
-  (diz que alertas e webhooks não são persistidos; a tabela não tem as três
-  variáveis do webhook).
-- **8B. Auditoria** (`AGENTS.md`, seção 6, "Modo auditoria"), sobre o código
-  congelado depois da 8A. O usuário dita o que entendeu; o agente registra no
-  diário, marcado como ditado, sem reescrever o sentido.
-- **Ordem:** 8A antes da 8B, porque a auditoria não altera código.
-- Pendente: a lista da seção 6 do `AGENTS.md` ainda diz "7. Diagnóstico… 8.
-  Auditoria". Atualizar é decisão do usuário.
+O produto está terminado no fim da etapa 7 e já pode ser mostrado. A etapa 8
+pode ficar para outro momento, inteira ou em partes, sempre nesta ordem:
+
+- **8A. Itens abertos** de prioridade média e baixa da revisão de 2026-10-14
+  (5, 10, 12, 13, 17, 18) e pendências do relatório.
+- **8B. Auditoria** (`AGENTS.md`, seção 6), arquivo por arquivo. O agente
+  questiona as decisões e anota o que mudaria, sem alterar código. O que o
+  usuário ditar vira texto fluido, marcado como ditado.
+- **8C. Correções** da lista anotada na auditoria.
+
+Descartados na discussão: demonstração com dados reais criptografados
+(histórico do Git irrevogável; dar a senha é compartilhar dado pessoal) e a
+"JUDIT gravada" (vai para a fase 2, onde a JUDIT falsa serve ao ambiente de
+treino). Testes com CNPJs reais: só na máquina do usuário, com as
+observações de formato registradas no diário, sem dados pessoais.
 
 ## Onde estamos
 

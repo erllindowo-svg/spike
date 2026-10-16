@@ -444,6 +444,13 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Impacto: hoje, um 600 de monitoramento é registrado sem ação, e cada entrega de monitoramento por CNJ gera um alerta. Se vierem duas versões por execução, sairão dois alertas de movimentação.
 - Resposta:
 
+**IK12. Posso publicar respostas gravadas da JUDIT?** _Aberta desde 2026-10-15._
+
+- Contexto: a etapa 8A quer uma demonstração que reproduza respostas reais gravadas nos testes, para rodar sem chave. O repositório é público.
+- Dúvidas: o contrato ou os termos de uso permitem republicar respostas da API (mesmo anonimizadas) num repositório público? E as respostas do CNPJ de teste (`A1B2C3D4/E5F6-68`), que são fictícias? A busca na documentação pública (2026-10-15) não achou termos de uso nem regra de redistribuição.
+- Impacto: decide se as gravações de CNPJs reais podem sair desta máquina. Até a resposta, ficam fora do Git.
+- Resposta:
+
 ---
 
 ## Modelo de entrada
@@ -1262,6 +1269,82 @@ Teste feito pelo agente, a pedido do usuário. Depois do `pnpm dev` reiniciado, 
 **Resumo técnico**
 
 Proposta do usuário: uma etapa 8 para "fechar" o projeto. A 8A deixa o repositório reproduzível por quem clona, com as pontas soltas resolvidas. A 8B é a auditoria, com o usuário ditando o que entendeu para o diário. Avaliação do agente: boa ideia, com a 8A antes da 8B e um critério de pronto testável. Registrada em `docs/plano-etapas-6-7.md`.
+
+### 2026-10-15 / Etapa 8: níveis de execução
+
+**Resumo técnico**
+
+Etapa 8 refinada: a 8A pega os itens médios e baixos da revisão que ficaram abertos; a 8B audita e anota; a 8C corrige o que a auditoria anotou. O ditado vira texto fluido, com as ideias do usuário. Em aberto: como rodar sem a chave da JUDIT e sem o Atlas.
+
+**O que já existe no repositório (fato)**
+
+- O pacote `mongodb` é o driver: a biblioteca que conversa com um banco. Ele não é um banco. Quem clona o projeto não tem acesso ao seu cluster do Atlas (a senha está no seu `.env.local`, e não deve ser compartilhada).
+- O `mongodb-memory-server` (só para desenvolvimento) baixa o programa oficial do MongoDB (`mongod`) e sobe um servidor temporário nesta máquina. Hoje só os testes o usam.
+- Sem `.env.local`, `DATA_SOURCE` vale `demo`: nada chama o banco nem a JUDIT. Hipótese a confirmar no clone limpo: a demonstração roda sem nenhuma variável.
+
+**Níveis propostos (decisão pendente)**
+
+1. Demonstração: `pnpm install` e `pnpm dev`, sem configurar nada.
+2. Banco sem JUDIT: um MongoDB próprio, local (um script com o `mongodb-memory-server`, sem instalar nada) ou no Atlas. Empresas e reservas de monitoramento funcionam; o que depende da JUDIT avisa que a chave não está configurada.
+3. JUDIT real: chave própria, kill switch, allowlist e túnel.
+4. Opcional, mais caro: uma "JUDIT simulada", que responde com os exemplos da documentação (`src/lib/judit/__fixtures__`) e dispara webhooks falsos. Daria o fluxo inteiro sem chave e serviria de base para a fase 2 (ambiente de treino com falhas injetadas).
+
+**Recomendação do agente:** nada de cair na demonstração sozinho quando falta a chave. Uma troca silenciosa já confundiu antes (catálogo, A2). O modo continua explícito, e a tela diz o que falta.
+
+### 2026-10-15 / Etapa 8: JUDIT gravada
+
+**Resumo técnico**
+
+Ideia do usuário: sem chave da JUDIT, o app entra em demonstração e reproduz respostas reais gravadas nos testes, mostrando quais CNPJs têm dados. Juntada ao nível 4 ("JUDIT simulada"). Todos os níveis entram na 8A. Gravações de CNPJs reais ficam fora do Git até o IK12.
+
+**Por que juntar as duas ideias**
+
+- É o mesmo mecanismo (gravar e reproduzir), com duas fontes de gravação: as respostas reais dos testes e os exemplos da documentação.
+- A demonstração de hoje (`mock-data.ts`) não passa pelo código de verdade. Com a JUDIT gravada, a demonstração roda as actions, o banco e o processamento de webhooks. Ela vira um teste do produto, e não uma maquete.
+- A tela dizer "você está em demonstração; CNPJs com dados gravados: …" deixa o modo explícito, o que resolve a objeção da troca silenciosa (A2).
+
+**O cuidado**
+
+- Gravar CNPJs reais grava processos com nomes e documentos de terceiros (partes, advogados, trabalhadores em ações trabalhistas). Num repositório público, isso é publicar dados pessoais. Além disso, os dados são o produto da JUDIT, e a documentação pública não diz se podem ser republicados (IK12).
+- Por isso, só vão para o Git as gravações do CNPJ fictício e os exemplos da documentação. As gravações de CNPJs reais ficam nesta máquina.
+
+### 2026-10-15 / Demonstração com dados reais criptografados?
+
+**Resumo técnico**
+
+O usuário propôs publicar os dados reais criptografados, com uma senha entregue a quem testa. O agente recomendou não fazer: o histórico do Git é irrevogável, dar a senha é compartilhar dado pessoal, e o custo não ensina nada sobre a JUDIT. Proposta: 8A só com os níveis 1 a 3, a JUDIT gravada na fase 2. Decisão pendente.
+
+### 2026-10-15 / Dois produtos: protótipo e app real
+
+**Resumo técnico**
+
+Decisão do usuário: separar os produtos. No fim da etapa 7, o protótipo é atualizado com o visual novo e dados fictícios, e fica congelado. O app real exige banco e chave da JUDIT; o modo demonstração sai do `main` na 8A. O objetivo é que nenhum dos dois tenha um fluxo confuso.
+
+**Condições propostas pelo agente**
+
+- O protótipo é uma cópia tirada uma vez, no fim da etapa 7, e não é mantido em paralelo. Mantê-lo dobraria cada mudança de tela.
+- Sem configuração, o app real mostra o que falta (como o `pnpm env:check`, mas na tela), em vez de quebrar.
+- A remoção acontece na 8A, depois da cópia, porque a etapa 7 ainda usa os mesmos componentes para gerar o protótipo novo. De quebra, a auditoria (8B) fica com cerca de 1.600 linhas a menos.
+
+### 2026-10-15 / Produto terminado na etapa 7; etapa 8 opcional
+
+**Resumo técnico**
+
+Decisão do usuário: o produto termina na etapa 7, apresentável, e a etapa 8 (8A, 8B, 8C) fica opcional para depois. O fechamento (README, clone limpo, tag) foi para a 7; o protótipo v0.2 vira a própria tag. `AGENTS.md`, seção 6, atualizado, inclusive com a regra do ditado.
+
+### 2026-10-15 / Correção: dois produtos separados no fim da etapa 7
+
+**Resumo técnico**
+
+Correção do usuário à entrada anterior: o protótipo não vira uma tag do `main`. Ao terminar a revisão visual da etapa 7, saem dois produtos: o protótipo, à parte, só com dados fictícios e o código necessário para eles; e o `main`, reduzido ao app real, sem código de demonstração. A 8A ficou só com os itens abertos da revisão.
+
+**Erro do agente:** o usuário já tinha decidido "dois produtos", e o agente trocou a decisão por uma tag sem perguntar. `AGENTS.md` e plano corrigidos.
+
+### 2026-10-15 / Preparação da etapa 7
+
+**Resumo técnico**
+
+`main` local igual ao GitHub (`b3b727d`, merge do PR #6). Criada a branch `feat/product-review`, com um commit das decisões sobre as etapas 7 e 8 (`AGENTS.md`, plano, diário e relatório). Próxima sessão: uso guiado do app. Reiniciar o `pnpm dev` não é necessário.
 
 ---
 
