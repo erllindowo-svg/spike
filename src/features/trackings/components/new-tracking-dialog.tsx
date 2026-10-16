@@ -149,6 +149,16 @@ function normalizeKey(type: TrackingSearchType, key: string): string {
   return type === "cnj" ? normalizeCnj(key) : normalizeDocument(type, key);
 }
 
+// "sentença, intimação" -> ["sentença", "intimação"]; vazio -> undefined. O
+// servidor valida de novo (stepTermsSchema em src/features/trackings/db.ts).
+function parseTerms(value: string): string[] | undefined {
+  const terms = value
+    .split(",")
+    .map((term) => term.trim())
+    .filter(Boolean);
+  return terms.length > 0 ? terms : undefined;
+}
+
 function NewTrackingForm({
   defaults,
   onDone,
@@ -175,6 +185,8 @@ function NewTrackingForm({
   );
   // Padrão de 30 dias: no modo "db", cada execução na JUDIT pode ser cobrada.
   const [recurrence, setRecurrence] = useState("30");
+  // Só CNJ: termos separados por vírgula ("sentença, intimação").
+  const [terms, setTerms] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const value = values[searchType];
@@ -213,6 +225,7 @@ function NewTrackingForm({
           ? (matchedLawsuit?.partyId ?? null)
           : (matchedParty?.id ?? null),
       recurrenceDays: Number(recurrence),
+      stepTerms: searchType === "cnj" ? parseTerms(terms) : undefined,
     });
     setSaving(false);
     if (!result.ok) {
@@ -321,6 +334,24 @@ function NewTrackingForm({
             </FieldDescription>
           )}
         </Field>
+
+        {searchType === "cnj" && (
+          <Field>
+            <FieldLabel htmlFor="tracking-terms">
+              Avisar só movimentações com estes termos (opcional)
+            </FieldLabel>
+            <Input
+              id="tracking-terms"
+              placeholder="sentença, intimação, acordo"
+              value={terms}
+              onChange={(e) => setTerms(e.target.value)}
+            />
+            <FieldDescription>
+              Separados por vírgula, até 10. Vazio: todas as movimentações geram
+              aviso.
+            </FieldDescription>
+          </Field>
+        )}
 
         <Field>
           <FieldLabel htmlFor="tracking-recurrence">Recorrência</FieldLabel>

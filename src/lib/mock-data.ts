@@ -339,6 +339,7 @@ const T = (
   hourRange: null,
   // A demonstração simula a entrega por webhook.
   delivery: "webhook",
+  stepTerms: null,
   createdAt: at(createdAt),
   updatedAt: at(updatedAt),
   lastCheckedAt: null,

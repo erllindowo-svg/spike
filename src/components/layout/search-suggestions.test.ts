@@ -35,6 +35,7 @@ const tracking: Tracking = {
   recurrenceDays: 7,
   hourRange: null,
   delivery: "webhook",
+  stepTerms: null,
   createdAt: at,
   updatedAt: at,
   lastCheckedAt: null,

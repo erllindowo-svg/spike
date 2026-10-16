@@ -38,6 +38,13 @@ import { trackingModeFor } from "@/features/queries/modes";
 // define com que frequência o monitoramento roda (e custa).
 const recurrenceDaysSchema = z.number().int().positive();
 
+// Termos que filtram as movimentações avisadas (só monitoramento por CNJ).
+// Limites nossos: a documentação não define tamanho nem quantidade.
+export const stepTermsSchema = z
+  .array(z.string().trim().min(2).max(60))
+  .min(1)
+  .max(10);
+
 const newTrackingSchema = z.discriminatedUnion("searchType", [
   z.object({
     searchType: z.literal("cnpj"),
@@ -53,6 +60,7 @@ const newTrackingSchema = z.discriminatedUnion("searchType", [
     searchType: z.literal("cnj"),
     searchKey: cnjSchema,
     recurrenceDays: recurrenceDaysSchema,
+    stepTerms: stepTermsSchema.optional(),
   }),
 ]);
 
@@ -83,6 +91,7 @@ function toTracking(doc: TrackingDoc): Tracking {
     recurrenceDays: doc.recurrenceDays,
     hourRange: doc.hourRange ?? null,
     delivery: doc.delivery ?? "polling",
+    stepTerms: doc.stepTerms ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     lastCheckedAt: doc.lastCheckedAt ?? null,
@@ -109,6 +118,8 @@ export async function reserveTracking(
     };
   }
   const { searchType, searchKey, recurrenceDays } = parsed.data;
+  const stepTerms =
+    parsed.data.searchType === "cnj" ? (parsed.data.stepTerms ?? null) : null;
 
   // Monitorar um documento (CNPJ ou CPF) registra a parte. Não precisa de
   // transação: se o monitoramento for recusado como duplicado, a parte criada
@@ -131,6 +142,7 @@ export async function reserveTracking(
     recurrenceDays,
     hourRange: null,
     delivery: "polling",
+    stepTerms,
     createdAt: now,
     updatedAt: now,
     lastCheckedAt: null,

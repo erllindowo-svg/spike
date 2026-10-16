@@ -82,7 +82,7 @@ export function TrackingsPage() {
 
   return (
     <>
-      <PageIntro description="Monitoramentos por CNPJ descobrem novos processos de uma empresa; por CNJ acompanham as movimentações de um processo específico.">
+      <PageIntro description="Monitoramentos por CNPJ ou CPF descobrem novos processos de uma empresa ou pessoa; por CNJ acompanham as movimentações de um processo específico.">
         <Button onClick={() => openNewTracking()}>
           <PlusIcon data-icon="inline-start" />
           Novo monitoramento
@@ -121,7 +121,7 @@ export function TrackingsPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por identificador ou empresa"
+              placeholder="Buscar por identificador ou nome"
               aria-label="Buscar monitoramentos"
               className="pl-8"
             />
@@ -139,6 +139,7 @@ export function TrackingsPage() {
             >
               <ToggleGroupItem value="all">Todos</ToggleGroupItem>
               <ToggleGroupItem value="cnpj">CNPJ</ToggleGroupItem>
+              <ToggleGroupItem value="cpf">CPF</ToggleGroupItem>
               <ToggleGroupItem value="cnj">CNJ</ToggleGroupItem>
             </ToggleGroup>
             <Select

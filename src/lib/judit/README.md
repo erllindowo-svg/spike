@@ -394,3 +394,12 @@ Registradas em vez de escolhidas em silêncio.
     [consulta síncrona](https://docs.judit.io/cache-judit/hotstorage) diz
     "Rate limit excedido (500 req/min)". Lido em 2026-10-16. Qualquer limite
     nosso deve ficar abaixo do menor dos dois (180).
+44. **`notification_filters.step_terms` com texto truncado e exemplo
+    inválido.** A página [tracking](https://docs.judit.io/tracking/tracking)
+    ("Payload da Solicitação") diz que `step_terms` filtra as movimentações
+    "quando utilizada em conjunto com o monitoramento via webhook" e a frase
+    termina aí. O exemplo de payload não é JSON válido (falta uma vírgula
+    depois de `notification_emails` e os termos usam aspas simples). O
+    client envia `notification_filters: { step_terms: [...] }` no topo do
+    corpo, como o exemplo indica. Lido em 2026-10-16; não testado ao vivo.
+    Dúvida aberta: o filtro vale também para quem lê por polling?

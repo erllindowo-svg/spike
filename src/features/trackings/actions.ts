@@ -190,6 +190,7 @@ async function sendReservation(id: string): Promise<{
       searchType: juditSearchType(claimed),
       searchKey: claimed.searchKey,
       recurrence: requestedRecurrence,
+      stepTerms: claimed.stepTerms ?? undefined,
     });
     // O tracking_id não é segredo e é a única forma de achar o monitoramento
     // na JUDIT se a gravação abaixo falhar; por isso vai para o log antes.

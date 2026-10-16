@@ -56,6 +56,7 @@ describe("grouped counts", () => {
     recurrenceDays: 30,
     hourRange: null,
     delivery: "webhook",
+    stepTerms: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     lastCheckedAt: null,

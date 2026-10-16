@@ -66,6 +66,9 @@ export type Tracking = {
   hourRange: number | null;
   // Como os resultados chegam até nós (webhook só na etapa 5).
   delivery: ResultDelivery;
+  // Só no monitoramento por CNJ: a JUDIT avisa apenas as movimentações com
+  // um destes termos (`notification_filters.step_terms`). Nulo: todas.
+  stepTerms: string[] | null;
   createdAt: Date;
   updatedAt: Date;
   // Última vez que perguntamos o status à JUDIT. Nulo até a primeira.

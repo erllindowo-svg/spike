@@ -247,11 +247,20 @@ export function DemoStoreProvider({
         // monitoramento novo chega à lista pelo refresh() da action.
         let result: CreateTrackingActionResult;
         try {
-          result = await createTrackingAction({
-            searchType: input.searchType,
-            searchKey: input.searchKey,
-            recurrenceDays: input.recurrenceDays,
-          });
+          result = await createTrackingAction(
+            input.searchType === "cnj"
+              ? {
+                  searchType: "cnj",
+                  searchKey: input.searchKey,
+                  recurrenceDays: input.recurrenceDays,
+                  stepTerms: input.stepTerms,
+                }
+              : {
+                  searchType: input.searchType,
+                  searchKey: input.searchKey,
+                  recurrenceDays: input.recurrenceDays,
+                },
+          );
         } catch {
           return { ok: false, error: SERVER_UNREACHABLE };
         }
@@ -305,6 +314,7 @@ export function DemoStoreProvider({
         recurrenceDays: input.recurrenceDays,
         hourRange: null,
         delivery: "webhook",
+        stepTerms: input.stepTerms ?? null,
         createdAt: now,
         updatedAt: now,
         lastCheckedAt: null,

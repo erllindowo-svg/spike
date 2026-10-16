@@ -39,6 +39,10 @@ export async function createTracking(params: {
   // Documents only.
   withInferredParties?: boolean;
   filter?: LawsuitFilter;
+  // CNJ: only movements containing one of these terms are notified
+  // (https://docs.judit.io/tracking/tracking, "Payload da Solicitação":
+  // `notification_filters.step_terms`, at the top level of the body).
+  stepTerms?: string[];
 }) {
   const searchKey = params.searchKey.trim();
   assertAllowedSearchKey(params.searchType, searchKey);
@@ -69,6 +73,9 @@ export async function createTracking(params: {
           : {}),
       },
       ...(params.withAttachments ? { with_attachments: true } : {}),
+      ...(params.stepTerms?.length
+        ? { notification_filters: { step_terms: params.stepTerms } }
+        : {}),
     },
     schema: trackingSchema,
   });

@@ -19,6 +19,7 @@ export type PartyDoc = Doc<Party>;
 // Campos criados na etapa 4. Documentos gravados antes (etapa 2) não os
 // têm; toTracking (src/features/trackings/db.ts) aplica os equivalentes.
 type TrackingStage4Field =
+  | "stepTerms"
   | "mode"
   | "creation"
   | "creationError"

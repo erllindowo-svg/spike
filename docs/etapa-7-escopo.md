@@ -495,3 +495,11 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   completo e válido, o item explícito "Consultar na JUDIT", que abre a
   página Consultar já preenchida. Nada é consultado só por digitar. Busca
   por nome na JUDIT continua fora (R1: homônimos, sem nome de teste).
+- **Fatia 6, monitoramentos: feita.** Coluna "Alvo" (nome da parte em
+  cima, identificador embaixo; CPF mascarado) no lugar de "Identificador" e
+  "Empresa"; filtro por CPF; filtro de termos nas movimentações (F21) no
+  monitoramento por CNJ: o diálogo aceita até 10 termos, o banco guarda
+  (`stepTerms`) e o client envia `notification_filters.step_terms` (README
+  item 44: a página da JUDIT tem a frase truncada e o exemplo inválido; não
+  testado ao vivo). Os e-mails da própria JUDIT (F22) ficaram de fora:
+  mandam dados de processo para fora do app, decisão do usuário.

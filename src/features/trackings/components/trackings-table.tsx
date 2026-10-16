@@ -98,11 +98,9 @@ export function TrackingsTable({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead>Identificador</TableHead>
+            {/* O que é monitorado: empresa, pessoa ou processo. */}
+            <TableHead>Alvo</TableHead>
             <TableHead>Tipo</TableHead>
-            <TableHead className={full ? undefined : "hidden lg:table-cell"}>
-              Empresa
-            </TableHead>
             {full && <TableHead>Recorrência</TableHead>}
             <TableHead>Status</TableHead>
             {full && <TableHead>Criado em</TableHead>}
@@ -132,17 +130,39 @@ export function TrackingsTable({
 
             return (
               <TableRow key={tracking.id}>
-                <TableCell className="font-mono text-xs">
-                  {href ? (
-                    <Link
-                      href={href}
-                      className="rounded-sm text-foreground underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      {identifier}
-                    </Link>
-                  ) : (
-                    identifier
-                  )}
+                <TableCell className="max-w-72">
+                  {/* Nome da parte em cima, identificador embaixo; sem nome
+                      (ou num processo), só o identificador. */}
+                  {(() => {
+                    const name =
+                      tracking.searchType === "cnj" ? null : company?.name;
+                    const main = name ?? identifier;
+                    return (
+                      <>
+                        {href ? (
+                          <Link
+                            href={href}
+                            title={main}
+                            className={`block truncate rounded-sm text-foreground underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 ${name ? "font-medium" : "font-mono text-xs"}`}
+                          >
+                            {main}
+                          </Link>
+                        ) : (
+                          <span
+                            title={main}
+                            className={`block truncate ${name ? "font-medium" : "font-mono text-xs"}`}
+                          >
+                            {main}
+                          </span>
+                        )}
+                        {name && (
+                          <span className="block font-mono text-[11px] text-muted-foreground">
+                            {identifier}
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
                   {full && (
                     <TrackingNote tracking={tracking} dataSource={dataSource} />
                   )}
@@ -151,25 +171,6 @@ export function TrackingsTable({
                   <span title={searchTypeDescriptions[tracking.searchType]}>
                     <SearchTypeBadge type={tracking.searchType} />
                   </span>
-                </TableCell>
-                <TableCell
-                  className={
-                    full
-                      ? "max-w-44 truncate"
-                      : "hidden max-w-48 truncate lg:table-cell"
-                  }
-                >
-                  {company ? (
-                    <span title={company.name ?? undefined}>
-                      {company.name ?? (
-                        <span className="text-muted-foreground">
-                          Nome não consultado
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
                 </TableCell>
                 {full && (
                   <TableCell className="text-muted-foreground">
@@ -373,6 +374,10 @@ function TrackingNote({
     note = tracking.creationError ?? "Envio interrompido: conferir na JUDIT";
   } else if (tracking.status === "created" && tracking.hourRange !== null) {
     note = `Primeira execução prevista às ${tracking.hourRange}h`;
+  }
+  if (tracking.stepTerms?.length) {
+    const terms = `Só movimentações com: ${tracking.stepTerms.join(", ")}`;
+    note = note ? `${note}. ${terms}` : terms;
   }
   if (!note) return null;
   return (

@@ -6,6 +6,8 @@ export type NewTrackingInput = Pick<Tracking, "searchType" | "searchKey"> & {
   partyId?: string | null;
   // Obrigatória e sem padrão: define com que frequência o monitoramento roda.
   recurrenceDays: number;
+  // Só CNJ: avisar apenas movimentações com estes termos.
+  stepTerms?: string[];
 };
 
 export const searchTypeLabels: Record<TrackingSearchType, string> = {

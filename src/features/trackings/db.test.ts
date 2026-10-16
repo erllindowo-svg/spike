@@ -122,6 +122,32 @@ describe("reserveTracking", () => {
     });
   });
 
+  it("stores the movement terms of a CNJ tracking", async () => {
+    const result = await reserveTracking({
+      searchType: "cnj",
+      searchKey: "0001234-03.2026.8.26.0100",
+      recurrenceDays: 1,
+      stepTerms: [" sentença ", "intimação"],
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      tracking: { stepTerms: ["sentença", "intimação"] },
+    });
+  });
+
+  it("refuses more than ten movement terms", async () => {
+    const result = await reserveTracking({
+      searchType: "cnj",
+      searchKey: "0001234-03.2026.8.26.0100",
+      recurrenceDays: 1,
+      stepTerms: Array.from({ length: 11 }, (_, i) => `termo ${i}`),
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "invalid_input" });
+    expect(await listTrackings()).toHaveLength(0);
+  });
+
   it("stores a CNJ tracking without a company", async () => {
     const result = await reserveTracking({
       searchType: "cnj",
