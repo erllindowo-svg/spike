@@ -36,9 +36,50 @@ export class JuditLiveCallsDisabledError extends JuditError {
 }
 
 // Raised before any network activity, when a search key is not allowlisted
-// or the input is not usable.
+// or the input is not usable. The subclasses below are the cost protections
+// (stage 7, circle 2): every caller that already treats a guard error as
+// "nothing left the server, nothing was charged" handles them the same way.
 export class JuditGuardError extends JuditError {
-  readonly kind = "guard";
+  readonly kind:
+    "guard" | "local_rate_limit" | "duplicate_call" | "daily_budget" = "guard";
+}
+
+// Our own per-minute limit, kept below JUDIT's (src/lib/judit/rate-limit.ts).
+export class JuditLocalRateLimitError extends JuditGuardError {
+  override readonly kind = "local_rate_limit";
+
+  constructor(
+    readonly limitPerMinute: number,
+    readonly retryAfterMs: number,
+  ) {
+    super(
+      `Limite de ${limitPerMinute} chamadas à JUDIT por minuto atingido neste servidor. Tente de novo em ${Math.ceil(retryAfterMs / 1000)} s.`,
+    );
+  }
+}
+
+// The same billable call (same method, path and body) is already running.
+export class JuditDuplicateCallError extends JuditGuardError {
+  override readonly kind = "duplicate_call";
+
+  constructor() {
+    super("A mesma chamada à JUDIT já está em andamento.");
+  }
+}
+
+// The daily cap of billable calls was reached
+// (src/features/queries/budget.ts).
+export class JuditDailyBudgetError extends JuditGuardError {
+  override readonly kind = "daily_budget";
+
+  constructor(
+    readonly limit: number,
+    readonly used: number,
+  ) {
+    super(
+      `Teto diário de ${limit} chamadas cobradas atingido (${used} hoje). O contador recomeça à meia-noite; para mudar o teto, ajuste JUDIT_DAILY_CALL_LIMIT.`,
+    );
+  }
 }
 
 // The request never got an HTTP response: DNS, connection refused, TLS, etc.

@@ -333,6 +333,22 @@ Receber não é processar. A rota grava e responde 200; o processamento roda dep
 
 **G6. Monitoramento aparece pausado, mas foi reativado.** _Previsto._ Um aviso de pausa (700 a 703) atrasado, processado depois da reativação, grava `paused` de novo. "Atualizar status" no menu do monitoramento corrige pelo que a JUDIT informa. Lição: webhooks podem chegar fora de ordem; o estado da JUDIT é a fonte da verdade.
 
+### H. Proteções de custo (círculo 2 da etapa 7)
+
+Antes de qualquer chamada cobrada, quatro barreiras, nesta ordem: kill switch (`JUDIT_LIVE_CALLS`), allowlist no modo restrito (`JUDIT_ALLOWLIST`), teto diário (`JUDIT_DAILY_CALL_LIMIT`, contado no histórico do app) e, no client, chamada única para a mesma busca e limite por minuto (`JUDIT_MAX_CALLS_PER_MINUTE`). Nenhuma delas deixa a chamada sair do servidor, então nada é cobrado nem entra no histórico. A situação de cada uma aparece em Configurações → Proteção de custo.
+
+**H1. "Teto diário de N chamadas cobradas atingido".** _Previsto (testado com MongoDB em memória)._
+
+- Sinal: o aviso em qualquer ação cobrada; num monitoramento novo, a reserva volta a "Não enviado à JUDIT".
+- Hipóteses, em ordem: o dia teve muitas consultas de verdade; um teste repetiu uma ação em loop; o teto está baixo demais para o uso.
+- Teste que separou: Configurações mostra "hoje: N"; a página Consultas lista o que foi feito hoje, com hora.
+- Correção: esperar a meia-noite (horário de São Paulo) ou subir `JUDIT_DAILY_CALL_LIMIT`.
+- Lição de suporte: o teto é do app, não da JUDIT. Quem quer o número oficial olha o consumo do ciclo na JUDIT.
+
+**H2. "Limite de N chamadas à JUDIT por minuto atingido neste servidor".** _Previsto (testado)._ O contador fica na memória do servidor e conta todas as chamadas, inclusive as leituras (status, resultados). Sinal típico de um clique repetido ou de um código em loop. Espere os segundos indicados. Reiniciar o `pnpm dev` zera o contador (é proposital: ele não é guardado).
+
+**H3. "A mesma chamada à JUDIT já está em andamento".** _Previsto (testado)._ Duplo clique, duas abas ou um botão sem bloqueio mandaram a mesma busca enquanto a primeira não tinha respondido. Nada foi cobrado na segunda. Lição: a proteção vale para criações (POST, PATCH, DELETE); leituras podem rodar juntas.
+
 ### Modelo para novos casos
 
 ```

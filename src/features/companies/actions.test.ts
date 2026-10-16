@@ -13,6 +13,8 @@ import {
 // The actions run with the real JUDIT client (guard, schema, errors) and a
 // mocked fetch. The database functions are replaced; refresh() only works
 // inside a real Next.js request.
+// The daily cap reads the database; covered in src/features/queries/budget.test.ts.
+vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
 vi.mock("./db", () => ({
   ensureCompany: vi.fn(),
   getCompanyByCnpj: vi.fn(),

@@ -2,7 +2,11 @@
 
 import { cnpjSchema } from "@/features/companies/cnpj";
 import { getCompanyByCnpj } from "@/features/companies/db";
-import { juditActionFailure } from "@/features/queries/failure";
+import { assertDailyBudget } from "@/features/queries/budget";
+import {
+  juditActionFailure,
+  type JuditActionFailure,
+} from "@/features/queries/failure";
 import { logSyncQuery, syncFailureFor } from "@/features/queries/sync-log";
 import { getDataSource } from "@/lib/data";
 import { searchLawsuits } from "@/lib/judit/lawsuits";
@@ -16,30 +20,29 @@ import type { Lawsuit } from "./types";
 //
 // Cada chamada é cobrada. Como qualquer pessoa pode enviar um POST direto
 // para esta action, ela não confia no navegador: exige o modo "db", uma
-// empresa já cadastrada e passa pelo kill switch e pela allowlist do
-// client (src/lib/judit/guard.ts). Isso limita O QUE pode ser consultado,
-// não QUEM nem QUANTAS vezes: sem autenticação nem limite de taxa, a
+// empresa já cadastrada e passa pelas proteções de custo (teto diário aqui;
+// kill switch, allowlist no modo restrito, limite por minuto e chamada única
+// no client). Elas limitam O QUE e QUANTO, não QUEM: sem autenticação, a
 // aplicação não deve ficar pública com JUDIT_LIVE_CALLS ligado.
+//
+// Volume (escolha S4): esta consulta não tem paginação na JUDIT e devolve
+// todos os processos de uma vez. Para não travar o navegador com uma empresa
+// grande, a tela recebe no máximo MAX_LAWSUITS_ON_SCREEN e o total.
+
+const MAX_LAWSUITS_ON_SCREEN = 500;
 
 export type SearchCompanyLawsuitsResult =
   | {
       ok: true;
+      // No máximo MAX_LAWSUITS_ON_SCREEN; `total` diz quantos vieram.
       lawsuits: Lawsuit[];
+      total: number;
       // Identificador da consulta na JUDIT, útil para levar ao suporte.
       requestId: string | null;
       fetchedAt: Date;
     }
-  | {
-      ok: false;
-      reason:
-        | "unavailable"
-        | "invalid"
-        | "live_calls_disabled"
-        | "not_allowed"
-        | "timeout"
-        | "error";
-      message: string;
-    };
+  | { ok: false; reason: "unavailable" | "invalid"; message: string }
+  | JuditActionFailure;
 
 export async function searchCompanyLawsuitsAction(
   cnpj: string,
@@ -66,6 +69,8 @@ export async function searchCompanyLawsuitsAction(
         message: "Empresa não cadastrada na aplicação.",
       };
     }
+
+    await assertDailyBudget();
 
     // CNPJ sem máscara (14 caracteres), como a JUDIT devolve em
     // `main_document` e como a página do Hot Storage sugere ("14 para CNPJ").
@@ -94,7 +99,10 @@ export async function searchCompanyLawsuitsAction(
 
     return {
       ok: true,
-      lawsuits: result.lawsuits.map((item) => fromJuditLawsuit(item, company)),
+      lawsuits: result.lawsuits
+        .slice(0, MAX_LAWSUITS_ON_SCREEN)
+        .map((item) => fromJuditLawsuit(item, company)),
+      total: result.lawsuits.length,
       requestId: result.request_id ?? null,
       fetchedAt: new Date(),
     };

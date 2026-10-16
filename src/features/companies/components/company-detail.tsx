@@ -102,7 +102,7 @@ export function CompanyDetail({
       }
       setJudit(result);
       toast.success(
-        `${formatNumber(result.lawsuits.length)} processo(s) na ${QUERY_MODES.datalake_sync.label.toLowerCase()}`,
+        `${formatNumber(result.total)} processo(s) na ${QUERY_MODES.datalake_sync.label.toLowerCase()}`,
       );
     });
   }
@@ -229,7 +229,7 @@ export function CompanyDetail({
       >
         <StatCard
           label="Processos encontrados"
-          value={formatNumber(lawsuits.length)}
+          value={formatNumber(judit?.total ?? lawsuits.length)}
           icon={ScaleIcon}
         />
         <StatCard
@@ -346,6 +346,13 @@ export function CompanyDetail({
           </CardAction>
         </CardHeader>
         <CardContent>
+          {judit && judit.total > judit.lawsuits.length && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              Mostrando {formatNumber(judit.lawsuits.length)} de{" "}
+              {formatNumber(judit.total)} processos: a consulta síncrona devolve
+              tudo de uma vez, e a tela mostra só os primeiros para não travar.
+            </p>
+          )}
           <LawsuitsTable
             lawsuits={lawsuits}
             onSelect={setSelected}

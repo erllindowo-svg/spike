@@ -15,6 +15,7 @@ import {
   type JuditService,
 } from "./errors";
 import { assertLiveCallsEnabled } from "./guard";
+import { reserveCallSlot, runSingleFlight } from "./rate-limit";
 import {
   applicationErrorSchema,
   httpErrorBodySchema,
@@ -64,6 +65,24 @@ export async function juditRequest<Schema extends z.ZodType>(
   // Runs before reading the key or touching the network.
   assertLiveCallsEnabled();
 
+  // Cost protections (rate-limit.ts): an identical billable call already
+  // running is refused before it takes a slot of the per-minute limit.
+  return runSingleFlight(singleFlightKey(request), () => {
+    reserveCallSlot();
+    return send(request);
+  });
+}
+
+// Reads may run in parallel; anything that can create billable work is
+// identified by method, path and body. The key only lives in memory.
+function singleFlightKey(request: JuditRequest<z.ZodType>): string | null {
+  if (request.method === "GET") return null;
+  return `${request.method} ${request.service}${request.path} ${JSON.stringify(request.body ?? null)}`;
+}
+
+async function send<Schema extends z.ZodType>(
+  request: JuditRequest<Schema>,
+): Promise<z.infer<Schema>> {
   const apiKey = getServerEnv("JUDIT_API_KEY");
   const call: JuditCallInfo = {
     service: request.service,

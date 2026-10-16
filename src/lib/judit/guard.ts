@@ -10,8 +10,9 @@ import { JuditGuardError, JuditLiveCallsDisabledError } from "./errors";
 // through server-side checks before reaching the network:
 //
 // 1. Kill switch: JUDIT_LIVE_CALLS must be exactly "enabled". Every call.
-// 2. Allowlist: searches by document, name or CNJ only run for keys listed
-//    below. Calls by id (GET /requests/{id}, PATCH/DELETE /tracking/{id}) and
+// 2. Allowlist (restricted mode, on by default; JUDIT_ALLOWLIST="disabled"
+//    turns it off): searches by document, name or CNJ only run for keys
+//    listed below. Calls by id (GET /requests/{id}, PATCH/DELETE /tracking/{id}) and
 //    account-wide lists (GET /requests, /responses, /tracking) carry no search
 //    key, so only the kill switch applies to them: they can read or change
 //    work created outside this app with the same key.
@@ -23,6 +24,12 @@ export function assertLiveCallsEnabled(): void {
   if (getServerEnv("JUDIT_LIVE_CALLS") !== "enabled") {
     throw new JuditLiveCallsDisabledError();
   }
+}
+
+// Restricted mode (the allowlist below) stays on unless JUDIT_ALLOWLIST is
+// exactly "disabled": turning it off must be a deliberate act.
+export function allowlistEnabled(): boolean {
+  return getServerEnv("JUDIT_ALLOWLIST") !== "disabled";
 }
 
 // Search types that identify a person, company or lawsuit, as listed in the
@@ -70,6 +77,10 @@ export function assertAllowedSearchKey(
   if (normalized === "") {
     throw new JuditGuardError(`Chave de busca vazia para ${searchType}.`);
   }
+
+  // Modo aberto: qualquer documento passa; sobram o limite por minuto e o
+  // teto diário (rate-limit.ts e src/features/queries/budget.ts).
+  if (!allowlistEnabled()) return;
 
   const allowed = ALLOWLIST[searchType].some(
     (entry) => normalize(entry) === normalized,

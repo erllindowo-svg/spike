@@ -385,3 +385,82 @@ tipo), independente das escolhas acima.
   por e-mail ou Slack, exportação de relatórios, autorização por perfil e
   limite de consultas por usuário (este, uma pendência antiga para publicar
   o app).
+
+## Proteção de custo além da allowlist (2026-10-16)
+
+### Ditado do usuário
+
+> A allowlist é muito limitante. Tem que ter algo menos restritivo nesse
+> processo de limitação e de segurança, para não gastar muito da API: um
+> safeguard no back-end que não deixe sair muita requisição ao mesmo tempo,
+> e que entenda o que é um fluxo de dados normal. Por exemplo: eu consegui
+> puxar os processos do Banco Itaú e não vi o banco de dados inteiro de uma
+> vez, quebrando minhas pernas. Se tivesse alguma discriminação assim...
+> porque só limitar não é um jogo muito bom.
+
+### Fatos da documentação (lidos em 2026-10-16)
+
+- Limite da JUDIT: 180 requisições por minuto por chave, em janela
+  deslizante ([rate-limits](https://docs.judit.io/essentialConcepts/rate-limits));
+  a página da consulta síncrona fala em 500 por minuto (README da
+  integração, item 43).
+- Cobrança por requisição; não está dito se o volume devolvido muda o preço
+  (IK14).
+- A consulta síncrona (`POST /lawsuits`) não tem paginação: devolve tudo de
+  uma vez. As listas assíncronas (`GET /responses`) são paginadas, até 1.000
+  por página ([pagination](https://docs.judit.io/essentialConcepts/pagination)).
+
+### Escolhas
+
+| #   | Escolha          | Opções                                                                                                                                                        | Rec. |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| S1  | Allowlist        | (a) vira um modo restrito, ligado por padrão até o usuário desligar; (b) removida; (c) continua a única barreira                                              | a    |
+| S2  | Ritmo            | (a) limite no servidor, abaixo dos 180/min da JUDIT, e uma chamada por vez para a mesma busca; (b) só tratar o 429 da JUDIT                                   | a    |
+| S3  | Teto de gasto    | (a) teto diário de chamadas cobradas, contado no nosso histórico; (b) ler o consumo da JUDIT antes de cada chamada; (c) as duas                               | a    |
+| S4  | Volume           | (a) "raio-x rápido" (contagem e resumo agrupado) antes da lista; lista grande pede confirmação e a tela mostra no máximo algumas centenas de linhas; (b) nada | a    |
+| S5  | Documentos reais | (a) só depois de S1 a S4 implementados e testados com o CNPJ de teste; (b) já                                                                                 | a    |
+
+## Círculo 2: plano (2026-10-16)
+
+O usuário pediu (2026-10-16) o commit do círculo 1, a montagem do círculo 2
+com tudo o que foi coletado e a implementação sem interrupção. As escolhas
+R1 a R6 e S1 a S5 não foram respondidas uma a uma; o agente segue as
+recomendações de cada tabela e registra aqui o que decidir no caminho. O
+login e as "tomadas" do back-end ficam para os círculos 3 ou 4, como o
+usuário pediu.
+
+Fatias, nesta ordem (cada uma com testes e commit próprio):
+
+1. **Proteção de custo (S1 a S4).** Vem antes de abrir CPF e documentos
+   reais: ritmo por minuto, uma chamada por vez para a mesma busca, teto
+   diário contado no histórico, allowlist como modo restrito (ligado).
+2. **Partes (R1, R2, R6).** Coleção única de partes (CNPJ e CPF), com
+   migração das empresas e das referências; CPF mascarado nas listas.
+3. **Telas de partes (R3).** Empresas e Pessoas físicas como abas;
+   página da pessoa; adicionar pessoa.
+4. **Consultar (consultas avulsas).** Uma página guiada pelo catálogo de
+   features (`docs/mapa-funcionalidades-judit.md`): contagem, resumo
+   agrupado, lista, histórico assíncrono, dados cadastrais, processo por
+   CNJ, mandados, execução penal.
+5. **Busca (R4).** A barra reconhece o tipo do identificador, mostra o que
+   já está no app e oferece "Consultar na JUDIT" como item explícito.
+6. **Monitoramentos.** Coluna "Alvo"; monitoramento por CPF; filtro de
+   termos nas movimentações (F21).
+7. **Conta.** Saldo e consumo da JUDIT (F27, F28) em Configurações e no
+   Dashboard.
+8. **Processo por CNJ no modo `db`.** A página do processo deixa de dar 404.
+9. **Pormenores do círculo 1** (lista "Círculo 2: pormenores", acima).
+
+### Estado do círculo 2
+
+- **Fatia 1, proteção de custo: feita.** Allowlist como modo restrito
+  (`JUDIT_ALLOWLIST`, ligado salvo "disabled"); limite por minuto
+  (`JUDIT_MAX_CALLS_PER_MINUTE`, padrão 30) e chamada única para a mesma
+  busca, no client (`src/lib/judit/rate-limit.ts`); teto diário
+  (`JUDIT_DAILY_CALL_LIMIT`, padrão 50) contado em `sync_queries`,
+  `judit_requests` e monitoramentos confirmados
+  (`src/features/queries/budget.ts`), aplicado em todas as ações cobradas;
+  a consulta síncrona entrega no máximo 500 processos à tela, com o total;
+  linha "Proteção de custo" em Configurações, com o uso de hoje. Casos H1 a
+  H3 no catálogo do diário. A allowlist continua ligada: liberar documentos
+  reais é decisão do usuário (S5).

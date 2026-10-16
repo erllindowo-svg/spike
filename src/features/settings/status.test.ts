@@ -9,6 +9,9 @@ const allSet: EnvFacts = {
   liveCalls: true,
   webhookToken: true,
   publicOrigin: true,
+  allowlist: true,
+  callsPerMinute: 30,
+  dailyCallLimit: 50,
 };
 
 function statusOf(facts: EnvFacts, id: string) {
@@ -19,6 +22,7 @@ describe("describeIntegrations", () => {
   it("shows everything on when every variable is set", () => {
     expect(describeIntegrations(allSet).map((i) => i.tone)).toEqual([
       "success",
+      "info",
       "success",
       "success",
     ]);
@@ -26,7 +30,12 @@ describe("describeIntegrations", () => {
 
   it("marks every integration as unused in demo mode", () => {
     const items = describeIntegrations({ ...allSet, dataSource: "demo" });
-    expect(items.map((i) => i.tone)).toEqual(["neutral", "neutral", "neutral"]);
+    expect(items.map((i) => i.tone)).toEqual([
+      "neutral",
+      "neutral",
+      "neutral",
+      "neutral",
+    ]);
   });
 
   it("tells a missing key apart from blocked calls", () => {
@@ -54,6 +63,22 @@ describe("describeIntegrations", () => {
     expect(statusOf({ ...allSet, mongoUri: false }, "database")?.tone).toBe(
       "warning",
     );
+  });
+});
+
+describe("cost protection", () => {
+  it("shows the restricted mode with the limits and today's usage", () => {
+    expect(statusOf(allSet, "cost")?.label).toBe("Modo restrito");
+    expect(
+      describeIntegrations(allSet, 7).find((i) => i.id === "cost")?.description,
+    ).toContain("30 chamadas por minuto e 50 cobradas por dia (hoje: 7)");
+  });
+
+  it("warns when the allowlist is off", () => {
+    expect(statusOf({ ...allSet, allowlist: false }, "cost")).toMatchObject({
+      tone: "warning",
+      label: "Modo aberto",
+    });
   });
 });
 
@@ -92,6 +117,9 @@ describe("readEnvFacts", () => {
       liveCalls: false,
       webhookToken: false,
       publicOrigin: false,
+      allowlist: true,
+      callsPerMinute: 30,
+      dailyCallLimit: 50,
     });
   });
 });

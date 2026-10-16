@@ -1,7 +1,10 @@
 import "server-only";
 
 import type { StatusTone } from "@/components/shared/status-badge";
+import { dailyCallLimit } from "@/features/queries/budget";
 import { getServerEnv, hasServerEnv } from "@/lib/env";
+import { allowlistEnabled } from "@/lib/judit/guard";
+import { callsPerMinuteLimit } from "@/lib/judit/rate-limit";
 
 // Situação de cada integração, calculada no servidor a partir das variáveis
 // de ambiente. Só sai daqui se cada variável está definida (e com formato
@@ -16,9 +19,13 @@ export type EnvFacts = {
   liveCalls: boolean;
   webhookToken: boolean;
   publicOrigin: boolean;
+  // Proteções de custo (círculo 2, S1 a S3).
+  allowlist: boolean;
+  callsPerMinute: number;
+  dailyCallLimit: number;
 };
 
-export type IntegrationId = "judit" | "webhooks" | "database";
+export type IntegrationId = "judit" | "cost" | "webhooks" | "database";
 
 export type IntegrationStatus = {
   id: IntegrationId;
@@ -36,12 +43,53 @@ export function readEnvFacts(): EnvFacts {
     liveCalls: getServerEnv("JUDIT_LIVE_CALLS") === "enabled",
     webhookToken: hasServerEnv("JUDIT_WEBHOOK_TOKEN"),
     publicOrigin: hasServerEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN"),
+    allowlist: allowlistEnabled(),
+    callsPerMinute: callsPerMinuteLimit(),
+    dailyCallLimit: dailyCallLimit(),
   };
 }
 
 // Função pura, para os testes cobrirem cada combinação sem mexer no ambiente.
-export function describeIntegrations(facts: EnvFacts): IntegrationStatus[] {
-  return [judit(facts), webhooks(facts), database(facts)];
+// `billedToday`: chamadas cobradas hoje, lidas do banco pela página (nulo se
+// o banco não respondeu ou na demonstração).
+export function describeIntegrations(
+  facts: EnvFacts,
+  billedToday: number | null = null,
+): IntegrationStatus[] {
+  return [
+    judit(facts),
+    cost(facts, billedToday),
+    webhooks(facts),
+    database(facts),
+  ];
+}
+
+function cost(facts: EnvFacts, billedToday: number | null): IntegrationStatus {
+  const id = "cost";
+  if (facts.dataSource === "demo") {
+    return {
+      id,
+      tone: "neutral",
+      label: "Não usada",
+      description: "DATA_SOURCE=demo: a demonstração não chama a JUDIT.",
+    };
+  }
+  const limits =
+    `Limites: ${facts.callsPerMinute} chamadas por minuto e ${facts.dailyCallLimit} cobradas por dia` +
+    (billedToday === null ? "." : ` (hoje: ${billedToday}).`);
+  return facts.allowlist
+    ? {
+        id,
+        tone: "info",
+        label: "Modo restrito",
+        description: `Allowlist ligada: só os documentos de teste saem do servidor. ${limits}`,
+      }
+    : {
+        id,
+        tone: "warning",
+        label: "Modo aberto",
+        description: `Qualquer documento pode ser consultado (JUDIT_ALLOWLIST="disabled"). ${limits}`,
+      };
 }
 
 function judit(facts: EnvFacts): IntegrationStatus {

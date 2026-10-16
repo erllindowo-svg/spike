@@ -5,6 +5,7 @@ import {
   KeyRoundIcon,
   LifeBuoyIcon,
   RotateCcwIcon,
+  ShieldCheckIcon,
   WebhookIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ const integrationInfo: Record<
   { icon: typeof KeyRoundIcon; title: string }
 > = {
   judit: { icon: KeyRoundIcon, title: "API da JUDIT" },
+  cost: { icon: ShieldCheckIcon, title: "Proteção de custo" },
   webhooks: { icon: WebhookIcon, title: "Recebimento de webhooks" },
   database: { icon: DatabaseIcon, title: "Banco de dados" },
 };

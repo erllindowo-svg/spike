@@ -65,3 +65,31 @@ describe("assertAllowedSearchKey", () => {
     );
   });
 });
+
+describe("restricted mode (JUDIT_ALLOWLIST)", () => {
+  it("stays on when the variable is empty or has another value", () => {
+    vi.stubEnv("JUDIT_ALLOWLIST", "");
+    expect(() => assertAllowedSearchKey("cnpj", "11222333000181")).toThrow(
+      JuditGuardError,
+    );
+    vi.stubEnv("JUDIT_ALLOWLIST", "off");
+    expect(() => assertAllowedSearchKey("cnpj", "11222333000181")).toThrow(
+      JuditGuardError,
+    );
+  });
+
+  it("lets any key through only with exactly 'disabled'", () => {
+    vi.stubEnv("JUDIT_ALLOWLIST", "disabled");
+    expect(() =>
+      assertAllowedSearchKey("cnpj", "11.222.333/0001-81"),
+    ).not.toThrow();
+    expect(() => assertAllowedSearchKey("cpf", "000.000.001-91")).not.toThrow();
+  });
+
+  it("still rejects an empty key in open mode", () => {
+    vi.stubEnv("JUDIT_ALLOWLIST", "disabled");
+    expect(() => assertAllowedSearchKey("cnpj", " ./- ")).toThrow(
+      JuditGuardError,
+    );
+  });
+});

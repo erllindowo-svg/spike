@@ -35,6 +35,8 @@ import {
 const testDb = vi.hoisted(() => ({
   current: undefined as Awaited<ReturnType<typeof createTestDb>> | undefined,
 }));
+// The daily cap reads the database; covered in src/features/queries/budget.test.ts.
+vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: async () => testDb.current!.db }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 

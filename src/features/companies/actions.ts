@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 
+import { assertDailyBudget } from "@/features/queries/budget";
 import {
   juditActionFailure,
   type JuditActionFailure,
@@ -124,6 +125,8 @@ async function lookupRegistration(
     searchType: "cnpj",
     searchKey: cnpj,
   } as const;
+
+  await assertDailyBudget();
 
   let response;
   try {

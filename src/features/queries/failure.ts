@@ -14,7 +14,8 @@ import {
 
 export type JuditActionFailure = {
   ok: false;
-  reason: "live_calls_disabled" | "not_allowed" | "timeout" | "error";
+  reason:
+    "live_calls_disabled" | "not_allowed" | "cost_guard" | "timeout" | "error";
   message: string;
 };
 
@@ -29,12 +30,17 @@ export function juditActionFailure(
       message: 'Chamadas reais desligadas. Defina JUDIT_LIVE_CALLS="enabled".',
     };
   }
+  // Proteções de custo (limite por minuto, chamada repetida, teto diário):
+  // nada saiu do servidor. A mensagem da classe diz qual e o que fazer.
+  if (error instanceof JuditGuardError && error.kind !== "guard") {
+    return { ok: false, reason: "cost_guard", message: error.message };
+  }
   if (error instanceof JuditGuardError) {
     return {
       ok: false,
       reason: "not_allowed",
       message:
-        "Este CNPJ não está na allowlist de desenvolvimento (src/lib/judit/guard.ts).",
+        "Este documento não está na allowlist (modo restrito, src/lib/judit/guard.ts).",
     };
   }
   if (error instanceof JuditTimeoutError) {

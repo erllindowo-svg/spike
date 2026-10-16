@@ -7,7 +7,9 @@ import { getServerEnv } from "@/lib/env";
 import {
   JuditApplicationError,
   JuditError,
+  JuditDuplicateCallError,
   JuditGuardError,
+  JuditLocalRateLimitError,
   JuditHttpError,
   JuditLiveCallsDisabledError,
   JuditRateLimitError,
@@ -101,6 +103,13 @@ export function errorResponse(error: unknown): Response {
 
   if (error instanceof JuditLiveCallsDisabledError) {
     return Response.json({ error: base }, { status: 503 });
+  }
+  // Cost protections: per-minute limit (429) and duplicate call (409).
+  if (error instanceof JuditLocalRateLimitError) {
+    return Response.json({ error: base }, { status: 429 });
+  }
+  if (error instanceof JuditDuplicateCallError) {
+    return Response.json({ error: base }, { status: 409 });
   }
   if (error instanceof JuditGuardError) {
     return Response.json({ error: base }, { status: 403 });

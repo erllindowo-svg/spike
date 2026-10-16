@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCompanyByCnpj } from "@/features/companies/db";
+import { assertDailyBudget } from "@/features/queries/budget";
 import { saveSyncQuery } from "@/features/queries/db";
+import { JuditDailyBudgetError } from "@/lib/judit/errors";
 import { hotStorageObservedBody } from "@/lib/judit/__fixtures__/lawsuits";
 
 import { searchCompanyLawsuitsAction } from "./actions";
 
 // The action runs with the real JUDIT client (guard, schema, errors) and a
 // mocked fetch; only the database lookup is replaced.
+// The daily cap reads the database; covered in src/features/queries/budget.test.ts.
+vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
 vi.mock("@/features/companies/db", () => ({ getCompanyByCnpj: vi.fn() }));
 // The history record (page Consultas) is only observed.
 vi.mock("@/features/queries/db", () => ({ saveSyncQuery: vi.fn() }));
@@ -148,5 +152,32 @@ describe("searchCompanyLawsuitsAction", () => {
     expect(saveSyncQuery).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: "failed", errorKind: "http" }),
     );
+  });
+
+  it("stops at the daily cap before calling JUDIT, and records nothing", async () => {
+    vi.mocked(assertDailyBudget).mockRejectedValueOnce(
+      new JuditDailyBudgetError(50, 50),
+    );
+
+    const result = await searchCompanyLawsuitsAction(TEST_CNPJ);
+
+    expect(result).toMatchObject({ ok: false, reason: "cost_guard" });
+    expect(result.ok === false && result.message).toContain("Teto diário");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(saveSyncQuery).not.toHaveBeenCalled();
+  });
+
+  it("shows at most 500 lawsuits and tells the total", async () => {
+    const many = Array.from({ length: 501 }, (_, i) => ({
+      ...hotStorageObservedBody.lawsuits[0],
+      code: `00000${String(i).padStart(2, "0")}39.2026.8.26.0050`.slice(-20),
+      instance: i + 1,
+    }));
+    mockFetch({ ...hotStorageObservedBody, lawsuits: many });
+
+    const result = await searchCompanyLawsuitsAction(TEST_CNPJ);
+
+    expect(result).toMatchObject({ ok: true, total: 501 });
+    expect(result.ok && result.lawsuits).toHaveLength(500);
   });
 });

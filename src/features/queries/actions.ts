@@ -9,6 +9,8 @@ import { getCompanyByCnpj } from "@/features/companies/db";
 import { productCallbackUrl } from "@/features/webhooks/callback";
 import { processEventsForReference } from "@/features/webhooks/process";
 import { getDataSource } from "@/lib/data";
+
+import { assertDailyBudget } from "./budget";
 import { createRequest, getRequest, listResponses } from "@/lib/judit/requests";
 
 import {
@@ -98,8 +100,10 @@ export async function startAsyncQueryAction(
     }
 
     // Antes da chamada cobrada: uma configuração de webhook pela metade
-    // (origem sem token) falha aqui, sem gastar crédito.
+    // (origem sem token) falha aqui, sem gastar crédito; o teto diário
+    // também.
     const callbackUrl = productCallbackUrl();
+    await assertDailyBudget();
 
     // A modalidade decide os parâmetros: on_demand só na on-demand, e
     // cache_ttl_in_days só junto com ele (a página on-demand diz que ele só

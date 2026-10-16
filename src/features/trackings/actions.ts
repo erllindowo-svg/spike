@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import type { Tracking } from "@/db/models";
 import { getCompanyByCnpj } from "@/features/companies/db";
+import { assertDailyBudget } from "@/features/queries/budget";
 import {
   juditActionFailure,
   type JuditActionFailure,
@@ -183,6 +184,8 @@ async function sendReservation(id: string): Promise<{
 
   const requestedRecurrence = claimed.recurrenceDays ?? 30;
   try {
+    // Teto diário: barrado aqui, a reserva volta a "pendente" (not_sent).
+    await assertDailyBudget();
     const remote = await createJuditTracking({
       searchType: juditSearchType(claimed),
       searchKey: claimed.searchKey,
@@ -253,7 +256,9 @@ function classifySendError(error: unknown): {
     return {
       outcome: "not_sent",
       reason:
-        "Identificador fora da allowlist de desenvolvimento. A reserva continua pendente.",
+        error.kind === "guard"
+          ? "Identificador fora da allowlist (modo restrito). A reserva continua pendente."
+          : `${error.message} A reserva continua pendente.`,
     };
   }
   // A JUDIT respondeu recusando (4xx, incluindo limite de taxa, ou erro de

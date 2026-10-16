@@ -25,6 +25,19 @@ export const serverEnvSchema = z.object({
   // "disabled", and src/lib/judit/guard.ts only accepts the exact value
   // "enabled".
   JUDIT_LIVE_CALLS: z.string().trim().optional(),
+  // Restricted mode: searches by document or CNJ only for the keys listed in
+  // src/lib/judit/guard.ts. On unless the value is exactly "disabled".
+  JUDIT_ALLOWLIST: z.string().trim().optional(),
+  // Our own pace limit, below JUDIT's 180 per minute (README item 43).
+  // Empty means the default in src/lib/judit/rate-limit.ts.
+  JUDIT_MAX_CALLS_PER_MINUTE: emptyAsAbsent(
+    z.coerce.number().int().min(1).max(170).optional(),
+  ),
+  // Daily cap of billable calls, counted in the app's own history.
+  // Empty means the default in src/features/queries/budget.ts.
+  JUDIT_DAILY_CALL_LIMIT: emptyAsAbsent(
+    z.coerce.number().int().min(1).max(10_000).optional(),
+  ),
   // Secret that JUDIT sends back in the webhook URL (?token=...): the docs
   // define no signature, so this is how the route tells JUDIT from anyone
   // else. Absent means the webhook route is disabled (404). See
@@ -54,6 +67,16 @@ export const serverEnvSchema = z.object({
       .optional(),
   ),
 });
+
+// An empty line copied from .env.example reaches process.env as "": read it
+// as absent, so the default applies instead of a validation error.
+function emptyAsAbsent<T extends z.ZodType>(schema: T) {
+  return z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    schema,
+  );
+}
 
 function isHttpsOrigin(value: string): boolean {
   try {
