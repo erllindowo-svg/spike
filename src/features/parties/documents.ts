@@ -15,7 +15,7 @@ export const DOCUMENT_TYPES = [
   "cpf",
 ] as const satisfies readonly DocumentType[];
 
-type DocumentInfo = {
+export type DocumentInfo = {
   label: string;
   // Como a parte é chamada na interface.
   partyLabel: string;

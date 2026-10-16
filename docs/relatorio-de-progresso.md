@@ -292,10 +292,15 @@ produto.
     `hour_range: 6`; IK5), então a tela "às 6h" engana quem está em Brasília.
     Falta: o `response_type` e os campos das respostas de monitoramento (a
     execução não teve resultados).
-15. Componentes grandes: `company-detail.tsx` (328 linhas),
+15. **Em parte corrigido em 2026-10-16:** o card da consulta síncrona saiu
+    da página da parte (`party-lawsuits-card.tsx`). Texto original:
+    componentes grandes: `company-detail.tsx` (328 linhas),
     `new-tracking-dialog.tsx` (333) e `demo-store.tsx` (575). Extrair o card
     da consulta síncrona, como foi feito com o das assíncronas.
-16. Frases montadas com `label.toLowerCase()` ("Fazer consulta síncrona")
+16. **Corrigido em 2026-10-16:** `lowerFirst` (`src/lib/format.ts`) troca
+    só a primeira letra e preserva siglas; a página Consultar mostrava
+    "processo na base da judit". Texto original: frases montadas com
+    `label.toLowerCase()` ("Fazer consulta síncrona")
     quebram se o rótulo mudar.
 17. **Em parte corrigido em 2026-10-14 (noite):** testes de
     `refreshTrackingAction`, `resumeTrackingAction`, 201 inesperado →
@@ -308,7 +313,8 @@ produto.
     cobrada" também ao pausar ou excluir.
 18. Processo: o diário passou de 1.400 linhas. Um índice por etapa no topo
     ajudaria a estudar.
-19. **Observado em 2026-10-15:** aviso do Next.js em `/empresas`
+19. **Corrigido em 2026-10-16, sem confirmação pelo sintoma (catálogo,
+    D5).** **Observado em 2026-10-15:** aviso do Next.js em `/empresas`
     ("uncached data during prerendering or a navigation"): a página espera
     `listLawsuits()` fora do próprio `<Suspense>` (catálogo, D5). O item 8
     também foi observado ao vivo (catálogo, C16).

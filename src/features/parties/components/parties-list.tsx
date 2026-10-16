@@ -29,7 +29,7 @@ import {
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatDate, formatNumber, lowerFirst } from "@/lib/format";
 
 import {
   displayDocument,
@@ -125,13 +125,13 @@ export function PartiesList({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={`Buscar por ${isCompany ? "razão social" : "nome"} ou ${info.label}`}
-              aria-label={`Buscar ${info.partyLabelPlural.toLowerCase()}`}
+              aria-label={`Buscar ${lowerFirst(info.partyLabelPlural)}`}
               className="pl-8"
             />
           </div>
           <span className="text-sm text-muted-foreground">
             {formatNumber(filtered.length)} de {formatNumber(parties.length)}{" "}
-            {info.partyLabelPlural.toLowerCase()}
+            {lowerFirst(info.partyLabelPlural)}
           </span>
         </div>
         <CardContent className="px-2">

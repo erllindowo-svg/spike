@@ -22,7 +22,7 @@ import type { PartyRef } from "@/features/parties/documents";
 import type { Lawsuit } from "@/features/processes/types";
 import { SupportOnly, useSupportView } from "@/features/settings/support-view";
 import { SERVER_UNREACHABLE } from "@/lib/demo-store";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, lowerFirst } from "@/lib/format";
 
 import { checkAsyncQueryAction, startAsyncQueryAction } from "../actions";
 import { partyAsyncModes, QUERY_MODES, type PartyAsyncMode } from "../modes";
@@ -190,7 +190,7 @@ export function AsyncQueriesCard({
                     ) : (
                       <SendIcon data-icon="inline-start" />
                     )}
-                    Criar {info.label.toLowerCase()}
+                    Criar {lowerFirst(info.label)}
                   </Button>
                   <a
                     href={info.docsUrl}

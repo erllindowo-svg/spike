@@ -83,3 +83,20 @@ export function formatDuration(ms: number | null): string {
   if (ms < 1000) return `${ms} ms`;
   return `${(ms / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s`;
 }
+
+// Um rótulo no meio de uma frase ("Fazer consulta síncrona"). Só a primeira
+// letra vira minúscula, e só quando não começa uma sigla: "CNPJ" e "JUDIT"
+// continuam em maiúsculas, onde quer que estejam. toLowerCase() no rótulo
+// inteiro quebrava as siglas ("processo na base da judit").
+export function lowerFirst(label: string): string {
+  const [first, second] = label;
+  if (
+    !first ||
+    (second &&
+      second === second.toUpperCase() &&
+      second !== second.toLowerCase())
+  ) {
+    return label;
+  }
+  return first.toLowerCase() + label.slice(1);
+}

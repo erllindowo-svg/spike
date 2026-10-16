@@ -6,6 +6,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useDemoStore } from "@/lib/demo-store";
+import { lowerFirst } from "@/lib/format";
 
 import { DOCUMENTS, normalizeDocument, type DocumentType } from "../documents";
 import { PartyDetail } from "./party-detail";
@@ -37,7 +38,7 @@ export function DemoPartyPage({
         description={`Este ${info.label} não está nos dados de demonstração. Partes adicionadas na demonstração ficam só na aba e somem ao recarregar a página.`}
         action={
           <Button nativeButton={false} render={<Link href={info.basePath} />}>
-            Voltar para {info.partyLabelPlural.toLowerCase()}
+            Voltar para {lowerFirst(info.partyLabelPlural)}
           </Button>
         }
         className="rounded-xl border bg-card"

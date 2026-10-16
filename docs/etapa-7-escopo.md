@@ -566,3 +566,10 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   (`src/features/queries/deliveries.ts`, catálogo G7). Monitoramentos ficam
   de fora: o resultado deles é lido por outra rota
   (`GET /responses/tracking`), e a relação com as entregas é a IK11.
+- **Fatia 13, itens 15 e 16 da revisão técnica: feita.** Rótulos no meio de
+  frases passam por `lowerFirst` (`src/lib/format.ts`), que troca só a
+  primeira letra e preserva siglas: a página Consultar mostrava "Resultado:
+  processo na base da judit". O card da consulta síncrona saiu da página da
+  parte (`party-lawsuits-card.tsx`); o estado continua em `PartyDetail`,
+  porque os indicadores do topo usam o mesmo resultado. Outras divisões de
+  componentes grandes ficam para quando houver motivo além do tamanho.

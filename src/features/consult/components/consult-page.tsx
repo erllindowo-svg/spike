@@ -42,7 +42,7 @@ import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import type { Lawsuit } from "@/features/processes/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, lowerFirst } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { runConsultAction, type ConsultResult } from "../actions";
@@ -286,7 +286,7 @@ export function ConsultPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center gap-2">
-              Resultado: {info.label.toLowerCase()}
+              Resultado: {lowerFirst(info.label)}
               {result.ok && result.demo && (
                 <StatusBadge tone="warning">
                   <FlaskConicalIcon className="size-3" aria-hidden />
@@ -402,7 +402,7 @@ function PayloadView({
                   <h3 className="text-sm font-medium">{group.title}</h3>
                   <DistributionChart
                     data={group.data}
-                    label={group.title.toLowerCase()}
+                    label={lowerFirst(group.title)}
                   />
                 </section>
               ))}

@@ -4,7 +4,6 @@ import {
   BellIcon,
   CalendarClockIcon,
   CheckCircle2Icon,
-  CloudDownloadIcon,
   FileTextIcon,
   IdCardIcon,
   LandmarkIcon,
@@ -21,7 +20,6 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -37,11 +35,7 @@ import {
   type DistributionData,
 } from "@/features/processes/components/distribution-card";
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
-import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
-import {
-  searchPartyLawsuitsAction,
-  type SearchPartyLawsuitsResult,
-} from "@/features/processes/actions";
+import { searchPartyLawsuitsAction } from "@/features/processes/actions";
 import {
   summarizeDistribution,
   type Lawsuit,
@@ -55,12 +49,16 @@ import { TrackingStatusBadge } from "@/features/trackings/components/tracking-st
 import { formatSearchKey } from "@/features/trackings/format";
 import { formatRecurrence, isTrackingClosed } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
-import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  lowerFirst,
+} from "@/lib/format";
 
 import { refreshRegistrationDataAction } from "../actions";
+import { PartyLawsuitsCard, type JuditSearch } from "./party-lawsuits-card";
 import { RegistrationStatusBadge } from "./registration-status-badge";
-
-type JuditSearch = Extract<SearchPartyLawsuitsResult, { ok: true }>;
 
 export function PartyDetail({
   party,
@@ -109,7 +107,7 @@ export function PartyDetail({
       }
       setJudit(result);
       toast.success(
-        `${formatNumber(result.total)} processo(s) na ${QUERY_MODES.datalake_sync.label.toLowerCase()}`,
+        `${formatNumber(result.total)} processo(s) na ${lowerFirst(QUERY_MODES.datalake_sync.label)}`,
       );
     });
   }
@@ -336,58 +334,16 @@ export function PartyDetail({
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Processos associados</CardTitle>
-          <CardDescription>
-            {!fromJudit
-              ? "Selecione um processo para ver detalhes e movimentações."
-              : judit
-                ? `${QUERY_MODES.datalake_sync.label} à JUDIT feita em ${formatDateTime(judit.fetchedAt)}${supportView && judit.requestId ? ` · request_id ${judit.requestId}` : ""}. Os processos não ficam salvos: recarregar a página limpa a lista (a consulta fica no histórico, em Consultas).`
-                : "Os processos vêm de uma consulta síncrona à JUDIT. Cada consulta é cobrada."}
-          </CardDescription>
-          <CardAction className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {formatNumber(lawsuits.length)} processos
-            </span>
-            {fromJudit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={searchJudit}
-                disabled={searching}
-              >
-                {searching ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <CloudDownloadIcon data-icon="inline-start" />
-                )}
-                Fazer {QUERY_MODES.datalake_sync.label.toLowerCase()}
-              </Button>
-            )}
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {judit && judit.total > judit.lawsuits.length && (
-            <p className="mb-3 text-sm text-muted-foreground">
-              Mostrando {formatNumber(judit.lawsuits.length)} de{" "}
-              {formatNumber(judit.total)} processos: a consulta síncrona devolve
-              tudo de uma vez, e a tela mostra só os primeiros para não travar.
-            </p>
-          )}
-          <LawsuitsTable
-            lawsuits={lawsuits}
-            onSelect={setSelected}
-            emptyDescription={
-              fromJudit
-                ? judit
-                  ? `A consulta síncrona não retornou processos para este ${info.label}.`
-                  : "Clique em “Fazer consulta síncrona” para buscar os processos."
-                : undefined
-            }
-          />
-        </CardContent>
-      </Card>
+      <PartyLawsuitsCard
+        info={info}
+        fromJudit={fromJudit}
+        lawsuits={lawsuits}
+        judit={judit}
+        searching={searching}
+        supportView={supportView}
+        onSearch={searchJudit}
+        onSelect={setSelected}
+      />
 
       {fromJudit && (
         <AsyncQueriesCard
