@@ -223,10 +223,13 @@ async function callJudit(
         resultCount: result.lawsuits.length,
       };
     }
-    case "registration": {
+    case "registration":
+    case "registration_on_demand": {
       const result = await getEntity({
         searchType: query.searchType as DocumentType,
         searchKey: query.searchKey,
+        // Receita em tempo real: mais cara e mais lenta.
+        onDemand: query.feature === "registration_on_demand",
       });
       const registration = fromJuditEntities(result, query.searchKey);
       // A parte salva fica com os dados novos; uma parte não salva continua
@@ -346,7 +349,8 @@ async function demoConsult(query: ParsedQuery): Promise<ConsultResult> {
       });
     case "lawsuits":
       return demo({ kind: "lawsuits", lawsuits, total: lawsuits.length });
-    case "registration": {
+    case "registration":
+    case "registration_on_demand": {
       const registration: RegistrationData = party
         ? {
             found: true,

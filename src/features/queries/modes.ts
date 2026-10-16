@@ -85,6 +85,16 @@ export const QUERY_MODES = {
     cost: "Cobrada por requisição.",
     docsUrl: "https://docs.judit.io/cache-judit/on-demand",
   },
+  registration_on_demand: {
+    label: "Dados cadastrais na Receita",
+    endpoint: "POST /entities com on_demand",
+    flow: "sync",
+    sources: "Receita Federal em tempo real.",
+    purpose:
+      "Nome e situação cadastral lidos na hora na Receita, em vez da base da JUDIT. Para decisões em que o dado precisa estar atual.",
+    cost: "Mais cara que a consulta de dados cadastrais comum.",
+    docsUrl: "https://docs.judit.io/registration-data/registration-data",
+  },
   historical_async: {
     label: "Consulta assíncrona",
     endpoint: "POST /requests",

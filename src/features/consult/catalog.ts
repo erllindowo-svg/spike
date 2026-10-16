@@ -11,6 +11,7 @@ export type ConsultFeatureId =
   | "synthetic"
   | "lawsuits"
   | "registration"
+  | "registration_on_demand"
   | "history_async"
   | "lawsuit_datalake"
   | "lawsuit_on_demand";
@@ -30,6 +31,11 @@ export const CONSULT_FEATURES: readonly ConsultFeature[] = [
   {
     id: "registration",
     mode: "registration_data",
+    searchTypes: ["cnpj", "cpf"],
+  },
+  {
+    id: "registration_on_demand",
+    mode: "registration_on_demand",
     searchTypes: ["cnpj", "cpf"],
   },
   {

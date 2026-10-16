@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  formatHourRange,
   formatSearchKey,
   getLastEventByReference,
 } from "@/features/trackings/format";
@@ -373,7 +374,7 @@ function TrackingNote({
   ) {
     note = tracking.creationError ?? "Envio interrompido: conferir na JUDIT";
   } else if (tracking.status === "created" && tracking.hourRange !== null) {
-    note = `Primeira execução prevista às ${tracking.hourRange}h`;
+    note = `Primeira execução prevista por volta das ${formatHourRange(tracking.hourRange)}`;
   }
   if (tracking.stepTerms?.length) {
     const terms = `Só movimentações com: ${tracking.stepTerms.join(", ")}`;

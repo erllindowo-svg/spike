@@ -1,15 +1,23 @@
 "use client";
 
-import { FileSearchIcon, SearchIcon, WebhookIcon } from "lucide-react";
+import {
+  FileSearchIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  WebhookIcon,
+} from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { CopyButton } from "@/components/shared/copy-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -23,14 +31,27 @@ import { normalizeCnpj } from "@/features/parties/cnpj";
 import { partyHref } from "@/features/parties/documents";
 import { formatSearchKey } from "@/features/trackings/format";
 import { useSupportView } from "@/features/settings/support-view";
-import { useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
+import { checkAsyncQueryAction } from "../actions";
 import { QUERY_MODES } from "../modes";
 import { asyncStatusLabel, deliveryLabels, syncOutcomeLabels } from "../status";
 import { isQueryOpen, type QueryView } from "../types";
 
 type FlowFilter = "all" | QueryView["flow"];
+type StateFilter = "all" | "open" | "done" | "problem";
+
+// Situação de uma consulta, para o filtro: em andamento (assíncrona sem
+// resultado final), com problema (síncrona com erro ou sem resposta) ou
+// concluída.
+function queryState(query: QueryView): Exclude<StateFilter, "all"> {
+  if (isQueryOpen(query)) return "open";
+  if (query.syncOutcome === "failed" || query.syncOutcome === "uncertain") {
+    return "problem";
+  }
+  return "done";
+}
 
 export function QueriesPage({ queries }: { queries: QueryView[] }) {
   const { parties } = useDemoStore();
@@ -43,6 +64,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
   const partyOf = (q: QueryView) =>
     partyByDocument.get(`${q.searchType}:${q.searchKey}`);
   const [flow, setFlow] = useState<FlowFilter>("all");
+  const [state, setState] = useState<StateFilter>("all");
   const [query, setQuery] = useState("");
 
   const term = query.trim().toLowerCase();
@@ -50,6 +72,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
   const documentTerm = normalizeCnpj(term);
   const filtered = queries.filter((q) => {
     if (flow !== "all" && q.flow !== flow) return false;
+    if (state !== "all" && queryState(q) !== state) return false;
     if (!term) return true;
     const party = partyOf(q);
     return (
@@ -117,6 +140,19 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
             <ToggleGroupItem value="all">Todas</ToggleGroupItem>
             <ToggleGroupItem value="sync">Síncronas</ToggleGroupItem>
             <ToggleGroupItem value="async">Assíncronas</ToggleGroupItem>
+          </ToggleGroup>
+          <ToggleGroup
+            variant="outline"
+            spacing={0}
+            size="sm"
+            value={[state]}
+            onValueChange={(v) => v[0] && setState(v[0] as StateFilter)}
+            aria-label="Situação"
+          >
+            <ToggleGroupItem value="all">Qualquer situação</ToggleGroupItem>
+            <ToggleGroupItem value="open">Em andamento</ToggleGroupItem>
+            <ToggleGroupItem value="done">Concluídas</ToggleGroupItem>
+            <ToggleGroupItem value="problem">Com problema</ToggleGroupItem>
           </ToggleGroup>
         </div>
         <CardContent className="px-2">
@@ -234,19 +270,17 @@ function QueryResult({ query }: { query: QueryView }) {
         </Link>
       );
     }
-    return isQueryOpen(query) ? (
-      <Link
-        href={targetHref(query)}
-        className="underline-offset-4 hover:text-primary hover:underline"
-      >
-        Verificar status na empresa
-      </Link>
+    return isQueryOpen(query) && query.requestId ? (
+      <CheckStatusButton requestId={query.requestId} />
     ) : (
       "—"
     );
   }
   if (query.syncOutcome !== "ok" || query.resultCount === null) return "—";
-  if (query.mode === "registration_data") {
+  if (
+    query.mode === "registration_data" ||
+    query.mode === "registration_on_demand"
+  ) {
     return query.resultCount > 0 ? "Cadastro encontrado" : "Sem cadastro";
   }
   if (query.mode === "lawsuit_datalake" || query.mode === "lawsuit_on_demand") {
@@ -285,5 +319,48 @@ function RequestIdCell({ query }: { query: QueryView }) {
         </Link>
       )}
     </span>
+  );
+}
+
+// Pergunta o status à JUDIT (GET /requests/{id}) daqui mesmo. A action grava
+// o status e chama refresh(): a linha se atualiza com a resposta.
+function CheckStatusButton({ requestId }: { requestId: string }) {
+  const [checking, startCheck] = useTransition();
+
+  return (
+    <Button
+      variant="outline"
+      size="xs"
+      disabled={checking}
+      onClick={() =>
+        startCheck(async () => {
+          try {
+            const result = await checkAsyncQueryAction(requestId);
+            if (!result.ok) {
+              toast.error("Status não verificado", {
+                description: result.message,
+              });
+            } else if (result.request.status === "completed") {
+              toast.success("Consulta concluída", {
+                description: "O resultado está na página da parte.",
+              });
+            } else {
+              toast.info(
+                `Status: ${asyncStatusLabel(result.request.status).label}`,
+              );
+            }
+          } catch {
+            toast.error(SERVER_UNREACHABLE);
+          }
+        })
+      }
+    >
+      {checking ? (
+        <Spinner data-icon="inline-start" />
+      ) : (
+        <RefreshCwIcon data-icon="inline-start" />
+      )}
+      Verificar status
+    </Button>
   );
 }

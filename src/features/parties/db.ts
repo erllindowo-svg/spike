@@ -82,11 +82,13 @@ export async function ensureParty(
 // não devolveu não apaga o valor que a parte já tinha.
 export async function updatePartyRegistration(
   id: string,
-  data: Pick<Party, "name" | "registrationStatus">,
+  data: Pick<Party, "name" | "registrationStatus" | "tradeName">,
 ): Promise<void> {
   const { parties } = collections(await getDb());
-  const set: Partial<Pick<Party, "name" | "registrationStatus">> = {};
+  const set: Partial<Pick<Party, "name" | "registrationStatus" | "tradeName">> =
+    {};
   if (data.name) set.name = data.name;
+  if (data.tradeName) set.tradeName = data.tradeName;
   if (data.registrationStatus) {
     set.registrationStatus = data.registrationStatus;
   }

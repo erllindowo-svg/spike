@@ -74,10 +74,11 @@ export async function markAlertRead(id: string): Promise<boolean> {
   return result.modifiedCount === 1;
 }
 
-export async function markAllAlertsRead(): Promise<number> {
+// Sem `trackingId`, todos; com ele, só os alertas daquele monitoramento.
+export async function markAllAlertsRead(trackingId?: string): Promise<number> {
   const { alerts } = collections(await getDb());
   const result = await alerts.updateMany(
-    { readAt: null },
+    { readAt: null, ...(trackingId ? { trackingId } : {}) },
     { $set: { readAt: new Date() } },
   );
   return result.modifiedCount;

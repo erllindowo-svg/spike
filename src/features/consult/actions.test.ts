@@ -171,6 +171,28 @@ describe("runConsultAction", () => {
     );
   });
 
+  it("asks the Receita in real time for the on-demand registration data", async () => {
+    const fetchMock = mockFetch({ response_data: [] });
+
+    const result = await runConsultAction({
+      feature: "registration_on_demand",
+      searchType: "cnpj",
+      searchKey: TEST_CNPJ,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { kind: "registration", registration: { found: false } },
+    });
+    const init = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(JSON.parse(String(init[1].body)).search).toMatchObject({
+      on_demand: true,
+    });
+    expect(saveSyncQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "registration_on_demand" }),
+    );
+  });
+
   it("saves the party before an async history query", async () => {
     vi.mocked(startAsyncQueryAction).mockResolvedValue({
       ok: true,

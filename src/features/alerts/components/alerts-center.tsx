@@ -114,16 +114,14 @@ export function AlertsCenter() {
           disabled={unread === 0}
           onClick={async () => {
             // Com o filtro de monitoramento, só os alertas dele.
-            if (trackingId) {
-              for (const alert of alerts) {
-                if (!alert.readAt) markAlertRead(alert.id);
-              }
-              toast.success("Alertas deste monitoramento marcados como lidos.");
-              return;
-            }
-            const error = await markAllAlertsRead();
+            const error = await markAllAlertsRead(trackingId ?? undefined);
             if (error) toast.error(error);
-            else toast.success("Todos os alertas foram marcados como lidos.");
+            else
+              toast.success(
+                trackingId
+                  ? "Alertas deste monitoramento marcados como lidos."
+                  : "Todos os alertas foram marcados como lidos.",
+              );
           }}
         >
           <CheckCheckIcon data-icon="inline-start" />

@@ -57,7 +57,7 @@ type Action =
   | { type: "setTrackingStatus"; id: string; status: string }
   | { type: "addActivity"; activity: ActivityItem }
   | { type: "markAlertRead"; id: string }
-  | { type: "markAllAlertsRead" }
+  | { type: "markAllAlertsRead"; trackingId?: string }
   | { type: "receiveEvent"; event: WebhookEventView; activity: ActivityItem }
   | { type: "registerDuplicate"; eventId: string }
   | { type: "patchEvent"; eventId: string; patch: Partial<WebhookEventView> }
@@ -101,7 +101,13 @@ function reducer(state: DemoState, action: Action): DemoState {
       const now = new Date();
       return {
         ...state,
-        alerts: state.alerts.map((a) => (a.readAt ? a : { ...a, readAt: now })),
+        alerts: state.alerts.map((a) =>
+          a.readAt ||
+          (action.trackingId !== undefined &&
+            a.trackingId !== action.trackingId)
+            ? a
+            : { ...a, readAt: now },
+        ),
       };
     }
     case "receiveEvent":
@@ -199,7 +205,8 @@ type DemoStore = DemoState & {
   setTrackingPaused: (id: string, paused: boolean) => void;
   markAlertRead: (id: string) => void;
   // Resolve com a mensagem de erro, ou null se deu certo.
-  markAllAlertsRead: () => Promise<string | null>;
+  // Sem argumento, todos; com o id de um monitoramento, só os dele.
+  markAllAlertsRead: (trackingId?: string) => Promise<string | null>;
   simulateWebhookEvent: (scenario: SimulationScenario) => SimulationResult;
   reset: () => void;
 };
@@ -360,18 +367,21 @@ export function DemoStoreProvider({
     },
     [dataSource],
   );
-  const markAllAlertsRead = useCallback(async (): Promise<string | null> => {
-    if (dataSource === "db") {
-      try {
-        const result = await markAllAlertsReadAction();
-        return result.ok ? null : result.message;
-      } catch {
-        return SERVER_UNREACHABLE;
+  const markAllAlertsRead = useCallback(
+    async (trackingId?: string): Promise<string | null> => {
+      if (dataSource === "db") {
+        try {
+          const result = await markAllAlertsReadAction(trackingId);
+          return result.ok ? null : result.message;
+        } catch {
+          return SERVER_UNREACHABLE;
+        }
       }
-    }
-    dispatch({ type: "markAllAlertsRead" });
-    return null;
-  }, [dataSource]);
+      dispatch({ type: "markAllAlertsRead", trackingId });
+      return null;
+    },
+    [dataSource],
+  );
 
   const simulateWebhookEvent = useCallback(
     (scenario: SimulationScenario): SimulationResult => {

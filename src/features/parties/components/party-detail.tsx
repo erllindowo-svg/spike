@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BellIcon,
   CalendarClockIcon,
   CheckCircle2Icon,
   CloudDownloadIcon,
@@ -10,6 +11,7 @@ import {
   RadarIcon,
   ScaleIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -181,6 +183,7 @@ export function PartyDetail({
                 {info.label}{" "}
                 {formatDocument(party.documentType, party.document)}
               </span>
+              {party.tradeName && <span>Nome fantasia: {party.tradeName}</span>}
               <span>Adicionada em {formatDate(party.createdAt)}</span>
               {!party.name && (
                 <span>Dados cadastrais ainda não consultados.</span>
@@ -311,15 +314,24 @@ export function PartyDetail({
             )}
           </CardContent>
         </Card>
+        {/* No modo "db" a atividade não é gravada; os alertas, sim. */}
         <Card className="lg:col-span-2 xl:col-span-1">
           <CardHeader>
-            <CardTitle>Atividade recente</CardTitle>
+            <CardTitle>
+              {fromJudit ? "Alertas recentes" : "Atividade recente"}
+            </CardTitle>
             <CardDescription>
-              {`Eventos relacionados ${isCompany ? "a esta empresa" : "a esta pessoa"}.`}
+              {fromJudit
+                ? `Avisos dos monitoramentos ${ofThis}.`
+                : `Eventos relacionados ${isCompany ? "a esta empresa" : "a esta pessoa"}.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ActivityFeed items={partyActivity} limit={5} />
+            {fromJudit ? (
+              <PartyAlerts partyId={party.id} />
+            ) : (
+              <ActivityFeed items={partyActivity} limit={5} />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -390,5 +402,45 @@ export function PartyDetail({
         onOpenChange={(open) => !open && setSelected(null)}
       />
     </>
+  );
+}
+
+function PartyAlerts({ partyId }: { partyId: string }) {
+  const { alerts } = useDemoStore();
+  const partyAlerts = alerts
+    .filter((a) => a.partyId === partyId)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 5);
+
+  if (partyAlerts.length === 0) {
+    return (
+      <EmptyState
+        icon={BellIcon}
+        title="Nenhum alerta"
+        description="Os avisos dos monitoramentos aparecem aqui."
+        className="py-6"
+      />
+    );
+  }
+  return (
+    <ul className="flex flex-col divide-y text-sm">
+      {partyAlerts.map((alert) => (
+        <li key={alert.id} className="flex flex-col gap-0.5 py-2 first:pt-0">
+          <Link
+            href={
+              alert.trackingId
+                ? `/monitoramentos/alertas?monitoramento=${alert.trackingId}`
+                : "/monitoramentos/alertas"
+            }
+            className={`underline-offset-4 hover:text-primary hover:underline ${alert.readAt ? "" : "font-medium"}`}
+          >
+            {alert.title}
+          </Link>
+          <span className="text-xs text-muted-foreground">
+            {formatDateTime(alert.createdAt)}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

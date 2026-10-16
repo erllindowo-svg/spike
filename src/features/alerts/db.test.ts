@@ -93,4 +93,14 @@ describe("markAlertRead", () => {
     expect(await markAllAlertsRead()).toBe(2);
     expect((await listAlerts()).every((a) => a.readAt)).toBe(true);
   });
+
+  it("marks only the alerts of one tracking when asked", async () => {
+    const tracking = "t0000000-0000-4000-8000-000000000001";
+    await createAlert({ ...alert("k1"), trackingId: tracking });
+    await createAlert({ ...alert("k2"), trackingId: null });
+
+    expect(await markAllAlertsRead(tracking)).toBe(1);
+    const unread = (await listAlerts()).filter((a) => !a.readAt);
+    expect(unread.map((a) => a.dedupeKey)).toEqual(["k2"]);
+  });
 });

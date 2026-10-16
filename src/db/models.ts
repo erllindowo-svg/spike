@@ -23,6 +23,9 @@ export type Party = {
   document: string;
   // Razão social (empresa) ou nome (pessoa), dos dados cadastrais.
   name: string | null;
+  // Nome fantasia (`social_name`), só de empresas. Opcional: partes gravadas
+  // antes do círculo 2 não têm o campo.
+  tradeName?: string | null;
   registrationStatus: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -131,6 +134,7 @@ export type QueryMode =
   | "datalake_count"
   | "datalake_synthetic"
   | "registration_data"
+  | "registration_on_demand"
   | "lawsuit_datalake"
   | "lawsuit_on_demand"
   | "historical_async"
@@ -143,6 +147,7 @@ export type SyncQueryMode = Extract<
   | "datalake_count"
   | "datalake_synthetic"
   | "registration_data"
+  | "registration_on_demand"
   | "lawsuit_datalake"
   | "lawsuit_on_demand"
 >;

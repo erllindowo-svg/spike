@@ -21,6 +21,7 @@ import type { AsyncQueryMode, JuditRequest } from "@/db/models";
 import type { PartyRef } from "@/features/parties/documents";
 import type { Lawsuit } from "@/features/processes/types";
 import { SupportOnly, useSupportView } from "@/features/settings/support-view";
+import { SERVER_UNREACHABLE } from "@/lib/demo-store";
 import { formatDateTime } from "@/lib/format";
 
 import { checkAsyncQueryAction, startAsyncQueryAction } from "../actions";
@@ -54,11 +55,18 @@ export function AsyncQueriesCard({
   function start(mode: AsyncQueryMode) {
     setStartingMode(mode);
     startTransition(async () => {
-      const result = await startAsyncQueryAction(
-        mode === "historical_on_demand"
-          ? { mode, ...party, cacheTtlInDays: cacheTtlValue }
-          : { mode, ...party },
-      );
+      let result;
+      try {
+        result = await startAsyncQueryAction(
+          mode === "historical_on_demand"
+            ? { mode, ...party, cacheTtlInDays: cacheTtlValue }
+            : { mode, ...party },
+        );
+      } catch {
+        setStartingMode(null);
+        toast.error("Consulta não criada", { description: SERVER_UNREACHABLE });
+        return;
+      }
       setStartingMode(null);
       if (!result.ok) {
         toast.error("Consulta não criada", { description: result.message });
@@ -75,7 +83,16 @@ export function AsyncQueriesCard({
   function check(requestId: string) {
     setCheckingId(requestId);
     startTransition(async () => {
-      const result = await checkAsyncQueryAction(requestId);
+      let result;
+      try {
+        result = await checkAsyncQueryAction(requestId);
+      } catch {
+        setCheckingId(null);
+        toast.error("Status não verificado", {
+          description: SERVER_UNREACHABLE,
+        });
+        return;
+      }
       setCheckingId(null);
       if (!result.ok) {
         toast.error("Status não verificado", { description: result.message });
@@ -95,9 +112,9 @@ export function AsyncQueriesCard({
       <CardHeader>
         <CardTitle>Consultas assíncronas</CardTitle>
         <CardDescription>
-          Cada consulta é criada na JUDIT, que devolve um request_id. O
-          resultado não vem na hora: verifique o status até a consulta ser
-          concluída. Cada consulta é cobrada.
+          A consulta é criada na JUDIT e o resultado vem depois: verifique o
+          status até ela terminar (ou espere o aviso, se o webhook estiver
+          ligado). Cada consulta é cobrada.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
@@ -135,7 +152,12 @@ export function AsyncQueriesCard({
                 {onDemand && (
                   <Field data-invalid={cacheTtlInvalid}>
                     <FieldLabel htmlFor="cache-ttl-in-days">
-                      cache_ttl_in_days (opcional)
+                      Aceitar resultado guardado de até N dias (opcional)
+                      {supportView && (
+                        <span className="font-mono text-xs font-normal text-muted-foreground">
+                          cache_ttl_in_days
+                        </span>
+                      )}
                     </FieldLabel>
                     <Input
                       id="cache-ttl-in-days"
@@ -201,7 +223,8 @@ export function AsyncQueriesCard({
                         </StatusBadge>
                         {query.cacheTtlInDays !== null && (
                           <span className="text-xs text-muted-foreground">
-                            cache_ttl_in_days {query.cacheTtlInDays}
+                            aceita resultado de até {query.cacheTtlInDays}{" "}
+                            {query.cacheTtlInDays === 1 ? "dia" : "dias"}
                           </span>
                         )}
                       </div>

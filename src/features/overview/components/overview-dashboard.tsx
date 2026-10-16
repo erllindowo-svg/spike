@@ -121,18 +121,21 @@ export function OverviewDashboard({
             "pessoas",
           )}; ${plural(monitoredParties, "monitorada", "monitoradas")}`}
           icon={Building2Icon}
+          href="/empresas"
         />
         <StatCard
           label="Monitoramentos ativos"
           value={formatNumber(activeTrackings)}
           hint={`de ${trackings.length} cadastrados`}
           icon={RadarIcon}
+          href="/monitoramentos"
         />
         <StatCard
           label="Alertas não lidos"
           value={formatNumber(unread.length)}
           hint={`${formatNumber(alertsInPeriod)} nos últimos ${ALERT_DAYS} dias`}
           icon={BellIcon}
+          href="/monitoramentos/alertas"
         />
         <StatCard
           label="Consultas"
@@ -147,6 +150,7 @@ export function OverviewDashboard({
               : "Nenhuma em andamento"
           }
           icon={FileSearchIcon}
+          href="/consultas"
         />
       </section>
 

@@ -515,3 +515,17 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   busca a capa na JUDIT por clique, na base (F05) ou atualizada no tribunal
   (F04), pela mesma action da página Consultar (cada busca entra no
   histórico). CNJ inválido continua "não encontrado".
+- **Fatia 9, pormenores do círculo 1: feita em parte.** Feitos: marcar os
+  alertas de um monitoramento numa chamada só; "Verificar status" e filtro
+  por situação no histórico de consultas; card das consultas assíncronas sem
+  jargão fora da vista de suporte e com tratamento de "servidor sem
+  resposta"; página da parte com "Alertas recentes" no modo `db` (a
+  atividade não é gravada) e nome fantasia guardado; dados cadastrais na
+  Receita em tempo real como consulta própria (on-demand); horário da
+  primeira execução em UTC e em Brasília (IK5); indicadores do Dashboard
+  levam às listas. Ficam: a vista de suporte nasce desligada por um instante
+  (o servidor não conhece a preferência do navegador); adicionar parte na
+  demonstração (lista fixa); paginação; aviso de `<Suspense>` (D5); divisão
+  de componentes grandes (itens 15 e 16); conferência de entregas perdidas
+  (IK10); destino do evento de saída; revisão dos textos de ajuda com o
+  usuário.

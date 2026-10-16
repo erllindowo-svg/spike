@@ -47,6 +47,7 @@ import {
   type CreateTrackingResult,
   type NewTrackingRequest,
 } from "./db";
+import { formatHourRange } from "./format";
 import { formatRecurrence } from "./types";
 
 // Server Actions de monitoramento. O navegador chama estas funções, mas elas
@@ -207,7 +208,7 @@ async function sendReservation(id: string): Promise<{
       outcome: "confirmed",
       message: [
         remote.hour_range !== undefined
-          ? `Criado na JUDIT. Primeira execução prevista para as ${remote.hour_range}h, em até 24 horas.`
+          ? `Criado na JUDIT. Primeira execução prevista por volta das ${formatHourRange(remote.hour_range)}, em até 24 horas.`
           : "Criado na JUDIT. A primeira execução acontece em até 24 horas.",
         recurrenceWarning(requestedRecurrence, remote.recurrence),
       ]

@@ -24,9 +24,17 @@ export async function markAlertReadAction(
   return run(() => markAlertRead(parsed.data));
 }
 
-export async function markAllAlertsReadAction(): Promise<AlertActionResult> {
+// Com `trackingId`, só os alertas daquele monitoramento (filtro da aba
+// Alertas), numa chamada só.
+export async function markAllAlertsReadAction(
+  trackingId?: string,
+): Promise<AlertActionResult> {
   if (getDataSource() !== "db") return unavailable();
-  return run(() => markAllAlertsRead());
+  const parsed = z.uuid().optional().safeParse(trackingId);
+  if (!parsed.success) {
+    return { ok: false, message: "Identificador de monitoramento inválido." };
+  }
+  return run(() => markAllAlertsRead(parsed.data));
 }
 
 async function run(write: () => Promise<unknown>): Promise<AlertActionResult> {
