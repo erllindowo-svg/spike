@@ -451,6 +451,19 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Impacto: decide se as gravações de CNPJs reais podem sair desta máquina. Até a resposta, ficam fora do Git.
 - Resposta:
 
+**IK13. Existe um CPF fictício para testes?** _Aberta desde 2026-10-15._
+
+- Contexto: o uso guiado da etapa 7 propôs pessoas físicas no app. A JUDIT aceita CPF no monitoramento por documento, nas consultas e nos dados cadastrais ([tracking-document](https://docs.judit.io/tracking/tracking-document)). O único documento de teste citado na documentação é o CNPJ `A1B2C3D4/E5F6-68`; a busca de 2026-10-15 não achou um CPF equivalente, nem um nome de teste.
+- Dúvidas: há um CPF (e um nome) que devolva dados fictícios, como o CNPJ de teste? Uma chave de sandbox (comercial@judit.io, [postman-collection](https://docs.judit.io/resource/postman-collection)) resolveria?
+- Impacto: sem isso, pessoa física e busca por nome não podem ser testadas ao vivo (allowlist em `guard.ts`), o que pesa nas escolhas C1-5 e C1-6 de `docs/etapa-7-escopo.md`.
+- Resposta:
+
+**IK14. O preço de uma consulta muda com a quantidade de processos devolvidos?** _Aberta desde 2026-10-16._
+
+- Contexto: o usuário quer trocar a allowlist por proteções menos restritivas, entre elas uma contra consultas enormes (uma empresa com milhares de processos). As páginas falam em "cobrança por requisição" e o exemplo do [histórico de consumo](https://docs.judit.io/resource/consumption/history) precifica por requisição (e anexos à parte), mas não dizem se o volume devolvido muda o preço, nem se ler as páginas seguintes (`GET /responses?page=...`) é cobrado.
+- Impacto: decide se a proteção de volume serve para economizar crédito ou só para não travar a tela e o servidor.
+- Resposta:
+
 ---
 
 ## Modelo de entrada
@@ -1346,6 +1359,54 @@ Correção do usuário à entrada anterior: o protótipo não vira uma tag do `m
 
 `main` local igual ao GitHub (`b3b727d`, merge do PR #6). Criada a branch `feat/product-review`, com um commit das decisões sobre as etapas 7 e 8 (`AGENTS.md`, plano, diário e relatório). Próxima sessão: uso guiado do app. Reiniciar o `pnpm dev` não é necessário.
 
+### 2026-10-15 / Uso guiado: roteiro e primeiras anotações
+
+**Resumo técnico**
+
+Criado `docs/etapa-7-uso-guiado.md`: oito tarefas em duas rodadas e as anotações ditadas, com respostas. Achados: busca do topo só olha o banco; Configurações tem "Não configurado" fixo; busca por nome existe na JUDIT, mas a allowlist barra; menu sem dados cadastrais, mandados, DJEN. Proposta: ícone "i".
+
+### 2026-10-15 / Uso guiado: textos fixos do protótipo
+
+**Resumo técnico**
+
+O app não estava em modo demo: o selo do cabeçalho diz "Banco de dados". A sensação vinha de textos fixos da etapa 1 (dica do selo, perfil, Configurações, busca, visão geral, "Exemplos fictícios" sobre dados reais). Inventário em `docs/etapa-7-uso-guiado.md`. Regra: texto que descreve estado deve ser calculado.
+
+### 2026-10-15 / Uso guiado: alertas e notificação externa
+
+**Resumo técnico**
+
+Dois pontos ditados, registrados no guia da etapa 7 para a discussão final: alertas dentro de Monitoramentos, porque só eventos de monitoramento geram alerta (`process.ts:41-51` confirma); e um evento de saída não usado no back-end, para ilustrar uma notificação externa (o "macho da tomada").
+
+### 2026-10-15 / Etapa 7: círculo 1 do escopo
+
+**Resumo técnico**
+
+Fim do uso guiado. 16 pontos reunidos em `docs/etapa-7-escopo.md`, com 11 considerações e 13 escolhas (C1-1 a C1-13). Fatos: menu recolhível já existe (Ctrl+B); a JUDIT monitora CPF, mas não há CPF de teste (IK13). Ideia central: webhook é canal, não coisa.
+
+### 2026-10-15 / Etapa 7: decisões do círculo 1 e fatia C1-13
+
+**Resumo técnico**
+
+Decisões: as recomendadas, com um dashboard geral de verdade (C1-8). Fatia C1-13: Configurações calcula no servidor a situação de cada integração (`settings/status.ts`, `hasServerEnv`), sem valores; textos falsos do modo `db` corrigidos; "Sem login" no perfil. 227 testes, lint, tipos, formato e build ok.
+
+### 2026-10-16 / Etapa 7: círculo 1 implementado
+
+**Resumo técnico**
+
+Todas as escolhas do círculo 1 implementadas, sem commit: vista de suporte, menu por tarefa, alertas dentro de Monitoramentos, página Consultas (coleção nova `sync_queries`, só metadados), adicionar empresa com dados cadastrais, Dashboard com gráficos, ajuda "i" e evento de saída sem destino. 252 testes, lint, tipos, formato e build ok.
+
+### 2026-10-16 / Menu recolhido e proposta de pessoas físicas
+
+**Resumo técnico**
+
+Menu lateral recolhido por padrão, só ícones, com "Expandir menu" acima de Configurações; no celular, o botão do cabeçalho continua. Proposta ditada: todos os identificadores da JUDIT (CPF, CNPJ, CNJ...), reabrindo a C1-5. Escolhas R1 a R6 em `docs/etapa-7-escopo.md`, pendentes.
+
+### 2026-10-16 / Tomadas do back-end (círculos 3 ou 4)
+
+**Resumo técnico**
+
+Proposta ditada e registrada para os círculos 3 ou 4: o repositório como base para clientes, com pontos de extensão prontos no back-end ("tomadas macho"), a começar por um login de exemplo que avisa não proteger nada. Nada implementado. Notas em `docs/etapa-7-escopo.md`.
+
 ---
 
 ## Perguntas e respostas
@@ -1844,3 +1905,9 @@ Porque receber e processar têm garantias diferentes. Para a JUDIT, o que import
 
 **O mesmo processo chega duas vezes por um monitoramento por documento: o que impede dois alertas, e por que essa regra não serve para o monitoramento por CNJ?** _(etapa 6)_
 O `dedupeKey` `new_lawsuit:<monitoramento>:<CNJ>`, com índice único: o segundo `insert` é recusado pelo banco, mesmo que as duas entregas sejam processadas ao mesmo tempo. No monitoramento por documento, o fato é "apareceu um processo novo", e ele acontece uma vez só. No monitoramento por CNJ, o CNJ é sempre o mesmo e o fato é "houve uma movimentação". Uma chave por CNJ avisaria só a primeira, por isso a chave é por entrega.
+
+**A vista de suporte esconde os `request_id` de quem não deve vê-los?** _(círculo 1, 2026-10-16)_
+Não. Ela só decide o que a tela desenha, e a preferência fica no navegador (`localStorage`). Os dados continuam chegando ao navegador, e qualquer pessoa pode ligar a vista ou abrir `/webhooks` direto. Esconder é interface; proteger exige login e autorização no servidor, que ficaram fora desta versão (C1-10).
+
+**Por que a consulta de dados cadastrais é feita antes de salvar a empresa, e não depois?** _(círculo 1, 2026-10-16)_
+Para que uma recusa não deixe lixo. Se a allowlist barra o CNPJ ou a JUDIT responde com erro, nada é salvo, e a pessoa escolhe "Salvar sem consultar". Se fosse salvar primeiro, uma consulta recusada deixaria uma empresa sem dados na lista. O preço: a consulta fica registrada em `sync_queries` sem `companyId`, por isso a página Consultas liga a consulta à empresa pelo CNPJ.
