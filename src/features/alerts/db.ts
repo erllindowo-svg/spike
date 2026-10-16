@@ -12,6 +12,7 @@ import { isDuplicateKeyError } from "@/db/errors";
 import type { Alert } from "@/db/models";
 
 import type { AlertType } from "./types";
+import { LIST_LIMITS } from "@/lib/list-limits";
 
 // Persistência dos alertas (coleção `alerts`). Quem decide QUANDO um alerta
 // nasce é o processamento dos webhooks (src/features/webhooks/process.ts);
@@ -53,8 +54,11 @@ export async function createAlert(input: NewAlert): Promise<CreatedAlert> {
   return { created: true, alert: toModel(doc) };
 }
 
-// Os mais recentes primeiro. Sem paginação: volume de protótipo.
-export async function listAlerts(limit = 200): Promise<Alert[]> {
+// Os mais recentes primeiro, até o limite da lista (a tela pagina e avisa
+// quando o limite é atingido).
+export async function listAlerts(
+  limit: number = LIST_LIMITS.alerts,
+): Promise<Alert[]> {
   const { alerts } = collections(await getDb());
   const docs = await alerts
     .find()

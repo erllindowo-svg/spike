@@ -11,6 +11,11 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import {
+  LimitNotice,
+  ListPagination,
+  usePaged,
+} from "@/components/shared/list-pagination";
 import { CopyButton } from "@/components/shared/copy-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -42,6 +47,7 @@ import type { Lawsuit } from "@/features/processes/types";
 import { formatSearchKey } from "@/features/trackings/format";
 import { useSupportView } from "@/features/settings/support-view";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { LIST_LIMITS } from "@/lib/list-limits";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
 import { checkAsyncQueryAction } from "../actions";
@@ -93,6 +99,14 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
     );
   });
 
+  const paged = usePaged(filtered, [flow, state, term].join("|"));
+  // O banco devolve as mais recentes de cada fluxo (src/lib/list-limits.ts).
+  const limitReached =
+    queries.filter((q) => q.flow === "sync").length >=
+      LIST_LIMITS.syncQueries ||
+    queries.filter((q) => q.flow === "async").length >=
+      LIST_LIMITS.juditRequests;
+
   const open = queries.filter(isQueryOpen).length;
   const problems = queries.filter(
     (q) => q.syncOutcome === "failed" || q.syncOutcome === "uncertain",
@@ -135,7 +149,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por nome, CNPJ ou CPF"
+              placeholder="Buscar por nome, CNPJ, CPF ou CNJ"
               aria-label="Buscar consultas"
               className="pl-8"
             />
@@ -178,82 +192,102 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
               }
               description={
                 queries.length === 0
-                  ? "As consultas são feitas na página de cada empresa e aparecem aqui."
+                  ? "As consultas feitas na página Consultar ou na página de uma empresa, pessoa ou processo aparecem aqui."
                   : "Ajuste a busca ou o tipo."
               }
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Data</TableHead>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Modalidade</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Resultado</TableHead>
-                  {supportView && <TableHead>Canal</TableHead>}
-                  {supportView && <TableHead>request_id</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((q) => {
-                  const party = partyOf(q);
-                  const status =
-                    q.flow === "async"
-                      ? asyncStatusLabel(q.asyncStatus ?? "")
-                      : syncOutcomeLabels[q.syncOutcome ?? "ok"];
-                  return (
-                    <TableRow key={q.id}>
-                      <TableCell className="text-muted-foreground tabular-nums">
-                        {formatDateTime(q.createdAt)}
-                      </TableCell>
-                      <TableCell className="max-w-56">
-                        {/* Sem parte salva (consulta feita antes de
-                            salvar, que falhou), não há página para abrir. */}
-                        {party ? (
-                          <Link
-                            href={partyHref(party.documentType, party.document)}
-                            className="block truncate rounded-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-                            title={party.name ?? undefined}
-                          >
-                            {party.name ?? (
-                              <span className="font-mono text-xs">
-                                {formatSearchKey(q.searchType, q.searchKey)}
-                              </span>
-                            )}
-                          </Link>
-                        ) : (
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {formatSearchKey(q.searchType, q.searchKey)}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>{QUERY_MODES[q.mode].label}</TableCell>
-                      <TableCell>
-                        <StatusBadge tone={status.tone}>
-                          {status.label}
-                        </StatusBadge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <QueryResult query={q} />
-                      </TableCell>
-                      {supportView && (
-                        <TableCell className="text-xs text-muted-foreground">
-                          {q.delivery
-                            ? deliveryLabels[q.delivery]
-                            : "resposta na chamada"}
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Data</TableHead>
+                    {/* Empresa, pessoa ou processo consultado. */}
+                    <TableHead>Alvo</TableHead>
+                    <TableHead>Modalidade</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Resultado</TableHead>
+                    {supportView && <TableHead>Canal</TableHead>}
+                    {supportView && <TableHead>request_id</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paged.items.map((q) => {
+                    const party = partyOf(q);
+                    const status =
+                      q.flow === "async"
+                        ? asyncStatusLabel(q.asyncStatus ?? "")
+                        : syncOutcomeLabels[q.syncOutcome ?? "ok"];
+                    return (
+                      <TableRow key={q.id}>
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {formatDateTime(q.createdAt)}
                         </TableCell>
-                      )}
-                      {supportView && (
+                        <TableCell className="max-w-56">
+                          {/* Sem parte salva (consulta avulsa, ou feita
+                            antes de salvar), não há página da parte; o
+                            processo (CNJ) sempre tem a sua. */}
+                          {q.searchType === "cnj" ? (
+                            <Link
+                              href={`/processos/${q.searchKey}`}
+                              className="block truncate rounded-sm font-mono text-xs underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+                            >
+                              {formatSearchKey(q.searchType, q.searchKey)}
+                            </Link>
+                          ) : party ? (
+                            <Link
+                              href={partyHref(
+                                party.documentType,
+                                party.document,
+                              )}
+                              className="block truncate rounded-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+                              title={party.name ?? undefined}
+                            >
+                              {party.name ?? (
+                                <span className="font-mono text-xs">
+                                  {formatSearchKey(q.searchType, q.searchKey)}
+                                </span>
+                              )}
+                            </Link>
+                          ) : (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {formatSearchKey(q.searchType, q.searchKey)}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>{QUERY_MODES[q.mode].label}</TableCell>
                         <TableCell>
-                          <RequestIdCell query={q} />
+                          <StatusBadge tone={status.tone}>
+                            {status.label}
+                          </StatusBadge>
                         </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        <TableCell className="text-muted-foreground">
+                          <QueryResult query={q} />
+                        </TableCell>
+                        {supportView && (
+                          <TableCell className="text-xs text-muted-foreground">
+                            {q.delivery
+                              ? deliveryLabels[q.delivery]
+                              : "resposta na chamada"}
+                          </TableCell>
+                        )}
+                        {supportView && (
+                          <TableCell>
+                            <RequestIdCell query={q} />
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <ListPagination paged={paged} />
+              <LimitNotice
+                reached={limitReached}
+                limit={LIST_LIMITS.syncQueries}
+                what="as consultas síncronas e as assíncronas"
+              />
+            </>
           )}
         </CardContent>
       </Card>

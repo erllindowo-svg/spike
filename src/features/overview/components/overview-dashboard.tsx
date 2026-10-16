@@ -40,6 +40,7 @@ import {
 } from "@/features/trackings/types";
 import { countByStatus } from "@/features/webhooks/stats";
 import { useDemoStore } from "@/lib/demo-store";
+import { LIST_LIMITS } from "@/lib/list-limits";
 import { formatDate, formatNumber, formatShortDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +67,7 @@ export function OverviewDashboard({
   lawsuitsCount: number;
   distribution: DistributionData;
 }) {
-  const { parties, trackings, alerts } = useDemoStore();
+  const { parties, trackings, alerts, dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [supportView] = useSupportView();
 
@@ -90,6 +91,15 @@ export function OverviewDashboard({
   );
   const alertsInPeriod = alertDays.reduce((sum, d) => sum + d.count, 0);
   const openQueries = queries.filter(isQueryOpen).length;
+  // As listas vêm do banco até um limite (src/lib/list-limits.ts). Acima
+  // dele, o número vira "200+" em vez de parecer o total.
+  const queriesCapped =
+    queries.filter((q) => q.flow === "sync").length >=
+      LIST_LIMITS.syncQueries ||
+    queries.filter((q) => q.flow === "async").length >=
+      LIST_LIMITS.juditRequests;
+  const alertsCapped =
+    dataSource === "db" && alerts.length >= LIST_LIMITS.alerts;
 
   return (
     <>
@@ -133,13 +143,13 @@ export function OverviewDashboard({
         <StatCard
           label="Alertas não lidos"
           value={formatNumber(unread.length)}
-          hint={`${formatNumber(alertsInPeriod)} nos últimos ${ALERT_DAYS} dias`}
+          hint={`${formatNumber(alertsInPeriod)}${alertsCapped ? "+" : ""} nos últimos ${ALERT_DAYS} dias`}
           icon={BellIcon}
           href="/monitoramentos/alertas"
         />
         <StatCard
           label="Consultas"
-          value={formatNumber(queries.length)}
+          value={`${formatNumber(queries.length)}${queriesCapped ? "+" : ""}`}
           hint={
             openQueries
               ? plural(
@@ -268,7 +278,11 @@ export function OverviewDashboard({
         <Card>
           <CardHeader>
             <CardTitle>Consultas por modalidade</CardTitle>
-            <CardDescription>Síncronas e assíncronas.</CardDescription>
+            <CardDescription>
+              {queriesCapped
+                ? `Síncronas e assíncronas, só as mais recentes (até ${formatNumber(LIST_LIMITS.syncQueries)} de cada).`
+                : "Síncronas e assíncronas."}
+            </CardDescription>
             <CardAction>
               <SeeAll href="/consultas" label="Ver todas" />
             </CardAction>

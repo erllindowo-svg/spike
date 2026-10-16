@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
 // Camada de acesso aos dados usada pelas páginas e pelo layout. A variável
@@ -26,6 +27,7 @@ import type { Party } from "@/features/parties/types";
 import { normalizeCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
 import * as queriesDb from "@/features/queries/db";
+import { SUPPORT_VIEW_COOKIE } from "@/features/settings/support-view-cookie";
 import {
   fromJuditRequest,
   fromSyncQuery,
@@ -37,6 +39,7 @@ import type { Tracking } from "@/features/trackings/types";
 import * as webhooksDb from "@/features/webhooks/db";
 import type { WebhookEventView } from "@/features/webhooks/types";
 import { getServerEnv } from "@/lib/env";
+import { LIST_LIMITS } from "@/lib/list-limits";
 
 import * as mock from "./mock-data";
 
@@ -54,6 +57,16 @@ async function usingDatabase(): Promise<boolean> {
   if (getDataSource() !== "db") return false;
   await connection();
   return true;
+}
+
+// Preferência da vista de suporte (support-view.tsx). No modo "db" a página
+// já é desenhada a cada requisição, então ler o cookie não custa nada e a
+// página nasce com a vista certa. Na demonstração, ler o cookie tiraria as
+// páginas da pré-renderização; fica desligada até o navegador ler o cookie.
+export async function getSupportViewPreference(): Promise<boolean> {
+  if (!(await usingDatabase())) return false;
+  const store = await cookies();
+  return store.get(SUPPORT_VIEW_COOKIE)?.value === "on";
 }
 
 export async function listParties(): Promise<Party[]> {
@@ -167,9 +180,8 @@ export async function getInitialState(): Promise<DemoState> {
   };
 }
 
-// Quantos eventos a tela de diagnóstico mostra. Sem paginação: volume de
-// protótipo.
-const RECENT_EVENTS = 200;
+// Quantos eventos a tela de diagnóstico mostra (src/lib/list-limits.ts).
+const RECENT_EVENTS = LIST_LIMITS.webhookEvents;
 
 // O banco guarda `type` como texto; um valor que a interface não conhece não
 // derruba a tela, só fica de fora (e aparece no log).

@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "@/db";
 import { collections, toModel, type JuditRequestDoc } from "@/db/collections";
 import type { JuditRequest, SyncQuery } from "@/db/models";
+import { LIST_LIMITS } from "@/lib/list-limits";
 
 // Persistência dos ponteiros de consultas assíncronas (coleção
 // `judit_requests`). Só o `request_id` e os dados para acompanhá-lo: os
@@ -68,10 +69,10 @@ export async function listJuditRequests(
   return docs.map(toJuditRequest);
 }
 
-// Todas as empresas, para a página Consultas. Sem paginação: volume de
-// protótipo.
+// As mais recentes, de todas as partes, para o histórico de consultas (a
+// tela pagina e avisa quando o limite é atingido).
 export async function listRecentJuditRequests(
-  limit = 200,
+  limit: number = LIST_LIMITS.juditRequests,
 ): Promise<JuditRequest[]> {
   const { juditRequests } = collections(await getDb());
   const docs = await juditRequests
@@ -163,7 +164,9 @@ export async function saveSyncQuery(input: NewSyncQuery): Promise<SyncQuery> {
   return toModel(doc);
 }
 
-export async function listSyncQueries(limit = 200): Promise<SyncQuery[]> {
+export async function listSyncQueries(
+  limit: number = LIST_LIMITS.syncQueries,
+): Promise<SyncQuery[]> {
   const { syncQueries } = collections(await getDb());
   const docs = await syncQueries
     .find()

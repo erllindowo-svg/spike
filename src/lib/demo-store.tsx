@@ -6,6 +6,7 @@ import {
   useContext,
   useMemo,
   useReducer,
+  useState,
 } from "react";
 
 import type { ActivityItem } from "@/features/activity/types";
@@ -14,6 +15,7 @@ import {
   markAllAlertsReadAction,
 } from "@/features/alerts/actions";
 import type { AlertView } from "@/features/alerts/types";
+import type { DocumentType } from "@/features/parties/documents";
 import type { Party } from "@/features/parties/types";
 import { formatCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
@@ -44,6 +46,10 @@ import type { DataSource, DemoState } from "./data";
 //   server action que muda esses dados chama refresh(): o layout é
 //   renderizado de novo no servidor, relê o banco e entrega as listas novas.
 //   Simular webhook e restaurar só existem na demonstração.
+//
+// Na demonstração, uma parte adicionada pelo usuário também fica só na
+// memória da aba (addDemoParty); a página dela é desenhada no navegador
+// (DemoPartyPage), porque o servidor não a conhece.
 
 export type SimulationScenario =
   | "lawsuit_movement"
@@ -201,6 +207,9 @@ type DemoStore = DemoState & {
   parties: Party[];
   lawsuits: Lawsuit[];
   getParty: (id: string | null) => Party | null;
+  // Só na demonstração (no modo "db", addPartyAction grava no banco).
+  // Devolve a parte já existente quando o documento está na lista.
+  addDemoParty: (documentType: DocumentType, document: string) => Party;
   addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
   markAlertRead: (id: string) => void;
@@ -229,6 +238,7 @@ export function DemoStoreProvider({
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [addedParties, setAddedParties] = useState<Party[]>([]);
   // No modo "db", as listas são as do servidor (ver o comentário no topo).
   // O reducer só guarda os dados da demonstração e a atividade.
   const fromServer = dataSource === "db";
@@ -237,10 +247,42 @@ export function DemoStoreProvider({
   const webhookEvents = fromServer
     ? initialState.webhookEvents
     : state.webhookEvents;
+  const allParties = useMemo(
+    () =>
+      fromServer || addedParties.length === 0
+        ? parties
+        : [...addedParties, ...parties].sort((a, b) =>
+            (a.name ?? a.document).localeCompare(b.name ?? b.document, "pt-BR"),
+          ),
+    [fromServer, parties, addedParties],
+  );
 
   const companiesById = useMemo(
-    () => new Map(parties.map((c) => [c.id, c])),
-    [parties],
+    () => new Map(allParties.map((c) => [c.id, c])),
+    [allParties],
+  );
+
+  const addDemoParty = useCallback(
+    (documentType: DocumentType, document: string): Party => {
+      const existing = allParties.find(
+        (p) => p.documentType === documentType && p.document === document,
+      );
+      if (existing) return existing;
+      const now = new Date();
+      const party: Party = {
+        id: newId(),
+        documentType,
+        document,
+        name: null,
+        tradeName: null,
+        registrationStatus: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setAddedParties((current) => [party, ...current]);
+      return party;
+    },
+    [allParties],
   );
   const getParty = useCallback(
     (id: string | null) => (id ? (companiesById.get(id) ?? null) : null),
@@ -569,6 +611,7 @@ export function DemoStoreProvider({
   const reset = useCallback(() => {
     if (dataSource === "db") return;
     dispatch({ type: "reset", state: initialState });
+    setAddedParties([]);
   }, [dataSource, initialState]);
 
   const value = useMemo<DemoStore>(
@@ -578,9 +621,10 @@ export function DemoStoreProvider({
       alerts,
       webhookEvents,
       dataSource,
-      parties,
+      parties: allParties,
       lawsuits,
       getParty,
+      addDemoParty,
       addTracking,
       setTrackingPaused,
       markAlertRead,
@@ -594,9 +638,10 @@ export function DemoStoreProvider({
       alerts,
       webhookEvents,
       dataSource,
-      parties,
+      allParties,
       lawsuits,
       getParty,
+      addDemoParty,
       addTracking,
       setTrackingPaused,
       markAlertRead,

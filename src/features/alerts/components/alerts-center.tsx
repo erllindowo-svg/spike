@@ -16,6 +16,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+  LimitNotice,
+  ListPagination,
+  usePaged,
+} from "@/components/shared/list-pagination";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -41,6 +46,7 @@ import { formatCnj } from "@/features/processes/cnj";
 import { SupportOnly } from "@/features/settings/support-view";
 import { formatSearchKey } from "@/features/trackings/format";
 import { useDemoStore } from "@/lib/demo-store";
+import { LIST_LIMITS } from "@/lib/list-limits";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -90,11 +96,13 @@ export function AlertsCenter() {
   );
   const selected = allAlerts.find((a) => a.id === selectedId) ?? null;
 
-  // Agrupa o feed por dia, preservando a ordem cronológica decrescente.
+  // Pagina primeiro e agrupa só a página, por dia, em ordem decrescente.
+  const paged = usePaged(
+    [...filtered].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+    [type, read, trackingId ?? ""].join("|"),
+  );
   const groups: { day: string; items: AlertView[] }[] = [];
-  for (const alert of [...filtered].sort(
-    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-  )) {
+  for (const alert of paged.items) {
     const day = formatDate(alert.createdAt);
     const group = groups.at(-1);
     if (group?.day === day) group.items.push(alert);
@@ -305,6 +313,15 @@ export function AlertsCenter() {
             </section>
           ))
         )}
+        <ListPagination paged={paged} />
+        {/* No modo "db", o layout lê até LIST_LIMITS.alerts alertas. */}
+        <LimitNotice
+          reached={
+            dataSource === "db" && allAlerts.length >= LIST_LIMITS.alerts
+          }
+          limit={LIST_LIMITS.alerts}
+          what="os alertas"
+        />
       </Card>
 
       <AlertSheet alert={selected} onClose={() => setSelectedId(null)} />

@@ -539,3 +539,20 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   resultado", que abre o resultado de qualquer consulta assíncrona
   concluída num painel lateral (mandados, processos de execução e o resumo
   por IA incluídos). Nada testado ao vivo.
+- **Fatia 11, pormenores restantes: feita em parte.** Feitos: a vista de
+  suporte saiu do localStorage para um cookie, que o servidor lê no modo
+  `db` e com isso a página já nasce com a vista certa (na demonstração,
+  pré-renderizada, continua o instante desligada; quem tinha a vista ligada
+  liga de novo uma vez); adicionar empresa ou pessoa na demonstração, só na
+  memória da aba (a página dela é desenhada no navegador e some ao
+  recarregar), inclusive pelo "Salvar na lista" da página Consultar;
+  paginação de 25 linhas em monitoramentos, partes, histórico de consultas,
+  alertas e diagnóstico de webhooks, com aviso quando a lista chega ao
+  limite lido do banco (`src/lib/list-limits.ts`) e "+" nos números do
+  Dashboard nesse caso; leituras dentro do `<Suspense>` em Empresas,
+  Pessoas, Dashboard e Configurações (D5, não confirmado pelo sintoma); um
+  só `<main>` por página (catálogo J2); histórico com a coluna "Alvo" e link
+  para o processo nas consultas por CNJ. Ficam: divisão de componentes
+  grandes (itens 15 e 16), conferência de entregas perdidas (IK10), destino
+  do evento de saída e revisão dos textos de ajuda (estes dois dependem do
+  usuário).

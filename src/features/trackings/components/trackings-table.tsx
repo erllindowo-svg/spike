@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ListPagination, usePaged } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -75,6 +76,11 @@ export function TrackingsTable({
   const full = variant === "full";
   const [deleting, setDeleting] = useState<Tracking | null>(null);
   const trackingResults = useTrackingResults();
+  // Os filtros ficam na página; uma lista nova volta à primeira página.
+  const paged = usePaged(
+    trackings,
+    `${trackings.length}:${trackings[0]?.id ?? ""}`,
+  );
 
   function identifierHref(tracking: Tracking): string | null {
     if (tracking.searchType !== "cnj") {
@@ -117,7 +123,7 @@ export function TrackingsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {trackings.map((tracking) => {
+          {paged.items.map((tracking) => {
             const company = getParty(tracking.partyId);
             const href = identifierHref(tracking);
             const identifier = formatSearchKey(
@@ -301,6 +307,7 @@ export function TrackingsTable({
           })}
         </TableBody>
       </Table>
+      <ListPagination paged={paged} />
       <DeleteTrackingDialog
         tracking={deleting}
         onOpenChange={(open) => !open && setDeleting(null)}

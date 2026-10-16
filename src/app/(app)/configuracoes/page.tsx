@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { Suspense } from "react";
+
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 
 import { billedCallsToday } from "@/features/queries/budget";
 import { SettingsPanel } from "@/features/settings/components/settings-panel";
@@ -7,7 +10,16 @@ import { describeIntegrations, readEnvFacts } from "@/features/settings/status";
 
 export const metadata: Metadata = { title: "Configurações" };
 
-export default async function SettingsPage() {
+// Dentro do Suspense pelo mesmo motivo do Dashboard (catálogo do diário, D5).
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+async function SettingsContent() {
   // Lê o ambiente a cada requisição, e não uma vez no build: sem isso, a
   // página mostraria as variáveis da máquina onde o build rodou.
   await connection();

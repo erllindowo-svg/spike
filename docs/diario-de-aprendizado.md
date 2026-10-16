@@ -264,6 +264,7 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Por que `/monitoramentos` não avisa: a página não espera nada no servidor.
 - Correção prevista (etapa 7): mover a leitura para um componente dentro do `<Suspense>`. `export const instant = false` só cala o aviso.
 - Lição de suporte: um "Error" no terminal de desenvolvimento nem sempre é falha para o usuário final. Aqui o efeito em produção seria uma navegação mais lenta, e o ticket seria "a tela de empresas demora para abrir", não "deu erro".
+- Atualização (2026-10-16): leitura movida para dentro do `<Suspense>` em `/empresas`, `/pessoas`, Dashboard e Configurações (as duas últimas tinham o mesmo padrão). Não verificado pelo sintoma: no `pnpm dev` em execução, o aviso não apareceu nem com o código antigo de volta (Dashboard), em carregamento direto e em navegação por clique. Se reaparecer, anotar a página e a navegação que o produziram.
 
 **D6. Rota nova responde 503/500 no `pnpm dev`, mas 404 no build.** _Observado em 2026-10-15._
 
@@ -360,6 +361,25 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Teste que separou: Atlas → coleções. Com `companies` e sem `parties`, a migração não rodou.
 - Correção: reiniciar o `pnpm dev`. Mesma família do G4 e do D6.
 - Lição de suporte: código novo e dados velhos convivem até a migração rodar; "atualizei e sumiu" quase sempre é isso, não perda de dados.
+
+### J. Telas e listas (círculo 2 da etapa 7)
+
+**J1. Um registro antigo "sumiu" da lista.** _Previsto._
+
+- Sinal: um alerta, uma entrega de webhook ou uma consulta que existe no banco não aparece na tela, nem paginando.
+- Camada: aplicação (limite de leitura).
+- Hipótese principal: a lista chegou ao limite lido do banco (`src/lib/list-limits.ts`: 200 alertas, 200 entregas, 200 consultas de cada fluxo). A tela mostra o aviso "Mostrando ... mais recentes (até 200)", e no Dashboard o número vem com "+".
+- Teste que separou: contar os documentos da coleção no Atlas e comparar com o total da paginação.
+- Correção: hoje, nenhuma além do aviso; paginação no servidor quando o volume justificar.
+- Lição de suporte: "sumiu" pode ser "não foi lido". Antes de suspeitar de perda de dados, confira se a tela lê tudo ou só os mais recentes.
+
+**J2. Dois `<main>` na mesma página.** _Observado em 2026-10-16._
+
+- Sinal: o script de verificação no navegador contou dois elementos `main`; nada aparecia de errado na tela.
+- Camada: componente de terceiros (shadcn).
+- Causa: `SidebarInset` (`src/components/ui/sidebar.tsx`) já é um `<main>`, e o layout do app punha outro dentro dele, desde a etapa 1.
+- Correção: `SidebarInset` passou a ser `div`, com um comentário no arquivo.
+- Lição de suporte: erro de acessibilidade não aparece para quem enxerga a tela. O ticket viria de quem usa leitor de tela ("a página tem dois conteúdos principais") ou de uma auditoria, nunca de um print.
 
 ### Modelo para novos casos
 
@@ -1434,6 +1454,18 @@ Menu lateral recolhido por padrão, só ícones, com "Expandir menu" acima de Co
 **Resumo técnico**
 
 Proposta ditada e registrada para os círculos 3 ou 4: o repositório como base para clientes, com pontos de extensão prontos no back-end ("tomadas macho"), a começar por um login de exemplo que avisa não proteger nada. Nada implementado. Notas em `docs/etapa-7-escopo.md`.
+
+### 2026-10-16 / Etapa 7: círculo 2, fatias 1 a 10
+
+**Resumo técnico**
+
+Proteções de custo, partes (CNPJ e CPF) com migração, abas Empresas e Pessoas, página Consultar guiada pelo catálogo de features, barra de pesquisa, monitoramento por CPF e por termos, conta na JUDIT, processo no modo `db`, pormenores do círculo 1 e consultas assíncronas novas (processo por CNJ com resumo por IA, mandados, execução penal). Uma fatia por commit; nada testado ao vivo.
+
+### 2026-10-16 / Etapa 7: círculo 2, pormenores da fatia 11
+
+**Resumo técnico**
+
+Vista de suporte num cookie, lido pelo servidor no modo `db` (a página nasce certa); adicionar parte na demonstração (só na aba); paginação de 25 linhas com aviso de limite; leituras dentro do `<Suspense>` (D5); um só `<main>` por página (J2). 317 testes, lint, tipos, formato e build ok.
 
 ---
 

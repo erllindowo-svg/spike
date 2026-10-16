@@ -310,16 +310,14 @@ export function ConsultPage() {
                     Abrir página
                   </Button>
                 ) : (
-                  dataSource === "db" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setAdding(true)}
-                    >
-                      <PlusIcon data-icon="inline-start" />
-                      Salvar na lista
-                    </Button>
-                  )
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAdding(true)}
+                  >
+                    <PlusIcon data-icon="inline-start" />
+                    Salvar na lista
+                  </Button>
                 )}
                 <Button
                   variant="outline"

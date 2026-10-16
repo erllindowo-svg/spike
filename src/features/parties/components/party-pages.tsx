@@ -7,9 +7,15 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { summarizeDistribution } from "@/features/processes/types";
-import { getPartyByDocument, listAsyncQueries, listLawsuits } from "@/lib/data";
+import {
+  getDataSource,
+  getPartyByDocument,
+  listAsyncQueries,
+  listLawsuits,
+} from "@/lib/data";
 
 import { DOCUMENTS, type DocumentType } from "../documents";
+import { DemoPartyPage } from "./demo-party-page";
 import { PartiesList, type PartyLawsuitSummary } from "./parties-list";
 import { PartiesSectionTabs } from "./parties-section-tabs";
 import { PartyDetail } from "./party-detail";
@@ -18,7 +24,25 @@ import { PartyDetail } from "./party-detail";
 // seu tipo de documento (server components: leem os dados e entregam aos
 // componentes de cliente).
 
-export async function PartiesListPage({
+export function PartiesListPage({
+  documentType,
+}: {
+  documentType: DocumentType;
+}) {
+  return (
+    <>
+      <PartiesSectionTabs />
+      {/* Os processos são lidos dentro do Suspense: a navegação entre
+          páginas mostra o esqueleto em vez de esperar o banco (catálogo do
+          diário, D5). A busca inicial vem de ?q=, lida no cliente. */}
+      <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
+        <PartiesListContent documentType={documentType} />
+      </Suspense>
+    </>
+  );
+}
+
+async function PartiesListContent({
   documentType,
 }: {
   documentType: DocumentType;
@@ -30,16 +54,7 @@ export async function PartiesListPage({
     entry.total += 1;
     if (lawsuit.status === "active") entry.active += 1;
   }
-
-  return (
-    <>
-      <PartiesSectionTabs />
-      {/* A busca inicial vem de ?q=, lida no cliente. */}
-      <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
-        <PartiesList documentType={documentType} lawsuitSummary={summary} />
-      </Suspense>
-    </>
-  );
+  return <PartiesList documentType={documentType} lawsuitSummary={summary} />;
 }
 
 // params é lido dentro do Suspense para que o shell da rota continue
@@ -65,27 +80,44 @@ async function PartyContent({
   documentType: DocumentType;
   document: Promise<string>;
 }) {
-  const party = await getPartyByDocument(documentType, await document);
-  if (!party) notFound();
+  const value = await document;
+  const party = await getPartyByDocument(documentType, value);
+  const info = DOCUMENTS[documentType];
+  const backLink = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="-ml-2 w-fit text-muted-foreground"
+      nativeButton={false}
+      render={<Link href={info.basePath} />}
+    >
+      <ChevronLeftIcon data-icon="inline-start" />
+      {info.partyLabelPlural}
+    </Button>
+  );
+
+  if (!party) {
+    // Na demonstração, a parte pode ter sido adicionada nesta aba.
+    if (getDataSource() === "demo") {
+      return (
+        <DemoPartyPage
+          documentType={documentType}
+          document={value}
+          backLink={backLink}
+        />
+      );
+    }
+    notFound();
+  }
 
   const [lawsuits, asyncQueries] = await Promise.all([
     listLawsuits({ partyId: party.id }),
     listAsyncQueries(party.id),
   ]);
-  const info = DOCUMENTS[documentType];
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="-ml-2 w-fit text-muted-foreground"
-        nativeButton={false}
-        render={<Link href={info.basePath} />}
-      >
-        <ChevronLeftIcon data-icon="inline-start" />
-        {info.partyLabelPlural}
-      </Button>
+      {backLink}
       <PartyDetail
         party={party}
         lawsuits={lawsuits}

@@ -2,57 +2,68 @@
 
 import { LifeBuoyIcon } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useSyncExternalStore } from "react";
+import { createContext, use, useCallback, useSyncExternalStore } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 
+import {
+  supportViewCookieValue,
+  supportViewFromCookieHeader,
+} from "./support-view-cookie";
+
 // Vista de suporte: mostra o que só interessa a quem dá suporte (request_id,
 // callback_id, o canal de entrega, o Diagnóstico de webhooks). A preferência
-// fica no navegador (localStorage), não no servidor. É um filtro de
+// fica num cookie deste navegador (support-view-cookie.ts). É um filtro de
 // interface, não uma proteção: quem tem o endereço abre qualquer página, com
 // a vista ligada ou não.
 //
-// useSyncExternalStore lê o localStorage sem divergir do HTML do servidor:
-// no servidor e na hidratação vale getServerSnapshot (desligada); logo
-// depois, o React relê o valor guardado no navegador.
+// useSyncExternalStore lê o cookie sem divergir do HTML do servidor: no
+// servidor e na hidratação vale o valor que o layout leu do mesmo cookie
+// (SupportViewProvider). No modo "db", os dois coincidem e a página já nasce
+// com a vista certa. Na demonstração, as páginas são pré-renderizadas sem
+// cookie: a página nasce com a vista desligada e liga logo depois.
 
-const STORAGE_KEY = "raio-x:vista-suporte";
 const CHANGE_EVENT = "raio-x:vista-suporte";
 
-// Usado quando o navegador bloqueia o armazenamento (janela privada,
-// política do navegador): a vista funciona, mas não sobrevive à recarga.
+const ServerValue = createContext(false);
+
+export function SupportViewProvider({
+  initial,
+  children,
+}: {
+  initial: boolean;
+  children: React.ReactNode;
+}) {
+  return <ServerValue value={initial}>{children}</ServerValue>;
+}
+
+// Usado quando o navegador bloqueia cookies: a vista funciona, mas não
+// sobrevive à recarga.
 let memoryValue = false;
 
 function read(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "on";
-  } catch {
-    return memoryValue;
-  }
+  if (!navigator.cookieEnabled) return memoryValue;
+  return supportViewFromCookieHeader(document.cookie);
 }
 
 function subscribe(onChange: () => void): () => void {
-  // "storage" avisa as mudanças feitas em OUTRAS abas; o evento próprio
-  // avisa as feitas nesta.
-  window.addEventListener("storage", onChange);
+  // O evento próprio avisa as mudanças feitas nesta aba. Cookie não tem
+  // evento entre abas: a outra aba relê ao voltar a ficar visível.
   window.addEventListener(CHANGE_EVENT, onChange);
+  document.addEventListener("visibilitychange", onChange);
   return () => {
-    window.removeEventListener("storage", onChange);
     window.removeEventListener(CHANGE_EVENT, onChange);
+    document.removeEventListener("visibilitychange", onChange);
   };
 }
 
 export function useSupportView(): [boolean, (enabled: boolean) => void] {
-  const enabled = useSyncExternalStore(subscribe, read, () => false);
+  const serverValue = use(ServerValue);
+  const enabled = useSyncExternalStore(subscribe, read, () => serverValue);
   const setEnabled = useCallback((next: boolean) => {
     memoryValue = next;
-    try {
-      if (next) window.localStorage.setItem(STORAGE_KEY, "on");
-      else window.localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Sem armazenamento: vale o memoryValue até a página recarregar.
-    }
+    document.cookie = supportViewCookieValue(next);
     window.dispatchEvent(new Event(CHANGE_EVENT));
   }, []);
   return [enabled, setEnabled];
