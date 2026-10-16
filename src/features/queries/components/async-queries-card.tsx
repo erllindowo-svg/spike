@@ -29,6 +29,7 @@ import { partyAsyncModes, QUERY_MODES, type PartyAsyncMode } from "../modes";
 import type { ResponsesSummary } from "../responses";
 import { asyncStatusLabel, deliveryLabels } from "../status";
 
+import type { DeliveryCheck } from "../deliveries";
 import { ResponsesSummaryView } from "./responses-summary-view";
 
 export function AsyncQueriesCard({
@@ -44,7 +45,12 @@ export function AsyncQueriesCard({
   const [startingMode, setStartingMode] = useState<PartyAsyncMode | null>(null);
   const [cacheTtl, setCacheTtl] = useState("");
   const [checkingId, setCheckingId] = useState<string | null>(null);
-  const [results, setResults] = useState<Record<string, ResponsesSummary>>({});
+  const [results, setResults] = useState<
+    Record<
+      string,
+      { summary: ResponsesSummary; deliveryCheck: DeliveryCheck | null }
+    >
+  >({});
   const [supportView] = useSupportView();
 
   const cacheTtlValue = cacheTtl.trim() === "" ? undefined : Number(cacheTtl);
@@ -102,7 +108,10 @@ export function AsyncQueriesCard({
         toast.info(`Status: ${asyncStatusLabel(result.request.status).label}`);
         return;
       }
-      const loaded = result.results;
+      const loaded = {
+        summary: result.results,
+        deliveryCheck: result.deliveryCheck,
+      };
       setResults((current) => ({ ...current, [requestId]: loaded }));
     });
   }
@@ -267,7 +276,8 @@ export function AsyncQueriesCard({
                   </div>
                   {loaded && (
                     <ResponsesSummaryView
-                      results={loaded}
+                      results={loaded.summary}
+                      deliveryCheck={loaded.deliveryCheck}
                       onSelectLawsuit={onSelectLawsuit}
                     />
                   )}

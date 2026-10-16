@@ -556,3 +556,13 @@ Fatias, nesta ordem (cada uma com testes e commit próprio):
   grandes (itens 15 e 16), conferência de entregas perdidas (IK10), destino
   do evento de saída e revisão dos textos de ajuda (estes dois dependem do
   usuário).
+- **Fatia 12, conferência de entregas perdidas (IK10): feita.** Ao abrir o
+  resultado de uma consulta com entrega por webhook, a vista de suporte
+  mostra quantas respostas a JUDIT lista e quantas entregas chegaram para o
+  mesmo `request_id`, com o aviso de fim (600) à parte. A comparação usa a
+  lista já lida para mostrar o resultado, sem chamada nova; se faltar
+  entrega, o texto diz que nada se perdeu (o resultado veio da consulta
+  direta). Hipótese registrada: uma resposta, uma entrega
+  (`src/features/queries/deliveries.ts`, catálogo G7). Monitoramentos ficam
+  de fora: o resultado deles é lido por outra rota
+  (`GET /responses/tracking`), e a relação com as entregas é a IK11.

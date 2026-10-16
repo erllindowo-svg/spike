@@ -56,6 +56,7 @@ import type { ResponsesSummary } from "../responses";
 import { asyncStatusLabel, deliveryLabels, syncOutcomeLabels } from "../status";
 import { isQueryOpen, type QueryView } from "../types";
 import { ResponsesSummaryView } from "./responses-summary-view";
+import type { DeliveryCheck } from "../deliveries";
 
 type FlowFilter = "all" | QueryView["flow"];
 type StateFilter = "all" | "open" | "done" | "problem";
@@ -408,7 +409,10 @@ function ViewResultButton({
   requestId: string;
 }) {
   const [loading, startLoading] = useTransition();
-  const [results, setResults] = useState<ResponsesSummary | null>(null);
+  const [results, setResults] = useState<{
+    summary: ResponsesSummary;
+    deliveryCheck: DeliveryCheck | null;
+  } | null>(null);
   const [selected, setSelected] = useState<Lawsuit | null>(null);
 
   return (
@@ -426,7 +430,10 @@ function ViewResultButton({
                   description: result.message,
                 });
               } else if (result.results) {
-                setResults(result.results);
+                setResults({
+                  summary: result.results,
+                  deliveryCheck: result.deliveryCheck,
+                });
               }
             } catch {
               toast.error(SERVER_UNREACHABLE);
@@ -455,7 +462,8 @@ function ViewResultButton({
           <div className="flex-1 overflow-y-auto p-4">
             {results && (
               <ResponsesSummaryView
-                results={results}
+                results={results.summary}
+                deliveryCheck={results.deliveryCheck}
                 onSelectLawsuit={setSelected}
               />
             )}

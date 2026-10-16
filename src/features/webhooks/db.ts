@@ -195,3 +195,16 @@ export async function listUnprocessedEventIds(
     .toArray();
   return docs.map((doc) => doc._id);
 }
+
+// Payloads gravados de uma referência, para a conferência de entregas
+// perdidas (src/features/queries/deliveries.ts). As reentregas recusadas
+// pelo índice único não estão aqui: cada documento é uma entrega distinta.
+export async function listEventPayloadsForReference(
+  referenceId: string,
+): Promise<unknown[]> {
+  const { webhookEvents } = collections(await getDb());
+  const docs = await webhookEvents
+    .find({ referenceId }, { projection: { payload: 1 } })
+    .toArray();
+  return docs.map((doc) => doc.payload);
+}

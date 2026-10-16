@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Party } from "@/db/models";
 import type { JuditRequest } from "@/db/models";
 import { getPartyByDocument } from "@/features/parties/db";
+import { listEventPayloadsForReference } from "@/features/webhooks/db";
 import { processEventsForReference } from "@/features/webhooks/process";
 import {
   applicationErrorItem,
@@ -35,6 +36,9 @@ vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 // The processing rules are tested in src/features/webhooks/process.test.ts.
 vi.mock("@/features/webhooks/process", () => ({
   processEventsForReference: vi.fn(),
+}));
+vi.mock("@/features/webhooks/db", () => ({
+  listEventPayloadsForReference: vi.fn(),
 }));
 
 const TEST_CNPJ = "A1B2C3D4E5F668";
@@ -93,6 +97,7 @@ beforeEach(() => {
   vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "");
   vi.stubEnv("JUDIT_WEBHOOK_TOKEN", "");
   vi.mocked(processEventsForReference).mockReset().mockResolvedValue([]);
+  vi.mocked(listEventPayloadsForReference).mockReset().mockResolvedValue([]);
   vi.mocked(getPartyByDocument).mockReset().mockResolvedValue(company);
   vi.mocked(getJuditRequest).mockReset().mockResolvedValue(storedRequest);
   vi.mocked(findOpenJuditRequest).mockReset().mockResolvedValue(null);
@@ -444,6 +449,64 @@ describe("checkAsyncQueryAction", () => {
         ],
         lawsuits: [{ cnj: "99999999999999999999", partyId: company.id }],
       },
+    });
+  });
+
+  it("compares webhook deliveries with the listed responses", async () => {
+    vi.mocked(getJuditRequest).mockResolvedValue({
+      ...storedRequest,
+      delivery: "webhook",
+      status: "completed",
+    });
+    vi.mocked(listEventPayloadsForReference).mockResolvedValue([
+      {
+        payload: {
+          response_type: "application_info",
+          response_data: { code: 600 },
+        },
+      },
+    ]);
+    mockFetch(responsesBody);
+
+    const result = await checkAsyncQueryAction(REQUEST_ID);
+
+    expect(listEventPayloadsForReference).toHaveBeenCalledWith(REQUEST_ID);
+    expect(result).toMatchObject({
+      ok: true,
+      deliveryCheck: {
+        expected: responsesBody.all_count,
+        received: 0,
+        completionNotice: true,
+      },
+    });
+  });
+
+  it("skips the comparison for polling and survives a database failure", async () => {
+    vi.mocked(getJuditRequest).mockResolvedValue({
+      ...storedRequest,
+      status: "completed",
+    });
+    mockFetch(responsesBody);
+    expect(await checkAsyncQueryAction(REQUEST_ID)).toMatchObject({
+      ok: true,
+      deliveryCheck: null,
+    });
+    expect(listEventPayloadsForReference).not.toHaveBeenCalled();
+
+    vi.mocked(getJuditRequest).mockResolvedValue({
+      ...storedRequest,
+      delivery: "webhook",
+      status: "completed",
+    });
+    vi.mocked(listEventPayloadsForReference).mockRejectedValue(
+      new Error("db down"),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockFetch(responsesBody);
+    expect(await checkAsyncQueryAction(REQUEST_ID)).toMatchObject({
+      ok: true,
+      results: { totalResponses: responsesBody.all_count },
+      deliveryCheck: null,
     });
   });
 });

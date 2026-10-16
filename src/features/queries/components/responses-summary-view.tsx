@@ -5,6 +5,9 @@ import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import type { Lawsuit } from "@/features/processes/types";
 import { formatDate, formatNumber } from "@/lib/format";
 
+import { SupportOnly } from "@/features/settings/support-view";
+
+import { missingDeliveries, type DeliveryCheck } from "../deliveries";
 import type { ResponsesSummary } from "../responses";
 
 // Resultado de GET /responses (consulta assíncrona) ou de
@@ -13,12 +16,20 @@ import type { ResponsesSummary } from "../responses";
 export function ResponsesSummaryView({
   results,
   onSelectLawsuit,
+  deliveryCheck = null,
 }: {
   results: ResponsesSummary;
   onSelectLawsuit: (lawsuit: Lawsuit) => void;
+  // Consulta com entrega por webhook: o que chegou x o que a JUDIT lista.
+  deliveryCheck?: DeliveryCheck | null;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-muted/40 p-3">
+      {deliveryCheck && (
+        <SupportOnly>
+          <DeliveryCheckLine check={deliveryCheck} />
+        </SupportOnly>
+      )}
       <p className="text-sm text-muted-foreground">
         {formatNumber(results.totalResponses)} resposta(s) na JUDIT
         {results.loadedResponses < results.totalResponses &&
@@ -101,3 +112,26 @@ const arrestTypes: Record<string, string> = {
   temporary: "temporária",
   preventive: "preventiva",
 };
+
+// Conferência de entregas perdidas (IK10, deliveries.ts). A relação "uma
+// resposta, uma entrega" é hipótese nossa; o texto diz isso.
+function DeliveryCheckLine({ check }: { check: DeliveryCheck }) {
+  const missing = missingDeliveries(check);
+  const base = `Entregas por webhook: ${formatNumber(check.received)} de ${formatNumber(check.expected)} resposta(s)${check.completionNotice ? ", mais o aviso de fim (600)" : ", sem o aviso de fim (600)"}.`;
+  if (missing > 0) {
+    return (
+      <p className="text-sm text-warning">
+        {base} Faltam {formatNumber(missing)}: a JUDIT pode ter desistido de
+        reenviar enquanto a rota estava fora do ar (IK10). O resultado abaixo
+        veio da consulta direta, então nada se perdeu.
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      {base}
+      {check.received > check.expected &&
+        " Mais entregas do que respostas: a relação entre as duas é hipótese nossa (IK10)."}
+    </p>
+  );
+}

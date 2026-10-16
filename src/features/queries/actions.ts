@@ -8,6 +8,7 @@ import { getPartyByDocument } from "@/features/parties/db";
 import { partyRefSchema } from "@/features/parties/documents";
 import { cnjSchema, formatCnj } from "@/features/processes/cnj";
 import { productCallbackUrl } from "@/features/webhooks/callback";
+import { listEventPayloadsForReference } from "@/features/webhooks/db";
 import { processEventsForReference } from "@/features/webhooks/process";
 import { getDataSource } from "@/lib/data";
 
@@ -20,6 +21,7 @@ import {
   saveJuditRequest,
   updateJuditRequestStatus,
 } from "./db";
+import { checkDeliveries, type DeliveryCheck } from "./deliveries";
 import { juditActionFailure, type JuditActionFailure } from "./failure";
 import { summarizeResponses, type ResponsesSummary } from "./responses";
 
@@ -212,6 +214,8 @@ export type CheckAsyncQueryResult =
       request: JuditRequest;
       // Só existe quando o status é "completed".
       results: ResponsesSummary | null;
+      // Só com entrega por webhook e resultado (deliveries.ts).
+      deliveryCheck: DeliveryCheck | null;
     }
   | Unavailable
   | JuditActionFailure;
@@ -264,15 +268,19 @@ export async function checkAsyncQueryAction(
       // documentação diz que só esse status indica o conjunto final.
       if (remote.status !== "completed") {
         refresh();
-        return { ok: true, request, results: null };
+        return { ok: true, request, results: null, deliveryCheck: null };
       }
     }
 
     const list = await listResponses({ requestId: stored.requestId });
     const results = summarizeResponses(list, party);
+    const deliveryCheck =
+      stored.delivery === "webhook"
+        ? await readDeliveryCheck(stored.requestId, results.totalResponses)
+        : null;
 
     refresh();
-    return { ok: true, request, results };
+    return { ok: true, request, results, deliveryCheck };
   } catch (error) {
     return juditActionFailure(error, "queries");
   }
@@ -293,6 +301,26 @@ async function processEarlyDeliveries(requestId: string) {
       `[queries] falha ao processar entregas antecipadas (request_id ${requestId}):`,
       error instanceof Error ? error.message : String(error),
     );
+  }
+}
+
+// Uma falha ao ler as entregas não esconde o resultado: só a conferência
+// deixa de aparecer.
+async function readDeliveryCheck(
+  requestId: string,
+  expected: number,
+): Promise<DeliveryCheck | null> {
+  try {
+    return checkDeliveries(
+      expected,
+      await listEventPayloadsForReference(requestId),
+    );
+  } catch (error) {
+    console.error(
+      `[queries] conferência de entregas indisponível (request_id ${requestId}):`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
   }
 }
 

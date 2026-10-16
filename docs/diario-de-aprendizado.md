@@ -334,6 +334,15 @@ Receber não é processar. A rota grava e responde 200; o processamento roda dep
 
 **G6. Monitoramento aparece pausado, mas foi reativado.** _Previsto._ Um aviso de pausa (700 a 703) atrasado, processado depois da reativação, grava `paused` de novo. "Atualizar status" no menu do monitoramento corrige pelo que a JUDIT informa. Lição: webhooks podem chegar fora de ordem; o estado da JUDIT é a fonte da verdade.
 
+**G7. "Entregas por webhook: 0 de N resposta(s)" (vista de suporte).** _Previsto (testado com fetch simulado)._
+
+- Sinal: ao abrir o resultado de uma consulta com entrega por webhook (Histórico de consultas → Ver resultado, ou o card da parte), a linha da vista de suporte diz que faltam entregas.
+- Camada: rede entre a JUDIT e a nossa rota / JUDIT.
+- Hipóteses, em ordem: a rota estava fora do ar (túnel desligado, `pnpm dev` parado) e a JUDIT desistiu de reenviar (IK10); a origem pública mudou depois da consulta; a relação "uma resposta, uma entrega" não vale para este tipo de consulta (hipótese nossa, `src/features/queries/deliveries.ts`).
+- Teste que separou: Diagnóstico de webhooks filtrado pelo `request_id`; o log da rota (`[webhook]`) na hora da consulta; o aviso de fim (600) chegou ou não.
+- Correção: nenhuma para os dados: o resultado mostrado veio da consulta direta (`GET /responses`), então nada se perdeu. Para as próximas, manter a rota no ar.
+- Lição de suporte: entrega perdida não é dado perdido. A conferência usa a lista que já foi lida para mostrar o resultado; não faz chamada nova.
+
 ### H. Proteções de custo (círculo 2 da etapa 7)
 
 Antes de qualquer chamada cobrada, quatro barreiras, nesta ordem: kill switch (`JUDIT_LIVE_CALLS`), allowlist no modo restrito (`JUDIT_ALLOWLIST`), teto diário (`JUDIT_DAILY_CALL_LIMIT`, contado no histórico do app) e, no client, chamada única para a mesma busca e limite por minuto (`JUDIT_MAX_CALLS_PER_MINUTE`). Nenhuma delas deixa a chamada sair do servidor, então nada é cobrado nem entra no histórico. A situação de cada uma aparece em Configurações → Proteção de custo.
@@ -1466,6 +1475,12 @@ Proteções de custo, partes (CNPJ e CPF) com migração, abas Empresas e Pessoa
 **Resumo técnico**
 
 Vista de suporte num cookie, lido pelo servidor no modo `db` (a página nasce certa); adicionar parte na demonstração (só na aba); paginação de 25 linhas com aviso de limite; leituras dentro do `<Suspense>` (D5); um só `<main>` por página (J2). 317 testes, lint, tipos, formato e build ok.
+
+### 2026-10-16 / Conferência de entregas perdidas (IK10)
+
+**Resumo técnico**
+
+Ao abrir o resultado de uma consulta com entrega por webhook, a vista de suporte compara as respostas listadas pela JUDIT com as entregas gravadas para o mesmo `request_id`, sem chamada nova. A relação "uma resposta, uma entrega" é hipótese nossa (catálogo G7).
 
 ---
 
