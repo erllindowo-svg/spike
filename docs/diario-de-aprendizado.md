@@ -278,6 +278,15 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Lição de suporte: "funciona no teste e no build, falha no servidor que já estava rodando" aponta para estado antigo em memória. Compare com um processo novo antes de mexer no código.
 - Atualização (2026-10-15): o `pnpm dev` voltou a responder certo (401 sem token) sem reinício manual, depois da mudança no `next.config.ts` e no `.env.local`. Explicação provável: o `next dev` reinicia sozinho quando o `next.config.ts` muda, e com isso carregou o `env.ts` novo.
 
+**D7. `next dev` numa cópia do projeto quebra com "Symlink node_modules could not be resolved".** _Observado em 2026-10-17 (círculo 7)._
+
+- Sinal: o servidor diz `Ready` e, na primeira página, `FATAL: An unexpected Turbopack error occurred`, com "the symlink target leaves the filesystem root".
+- Camada: ferramenta (Turbopack).
+- Contexto: para testar o menu de alertas sem tocar no banco, o agente copiou o projeto para uma pasta temporária e subiu `DATA_SOURCE=demo` na porta 3100, com o `node_modules` como link simbólico para o do projeto.
+- Causa: o Turbopack não segue um link que aponta para fora da pasta do projeto.
+- Correção: instalar as dependências na própria cópia (`pnpm install --prefer-offline --frozen-lockfile`, que reaproveita o cache do pnpm).
+- Lição de suporte: um segundo ambiente "igual" precisa ter as próprias dependências; atalhos de sistema de arquivos mudam o comportamento da ferramenta.
+
 ### E. Segurança como falha operacional
 
 **E1. Diagnóstico que vazou parte de um segredo.** _Observado em 2026-10-13._ Um script improvisado imprimiu os 10 primeiros caracteres da chave. Prevenção: só `pnpm env:check`, que mostra nomes, tamanhos e valores não secretos. Avaliado como risco irrelevante em 2026-10-14.
@@ -482,6 +491,15 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Hipóteses: (1) ainda não passou um minuto desde o alerta; (2) o banco não respondeu à contagem (a aba fica com o último número); (3) modo demonstração, que não confere o servidor.
 - Teste que separou: esperar um minuto com a aba aberta; recarregar e comparar com o sino.
 - Lição de suporte: um aviso que depende de consulta periódica tem atraso por desenho; "demorou um minuto" não é falha.
+
+**M5. Clicar num alerta abre a ficha, mas não abre o processo.** _Previsto em 2026-10-17 (círculo 7)._
+
+- Sinal: o menu do sino leva à ficha do assunto, com `?processo=<cnj>` no endereço, e o painel lateral não aparece; ou o clique leva à página Acervo.
+- Camada: aplicação (dados guardados) ou banco.
+- Hipóteses: (1) o processo do alerta não está guardado na base própria do assunto (a ficha só abre processos da sua lista de "Processos"); (2) o alerta não tem processo (aviso do monitoramento, como "Monitoramento com falha"): leva só à ficha, por desenho; (3) o monitoramento do alerta não existe mais na lista: leva ao Acervo.
+- Teste que separou: ler o `?processo=` no endereço e procurar esse número na lista de processos da ficha; no Atlas, o `lawsuitCnj` e o `trackingId` do alerta na coleção `alerts`.
+- Código: `alertHref` em `src/features/alerts/links.ts`; a leitura do `?processo=` em `subject-page.tsx`.
+- Lição de suporte: "o link não abre o processo" pode ser falta do dado, e não do link. Antes de mexer na navegação, conferir se o dado existe onde a tela procura.
 
 ### Modelo para novos casos
 
@@ -1785,6 +1803,16 @@ O agente expôs o custo do Web Push (dependência, chaves, um passo a mais na in
 
 O ícone da aba virou a marca do app (`src/app/icon.svg`, o quadrado azul com a lupa do cabeçalho); saiu o `favicon.ico` padrão do Next. `devIndicators: false` tira a bolinha "N" do `next dev`, sem esconder erros. Segunda entrega fictícia (`0000002-43.2026.8.23.0001`) enviada para o teste do aviso na aba em segundo plano.
 
+### 2026-10-17 / Círculo 7 implementado: menu de alertas
+
+**Resumo técnico**
+
+O sino abre um menu com o histórico (não lidos em azul, lidos em cinza). O Acervo perdeu "O que chegou" e o número de não lidos. Clicar num alerta abre a ficha com o processo no painel (`?processo=`). A ficha perdeu o cartão "Alertas": o processo com alerta não lido ganha a marca azul. 390 testes.
+
+**Como pensamos (resumo do agente)**
+
+Escolhas pequenas feitas pelo agente, para o usuário confirmar: a marca "N alertas" em cada assunto do Acervo ficou, porque leva à ficha onde a marca azul está; o menu marca como lido só o alerta clicado, e abrir o processo na ficha marca todos os alertas daquele processo; fechar o painel tira o `?processo=` do endereço, para o F5 não reabrir. A lógica pura saiu para `src/features/alerts/links.ts`, com testes. Conferência na tela: cópia do app em modo demonstração (porta 3100), dirigida no Chromium sem janela; o Firefox sem janela não gerou a captura. Falta a conferência no Firefox do usuário.
+
 ---
 
 ## Perguntas e respostas
@@ -2301,3 +2329,11 @@ Derivada quer dizer que nada nela é fonte: tudo é calculado das outras coleç�
 
 **Por que `/^erl/` usa o índice e "contém erl" não?** _(círculo 3B, 2026-10-17)_
 Um índice é uma lista ordenada, como um dicionário. Achar as palavras que começam com "erl" é ir até o "erl" do dicionário e ler em sequência. "Contém erl" pode estar no começo, no meio ou no fim de qualquer palavra, então não há lugar para pular: é preciso ler tudo. Por isso a busca aceita só o começo das palavras.
+
+### Círculo 7: menu de alertas
+
+**Por que o processo do alerta vai no endereço (`?processo=`) e não numa variável compartilhada entre o menu e a ficha?** _(círculo 7, 2026-10-17)_
+O menu e a ficha são telas diferentes; entre elas há uma navegação. O endereço é o único lugar que sobrevive a ela, ao F5 e a um link copiado. A ficha lê o parâmetro com `useSearchParams` e abre o processo; ao fechar o painel, `router.replace` tira o parâmetro sem criar uma entrada nova no histórico, e o F5 não reabre o painel. Uma variável na memória do navegador se perderia no F5.
+
+**A marca azul de um processo na ficha some quando?** _(círculo 7, 2026-10-17)_
+Quando todos os alertas não lidos daquele processo, dos monitoramentos do assunto, viram lidos. Isso acontece ao abrir o processo na ficha (marca todos) ou ao clicar em cada alerta no menu do sino (marca o clicado). A marca é calculada a cada desenho (`unreadAlertsByCnj`), a partir dos alertas: não há um campo "marcado" guardado no processo.

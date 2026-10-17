@@ -1827,3 +1827,73 @@ cerca de um minuto depois, sem recarregar a página.
 
 _Observação:_ o ícone da aba ainda é o padrão do Next.js ("N"), nunca
 trocado pela marca do app. Candidato ao fechamento da etapa 7.
+
+## Círculo 7: menu de alertas (implementado, 2026-10-17)
+
+_Ditado do usuário (resumido, para retomar depois de um `/clear`):_
+
+1. **Menu do sino.** Clicar no sino abre um painel flutuante preso a ele,
+   em vez de levar à página Acervo. Sem nenhum alerta na história: "Nenhum
+   alerta por aqui". Com alertas: o histórico, os não lidos em azul e os
+   lidos em cinza.
+2. **Alertas fora do Acervo.** A parte de alertas da página Acervo some
+   ("O que chegou" e o número de alertas não lidos): alertas moram no menu
+   do sino.
+3. **Clique numa notificação.** Leva à ficha do assunto monitorado e já
+   abre, no painel lateral, o processo novo daquele alerta.
+4. **Ficha sem o cartão "Alertas"** (pedido para aplicar por último). Na
+   ficha, o processo ligado a um alerta não visto ganha uma marca azul na
+   própria linha da lista de processos; clicar abre o processo e marca o
+   alerta como lido. Não faz sentido um alerta que não se pode clicar.
+
+_Estado quando a sessão parou (sem commit):_
+
+- Feito: `src/features/alerts/components/alerts-menu.tsx` (o menu, com
+  `alertHref`: ficha do monitoramento + `?processo=<cnj>`), ligado ao
+  cabeçalho no lugar do sino antigo. Lint e typecheck passando; não testado
+  na tela.
+- Falta: (2) tirar do Acervo o cartão "O que chegou" e o número de alertas
+  (`src/features/subjects/components/info-page.tsx`); (3) a ficha ler
+  `?processo=` e abrir o painel do processo, tirando o parâmetro ao fechar
+  (`subject-page.tsx`, `view.lawsuits` tem o `cnj`); (4) tirar o cartão
+  "Alertas" da ficha e marcar em azul os processos com alerta não lido
+  (prop nova em `LawsuitsTable`, `lawsuits-table.tsx`; não lidos primeiro);
+  testes, conferência no Firefox, diário, commit.
+
+### Implementação do círculo 7 (2026-10-17)
+
+Os quatro itens implementados, sem commit até o usuário pedir:
+
+1. **Menu do sino:** `src/features/alerts/components/alerts-menu.tsx`, no
+   cabeçalho (`app-header.tsx`). Mostra os 30 mais recentes; "Marcar todos
+   como lidos" no topo.
+2. **Acervo sem alertas:** saíram o cartão "O que chegou" e o número
+   "Alertas não lidos" (`info-page.tsx`). _Ficou, para o usuário confirmar:_
+   a marca "N alertas" em cada assunto da lista, que leva à ficha onde está
+   a marca azul.
+3. **Clique numa notificação:** `alertHref` (`src/features/alerts/links.ts`)
+   monta a ficha + `?processo=<cnj>`; `subject-page.tsx` abre o processo no
+   painel e tira o parâmetro ao fechar. Alerta sem processo (aviso do
+   monitoramento) leva só à ficha; sem o monitoramento, ao Acervo.
+4. **Ficha sem o cartão "Alertas":** `unreadAlertsByCnj` (`links.ts`) diz
+   quais processos têm alerta não lido; `LawsuitsTable` recebe
+   `highlighted` e põe esses processos no topo, com a marca azul. Abrir o
+   processo marca como lidos todos os alertas dele. _Ficou:_ a coluna
+   "Alertas" da tabela de monitoramentos da ficha (contagem por
+   monitoramento).
+
+Verificação: lint, typecheck, 390 testes (4 novos em `links.test.ts`).
+Conferido na tela numa cópia em modo demonstração, no Chromium sem janela:
+menu com não lidos em azul; clique leva à ficha com o painel aberto; fechar
+limpa o endereço; na ficha de `1004512-29.2025.8.26.0100`, a marca azul
+aparece e some ao abrir o processo (sino de 4 para 3). Não conferido no
+Firefox do usuário nem no modo `db` com um alerta real.
+
+## Para a etapa 8 (decisão do usuário, 2026-10-17)
+
+- **Bug: a aba não se atualiza sozinha com um alerta novo.** No Firefox do
+  usuário, o alerta só aparece com F5; no Firefox de teste, a aba se
+  atualiza nos dois planos (primeiro e segundo). Investigação parada antes
+  de separar as hipóteses: (a) a aba não pergunta (procurar `POST` a cada
+  minuto no terminal do `pnpm dev`); (b) pergunta, mas o `router.refresh()`
+  não redesenha. Código: `src/components/layout/tab-badge.tsx`.
