@@ -1185,3 +1185,19 @@ implementação ficam marcadas como _decisão do agente_.
    do cabeçalho. Conferido com capturas de tela (1400 px e 390 px).
    _Decisão do agente:_ o menu de perfil ("Sem login") saiu; volta com o
    login (círculo 4).
+4. **Página Consultar nova, em "/"** (D5). `src/app/(app)/page.tsx` é a
+   página Consultar; o Dashboard foi para `/informacoes` (Minhas
+   informações, até a fatia 6); `/consultar` redireciona para "/" pelo
+   `next.config.ts`, mantendo `?valor=`. A página tem só o campo: o selo
+   "Reconhecido: …" com a descrição do tipo, "Não é isso?" quando há
+   alternativas (CNJ válido ou RJI), a nota de homônimos ou de CNJ inválido
+   e o aviso de parte já salva. Reconhecido o identificador, aparecem as
+   perguntas do catálogo (com a modalidade da JUDIT embaixo, "Na hora" ou
+   "Depois", "Monitorável" e tempo e custo), o botão "Consultar" e, onde
+   existe, "Monitorar", com a frase das duas cobranças. Monitorar abre o
+   diálogo com o identificador travado (sem redigitar) e a opção "Receber
+   também os dados de agora" (D4), que faz a consulta escolhida depois de o
+   monitoramento ser aceito; o resultado também tem "Monitorar". O
+   monitoramento por OAB entrou (modelo, validação pela mesma regra de
+   `identify`, sem parte, e no diálogo como quarta opção). Conferido com
+   capturas de tela.

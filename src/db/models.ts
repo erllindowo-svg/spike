@@ -12,7 +12,9 @@ export type DocumentType = "cnpj" | "cpf";
 // oab, name, rji, lawsuit_cnj), com "cnj" no lugar de "lawsuit_cnj".
 export type SearchType = DocumentType | "cnj" | "oab" | "name" | "rji";
 
-export type TrackingSearchType = DocumentType | "cnj";
+// OAB entrou no círculo 3: a JUDIT monitora cpf, cnpj e oab por documento
+// (https://docs.judit.io/tracking/tracking-document).
+export type TrackingSearchType = DocumentType | "cnj" | "oab";
 
 export type WebhookProcessingStatus =
   "pending" | "processing" | "processed" | "failed" | "ignored";

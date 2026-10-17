@@ -15,7 +15,9 @@ import {
 import { isDuplicateKeyError } from "@/db/errors";
 import type { Tracking, TrackingCreation } from "@/db/models";
 import { ensureParty } from "@/features/parties/db";
+import { parseSearchKey } from "@/features/consult/identify";
 import { cnpjSchema } from "@/features/parties/cnpj";
+import { isDocumentType } from "@/features/parties/documents";
 import { cpfSchema } from "@/features/parties/cpf";
 import { cnjSchema } from "@/features/processes/cnj";
 import { trackingModeFor } from "@/features/queries/modes";
@@ -38,6 +40,16 @@ import { trackingModeFor } from "@/features/queries/modes";
 // define com que frequência o monitoramento roda (e custa).
 const recurrenceDaysSchema = z.number().int().positive();
 
+// OAB como número + UF, a mesma regra da página Consultar (identify.ts).
+const oabSchema = z.string().transform((value, ctx) => {
+  const key = parseSearchKey("oab", value);
+  if (!key) {
+    ctx.addIssue({ code: "custom", message: "OAB inválida (número e UF)." });
+    return z.NEVER;
+  }
+  return key;
+});
+
 // Termos que filtram as movimentações avisadas (só monitoramento por CNJ).
 // Limites nossos: a documentação não define tamanho nem quantidade.
 export const stepTermsSchema = z
@@ -54,6 +66,11 @@ const newTrackingSchema = z.discriminatedUnion("searchType", [
   z.object({
     searchType: z.literal("cpf"),
     searchKey: cpfSchema,
+    recurrenceDays: recurrenceDaysSchema,
+  }),
+  z.object({
+    searchType: z.literal("oab"),
+    searchKey: oabSchema,
     recurrenceDays: recurrenceDaysSchema,
   }),
   z.object({
@@ -125,8 +142,10 @@ export async function reserveTracking(
   // transação: se o monitoramento for recusado como duplicado, a parte criada
   // continua válida e útil. Um CNJ ainda não é ligado a nenhuma parte,
   // porque não há coleção de processos.
-  const partyId =
-    searchType === "cnj" ? null : (await ensureParty(searchType, searchKey)).id;
+  // OAB também não tem parte (a coleção `parties` só tem CPF e CNPJ).
+  const partyId = isDocumentType(searchType)
+    ? (await ensureParty(searchType, searchKey)).id
+    : null;
 
   const now = new Date();
   const doc: TrackingDoc = {

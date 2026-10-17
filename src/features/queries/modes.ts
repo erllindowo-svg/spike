@@ -165,11 +165,11 @@ export function partyAsyncModes(documentType: DocumentType): PartyAsyncMode[] {
 export const TRACKING_MODES = {
   tracking_document: {
     label: "Monitoramento por documento",
-    endpoint: "POST /tracking (search_type cnpj)",
+    endpoint: "POST /tracking (search_type cpf, cnpj ou oab)",
     flow: "recurring",
     sources: "Tribunais, consultados pela JUDIT a cada N dias (on-demand).",
     purpose:
-      "Detecta o nascimento de novos processos ligados ao CNPJ, que não existiam quando o monitoramento começou.",
+      "Detecta o nascimento de novos processos ligados ao documento (CPF, CNPJ ou OAB), que não existiam quando o monitoramento começou.",
     cost: "Recorrente enquanto ativo. A documentação pede para verificar as condições de custo; valores não publicados.",
     docsUrl: "https://docs.judit.io/tracking/tracking-document",
   },

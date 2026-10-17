@@ -148,6 +148,31 @@ describe("reserveTracking", () => {
     expect(await listTrackings()).toHaveLength(0);
   });
 
+  it("stores an OAB tracking as number + UF, with no party", async () => {
+    const result = await reserveTracking({
+      searchType: "oab",
+      searchKey: "OAB/SP 123456",
+      recurrenceDays: 30,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tracking).toMatchObject({
+      searchType: "oab",
+      searchKey: "123456SP",
+      partyId: null,
+      mode: "tracking_document",
+    });
+    expect(await listParties()).toHaveLength(0);
+
+    const invalid = await reserveTracking({
+      searchType: "oab",
+      searchKey: "123456XX",
+      recurrenceDays: 30,
+    });
+    expect(invalid).toMatchObject({ ok: false, reason: "invalid_input" });
+  });
+
   it("stores a CNJ tracking without a company", async () => {
     const result = await reserveTracking({
       searchType: "cnj",
@@ -184,9 +209,13 @@ describe("reserveTracking", () => {
       { searchType: "cnpj", searchKey: CNPJ, recurrenceDays: 1.5 },
     ],
     [
-      // OAB fica para depois (escolha R1 do escopo).
+      // Nome não tem monitoramento na JUDIT (tracking-document: cpf, cnpj, oab).
       "unknown search type",
-      { searchType: "oab", searchKey: "SP123456", recurrenceDays: 7 },
+      {
+        searchType: "name",
+        searchKey: "Padaria de Exemplo",
+        recurrenceDays: 7,
+      },
     ],
   ])("rejects %s without touching the database", async (_, input) => {
     const result = await reserveTracking(input as never);

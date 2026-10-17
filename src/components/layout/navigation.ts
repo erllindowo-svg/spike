@@ -23,14 +23,14 @@ export type NavItem = {
 // barra do topo alterna entre as duas, como dois espaços de trabalho.
 export const consultNav: NavItem = {
   title: "Consultar",
-  href: "/consultar",
+  href: "/",
   icon: SearchIcon,
 };
 
 export const infoNav: NavItem = {
   title: "Minhas informações",
   shortTitle: "Informações",
-  href: "/",
+  href: "/informacoes",
   icon: LayoutDashboardIcon,
   matches: [
     "/empresas",
@@ -47,7 +47,7 @@ export const mainNav: NavItem[] = [consultNav, infoNav];
 // Até a página Minhas informações existir (fatia 6), ela leva às páginas
 // atuais, por estas abas.
 export const infoSections: SectionTab[] = [
-  { href: "/", label: "Resumo", exact: true },
+  { href: "/informacoes", label: "Resumo", exact: true },
   { href: "/empresas", label: "Empresas e pessoas", matches: ["/pessoas"] },
   {
     href: "/monitoramentos",
@@ -109,9 +109,9 @@ const pages: PageInfo[] = [
     help: "Pessoas físicas que você adicionou ou monitora. O CPF é dado pessoal: aparece mascarado nas listas e completo só na página da pessoa. Consulte e monitore só com base legal.",
   },
   {
-    prefix: "/consultar",
-    title: "Consultar",
-    help: "Consultas avulsas na JUDIT: contagem, resumo agrupado, lista de processos, dados cadastrais e processo por número CNJ. A resposta aparece aqui, sem salvar nada; cada consulta é cobrada e entra no histórico.",
+    prefix: "/informacoes",
+    title: "Minhas informações",
+    help: "Resumo do que o app acompanha: empresas, monitoramentos, alertas e consultas. O bloco “O que chegou” mostra os alertas ainda não lidos. Abrir esta página não consulta a JUDIT.",
   },
   {
     prefix: "/consultas",
@@ -135,8 +135,8 @@ const pages: PageInfo[] = [
   },
   {
     prefix: "/",
-    title: "Dashboard",
-    help: "Resumo do que o app acompanha: empresas, monitoramentos, alertas e consultas. O bloco “O que chegou” mostra os alertas ainda não lidos. Abrir esta página não consulta a JUDIT.",
+    title: "Consultar",
+    help: "Digite um CPF, CNPJ, número de processo (CNJ), OAB, nome ou RJI: o tipo é reconhecido pela digitação. Depois escolha o que quer saber e clique em Consultar (uma resposta, cobrada uma vez) ou, onde existe, em Monitorar (acompanhamento cobrado a cada execução).",
   },
 ];
 

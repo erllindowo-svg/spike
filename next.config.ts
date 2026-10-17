@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  // Endereços antigos (círculo 3): Consultar virou a página inicial. A
+  // query (?valor=) passa adiante sozinha.
+  async redirects() {
+    return [{ source: "/consultar", destination: "/", permanent: false }];
+  },
   partialPrefetching: true,
   logging: {
     incomingRequests: {

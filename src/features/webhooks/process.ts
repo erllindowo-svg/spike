@@ -6,7 +6,7 @@ import {
   type CreatedAlert,
   type NewAlert,
 } from "@/features/alerts/db";
-import { displayDocument } from "@/features/parties/documents";
+import { displaySearchKey } from "@/features/consult/identify";
 import { publishAlertCreated } from "@/features/notifications/outbound";
 import { formatCnj } from "@/features/processes/cnj";
 import {
@@ -303,7 +303,7 @@ function alertBase(
 function trackingLabel(tracking: Tracking): string {
   return tracking.searchType === "cnj"
     ? `monitoramento do processo ${formatCnj(tracking.searchKey)}`
-    : `monitoramento do ${tracking.searchType.toUpperCase()} ${displayDocument(tracking.searchType, tracking.searchKey)}`;
+    : `monitoramento do ${tracking.searchType.toUpperCase()} ${displaySearchKey(tracking.searchType, tracking.searchKey)}`;
 }
 
 function describeError(

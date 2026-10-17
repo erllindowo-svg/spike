@@ -67,7 +67,7 @@ describe("buildSuggestions", () => {
     const cnpj = buildSuggestions("A1.B2C.3D4/E5F6-68", data);
     expect(cnpj.at(-1)).toMatchObject({
       kind: "consult",
-      href: "/consultar?tipo=cnpj&valor=A1B2C3D4E5F668",
+      href: "/?valor=A1B2C3D4E5F668",
     });
     const cpf = buildSuggestions("000.000.002-72", data);
     expect(cpf).toEqual([

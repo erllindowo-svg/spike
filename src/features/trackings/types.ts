@@ -14,12 +14,14 @@ export const searchTypeLabels: Record<TrackingSearchType, string> = {
   cnpj: "CNPJ",
   cpf: "CPF",
   cnj: "CNJ",
+  oab: "OAB",
 };
 
 export const searchTypeDescriptions: Record<TrackingSearchType, string> = {
   cnpj: "Descoberta de novos processos da empresa",
   cpf: "Descoberta de novos processos da pessoa",
   cnj: "Acompanhamento de processo",
+  oab: "Descoberta de novos processos do advogado",
 };
 
 // Estados exibidos na interface. São deliberadamente independentes dos valores

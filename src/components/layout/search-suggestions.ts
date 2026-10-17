@@ -105,7 +105,7 @@ export function buildSuggestions(
       kind: "consult",
       label: `Consultar ${label} na JUDIT`,
       description: "Abre a página Consultar. Cada consulta é cobrada.",
-      href: `/consultar?tipo=${target.type}&valor=${target.key}`,
+      href: `/?valor=${target.key}`,
     });
   }
   return found;

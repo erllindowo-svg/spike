@@ -165,7 +165,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-20 shrink-0 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
       <div className="flex h-14 items-center gap-2 px-4 sm:gap-3 md:px-6">
         <Link
-          href="/consultar"
+          href="/"
           className="flex shrink-0 items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           aria-label="Raio-X Jurídico: Consultar"
         >

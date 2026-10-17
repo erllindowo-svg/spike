@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import type { Tracking } from "@/db/models";
 import { getPartyByDocument } from "@/features/parties/db";
+import { isDocumentType } from "@/features/parties/documents";
 import { assertDailyBudget } from "@/features/queries/budget";
 import {
   juditActionFailure,
@@ -475,10 +476,9 @@ export async function trackingResultsAction(
       createdAtGte: dateOnly(new Date(tracking.createdAt.getTime() - day)),
       createdAtLte: dateOnly(new Date(Date.now() + day)),
     });
-    const party =
-      tracking.searchType === "cnj"
-        ? null
-        : await getPartyByDocument(tracking.searchType, tracking.searchKey);
+    const party = isDocumentType(tracking.searchType)
+      ? await getPartyByDocument(tracking.searchType, tracking.searchKey)
+      : null;
     return {
       ok: true,
       tracking,

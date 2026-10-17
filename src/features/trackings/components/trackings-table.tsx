@@ -83,6 +83,7 @@ export function TrackingsTable({
   );
 
   function identifierHref(tracking: Tracking): string | null {
+    if (tracking.searchType === "oab") return null;
     if (tracking.searchType !== "cnj") {
       return tracking.partyId
         ? partyHref(tracking.searchType, tracking.searchKey)

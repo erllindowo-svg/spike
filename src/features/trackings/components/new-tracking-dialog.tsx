@@ -1,6 +1,12 @@
 "use client";
 
-import { Building2Icon, InfoIcon, ScaleIcon, UserIcon } from "lucide-react";
+import {
+  Building2Icon,
+  BriefcaseIcon,
+  InfoIcon,
+  ScaleIcon,
+  UserIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useState } from "react";
 import { toast } from "sonner";
@@ -33,11 +39,12 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  documentSchema,
-  formatDocument,
-  normalizeDocument,
-} from "@/features/parties/documents";
-import { cnjSchema, formatCnj, normalizeCnj } from "@/features/processes/cnj";
+  formatSearchKey,
+  parseSearchKey,
+  SEARCH_TYPES as SEARCH_TYPE_INFO,
+} from "@/features/consult/identify";
+import { isDocumentType } from "@/features/parties/documents";
+import { normalizeCnj } from "@/features/processes/cnj";
 import { TRACKING_MODES, trackingModeFor } from "@/features/queries/modes";
 import {
   formatRecurrence,
@@ -50,6 +57,13 @@ import { useDemoStore } from "@/lib/demo-store";
 type Defaults = {
   searchType?: TrackingSearchType;
   searchKey?: string;
+  // Vindo da página Consultar: o identificador já foi digitado e
+  // reconhecido; o diálogo só o mostra, sem pedir de novo.
+  locked?: boolean;
+  // "Receber também os dados de agora" (decisão D4): a consulta escolhida
+  // na página Consultar, feita depois de criar o monitoramento. São duas
+  // cobranças, e o diálogo diz isso.
+  alsoConsult?: { question: string; run: () => void };
 };
 
 type ContextValue = { openNewTracking: (defaults?: Defaults) => void };
@@ -113,40 +127,40 @@ const searchTypeFields: Record<
   }
 > = {
   cnpj: {
-    toggle: "Por CNPJ",
+    toggle: "CNPJ",
     icon: Building2Icon,
     label: "CNPJ da empresa",
     placeholder: "00.000.000/0000-00",
     help: "Novos processos em que este CNPJ aparecer serão notificados.",
   },
   cpf: {
-    toggle: "Por CPF",
+    toggle: "CPF",
     icon: UserIcon,
     label: "CPF da pessoa",
     placeholder: "000.000.000-00",
     help: "Novos processos em que este CPF aparecer serão notificados. CPF é dado pessoal: monitore só com base legal.",
   },
   cnj: {
-    toggle: "Por número CNJ",
+    toggle: "Processo",
     icon: ScaleIcon,
     label: "Número do processo (CNJ)",
     placeholder: "0000000-00.0000.0.00.0000",
     help: "Movimentações deste processo serão notificadas.",
   },
+  oab: {
+    toggle: "OAB",
+    icon: BriefcaseIcon,
+    label: "OAB do advogado (número e UF)",
+    placeholder: "123456/SP",
+    help: "Novos processos em que esta OAB aparecer serão notificados.",
+  },
 };
 
-const SEARCH_TYPES: TrackingSearchType[] = ["cnpj", "cpf", "cnj"];
+const SEARCH_TYPES: TrackingSearchType[] = ["cnpj", "cpf", "oab", "cnj"];
 
-function schemaFor(type: TrackingSearchType) {
-  return type === "cnj" ? cnjSchema : documentSchema(type);
-}
-
-function formatKey(type: TrackingSearchType, key: string): string {
-  return type === "cnj" ? formatCnj(key) : formatDocument(type, key);
-}
-
+// A mesma regra de reconhecimento da página Consultar (identify.ts).
 function normalizeKey(type: TrackingSearchType, key: string): string {
-  return type === "cnj" ? normalizeCnj(key) : normalizeDocument(type, key);
+  return parseSearchKey(type, key) ?? key;
 }
 
 // "sentença, intimação" -> ["sentença", "intimação"]; vazio -> undefined. O
@@ -178,7 +192,7 @@ function NewTrackingForm({
         SEARCH_TYPES.map((type) => [
           type,
           defaults.searchType === type && defaults.searchKey
-            ? formatKey(type, defaults.searchKey)
+            ? formatSearchKey(type, defaults.searchKey)
             : "",
         ]),
       ) as Record<TrackingSearchType, string>,
@@ -188,17 +202,17 @@ function NewTrackingForm({
   // Só CNJ: termos separados por vírgula ("sentença, intimação").
   const [terms, setTerms] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [alsoConsult, setAlsoConsult] = useState(false);
 
   const value = values[searchType];
   const field = searchTypeFields[searchType];
-  const matchedParty =
-    searchType === "cnj"
-      ? undefined
-      : parties.find(
-          (p) =>
-            p.documentType === searchType &&
-            p.document === normalizeKey(searchType, value),
-        );
+  const matchedParty = !isDocumentType(searchType)
+    ? undefined
+    : parties.find(
+        (p) =>
+          p.documentType === searchType &&
+          p.document === normalizeKey(searchType, value),
+      );
   const matchedLawsuit =
     searchType === "cnj"
       ? lawsuits.find((l) => l.cnj === normalizeCnj(value))
@@ -210,16 +224,16 @@ function NewTrackingForm({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (saving) return;
-    const parsed = schemaFor(searchType).safeParse(value);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Identificador inválido");
+    const searchKey = parseSearchKey(searchType, value);
+    if (!searchKey) {
+      setError(`${SEARCH_TYPE_INFO[searchType].label} inválido`);
       return;
     }
 
     setSaving(true);
     const result = await addTracking({
       searchType,
-      searchKey: parsed.data,
+      searchKey,
       partyId:
         searchType === "cnj"
           ? (matchedLawsuit?.partyId ?? null)
@@ -234,6 +248,9 @@ function NewTrackingForm({
     }
 
     onDone();
+    // A consulta de agora só depois do monitoramento aceito: sem ele, a
+    // pessoa não pediu os dados sozinhos.
+    if (alsoConsult) defaults.alsoConsult?.run();
     const action = {
       label: "Ver lista",
       onClick: () => router.push("/monitoramentos"),
@@ -278,62 +295,81 @@ function NewTrackingForm({
       </DialogHeader>
 
       <FieldGroup className="gap-5">
-        <Field>
-          <FieldLabel>Tipo de monitoramento</FieldLabel>
-          <ToggleGroup
-            variant="outline"
-            spacing={0}
-            className="w-full"
-            value={[searchType]}
-            onValueChange={(next) => {
-              const selected = next[0] as TrackingSearchType | undefined;
-              if (selected) {
-                setSearchType(selected);
-                setError(null);
-              }
-            }}
-          >
-            {SEARCH_TYPES.map((type) => {
-              const Icon = searchTypeFields[type].icon;
-              return (
-                <ToggleGroupItem key={type} value={type} className="flex-1">
-                  <Icon data-icon="inline-start" />
-                  {searchTypeFields[type].toggle}
-                </ToggleGroupItem>
-              );
-            })}
-          </ToggleGroup>
-          <FieldDescription>
-            {searchTypeDescriptions[searchType]}.
-          </FieldDescription>
-        </Field>
-
-        <Field data-invalid={!!error}>
-          <FieldLabel htmlFor={`tracking-${searchType}`}>
-            {field.label}
-          </FieldLabel>
-          <Input
-            key={searchType}
-            id={`tracking-${searchType}`}
-            autoFocus
-            inputMode={searchType === "cnpj" ? "text" : "numeric"}
-            placeholder={field.placeholder}
-            value={value}
-            aria-invalid={!!error}
-            onChange={(e) => {
-              const next = e.target.value;
-              setValues((v) => ({ ...v, [searchType]: next }));
-              setError(null);
-            }}
-          />
-          {error ? (
-            <FieldError>{error}</FieldError>
-          ) : (
+        {defaults.locked ? (
+          <Field>
+            <FieldLabel>Acompanhar</FieldLabel>
+            <p className="font-mono text-sm">
+              {SEARCH_TYPE_INFO[searchType].label}{" "}
+              {formatSearchKey(searchType, normalizeKey(searchType, value))}
+            </p>
             <FieldDescription>
-              {matchDescription ?? field.help}
+              {searchTypeDescriptions[searchType]}.
             </FieldDescription>
-          )}
-        </Field>
+          </Field>
+        ) : (
+          <>
+            <Field>
+              <FieldLabel>Tipo de monitoramento</FieldLabel>
+              <ToggleGroup
+                variant="outline"
+                spacing={0}
+                className="w-full"
+                value={[searchType]}
+                onValueChange={(next) => {
+                  const selected = next[0] as TrackingSearchType | undefined;
+                  if (selected) {
+                    setSearchType(selected);
+                    setError(null);
+                  }
+                }}
+              >
+                {SEARCH_TYPES.map((type) => {
+                  const Icon = searchTypeFields[type].icon;
+                  return (
+                    <ToggleGroupItem key={type} value={type} className="flex-1">
+                      <Icon data-icon="inline-start" />
+                      {searchTypeFields[type].toggle}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+              <FieldDescription>
+                {searchTypeDescriptions[searchType]}.
+              </FieldDescription>
+            </Field>
+
+            <Field data-invalid={!!error}>
+              <FieldLabel htmlFor={`tracking-${searchType}`}>
+                {field.label}
+              </FieldLabel>
+              <Input
+                key={searchType}
+                id={`tracking-${searchType}`}
+                autoFocus
+                inputMode={
+                  searchType === "cnpj" || searchType === "oab"
+                    ? "text"
+                    : "numeric"
+                }
+                placeholder={field.placeholder}
+                value={value}
+                aria-invalid={!!error}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setValues((v) => ({ ...v, [searchType]: next }));
+                  setError(null);
+                }}
+              />
+              {error ? (
+                <FieldError>{error}</FieldError>
+              ) : (
+                <FieldDescription>
+                  {matchDescription ?? field.help}
+                </FieldDescription>
+              )}
+            </Field>
+          </>
+        )}
 
         {searchType === "cnj" && (
           <Field>
@@ -375,6 +411,25 @@ function NewTrackingForm({
             Intervalo, em dias, entre as execuções na JUDIT.
           </FieldDescription>
         </Field>
+        {defaults.alsoConsult && dataSource === "db" && (
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={alsoConsult}
+              onChange={(e) => setAlsoConsult(e.target.checked)}
+              className="mt-0.5 size-4 accent-primary"
+            />
+            <span>
+              Receber também os dados de agora ({defaults.alsoConsult.question}
+              ).{" "}
+              <span className="text-muted-foreground">
+                O monitoramento só avisa o que surgir depois de criado. Marcado,
+                são duas cobranças: a consulta agora e o monitoramento a cada
+                execução.
+              </span>
+            </span>
+          </label>
+        )}
       </FieldGroup>
 
       <Alert>
