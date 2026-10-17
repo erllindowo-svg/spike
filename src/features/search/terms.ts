@@ -7,14 +7,15 @@
 
 import { formatSearchKey } from "@/features/consult/identify";
 import type { SearchType } from "@/db/models";
+import { cnjStates } from "@/features/processes/cnj-states";
 
 export const MIN_QUERY_LENGTH = 3;
 
 // Versão das regras de buildTerms, gravada em cada entrada. Ao mudar as
 // regras, aumente o número: na conexão, as entradas de versão antiga são
 // remontadas (src/features/search/entries.ts). 2: grupos do número
-// formatado (círculo 5).
-export const TERMS_VERSION = 2;
+// formatado; 3: estados do tribunal de um CNJ (círculo 5).
+export const TERMS_VERSION = 3;
 
 // Números que têm máscara: os grupos dela também viram termos.
 const GROUPED_TYPES: ReadonlySet<SearchType> = new Set(["cpf", "cnpj", "cnj"]);
@@ -40,7 +41,9 @@ export function compactOf(value: string): string {
 // Os termos de uma entrada: as palavras dos textos, as chaves inteiras e,
 // em CPF, CNPJ e CNJ, cada grupo do número formatado (529.982.247-25 dá
 // "529", "982", "247" e "25"), para achar o número pelo meio, como no CPF
-// mascarado das listas (círculo 5). Sem repetição.
+// mascarado das listas (círculo 5). Num CNJ, também o estado do tribunal
+// ("sao", "paulo", "sp"), tirado do próprio número (cnj-states.ts). Sem
+// repetição.
 export function buildTerms(
   texts: (string | null | undefined)[],
   keys: string[],
@@ -55,6 +58,13 @@ export function buildTerms(
     if (type && GROUPED_TYPES.has(type)) {
       for (const group of tokensOf(formatSearchKey(type, key))) {
         terms.add(group);
+      }
+    }
+    if (type === "cnj") {
+      for (const state of cnjStates(key)) {
+        for (const token of tokensOf(`${state.name} ${state.uf}`)) {
+          terms.add(token);
+        }
       }
     }
   }

@@ -47,6 +47,12 @@ describe("search terms", () => {
     expect(buildTerms([], ["123456SP"], "oab")).toEqual(["123456sp"]);
   });
 
+  it("finds a lawsuit by the state of its court", () => {
+    const cnj = buildTerms([], ["00000003920268260050"], "cnj");
+    expect(matchesTerms(cnj, parseQuery("São Paulo")!)).toBe(true);
+    expect(matchesTerms(cnj, parseQuery("roraima")!)).toBe(false);
+  });
+
   it("needs every typed word", () => {
     expect(match("joao pereira")).toBe(false);
   });
