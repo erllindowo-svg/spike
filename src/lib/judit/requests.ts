@@ -64,7 +64,7 @@ export async function createRequest(params: {
   callbackUrl?: string;
 }) {
   const searchKey = params.searchKey.trim();
-  assertAllowedSearchKey(params.searchType, searchKey);
+  await assertAllowedSearchKey(params.searchType, searchKey);
 
   const searchParams = {
     ...(params.filter ? { filter: params.filter } : {}),

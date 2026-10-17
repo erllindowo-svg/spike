@@ -10,6 +10,7 @@ import {
   WebhookIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -25,7 +26,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { setAllowlistAction } from "@/features/settings/cost-actions";
+import type { CostProtection } from "@/features/settings/cost-protection";
 import {
   readJuditAccountAction,
   type AccountResult,
@@ -50,11 +62,15 @@ const integrationInfo: Record<
 
 export function SettingsPanel({
   integrations,
+  costProtection,
 }: {
   // Calculado no servidor (status.ts): só a situação, nunca os valores.
   integrations: IntegrationStatus[];
+  // O modo restrito em vigor e a trava; nulo na demonstração.
+  costProtection: CostProtection | null;
 }) {
   const { reset, dataSource } = useDemoStore();
+  const [supportView] = useSupportView();
 
   return (
     <>
@@ -86,6 +102,12 @@ export function SettingsPanel({
                     <span className="text-sm text-muted-foreground">
                       {item.description}
                     </span>
+                    {item.id === "cost" &&
+                      supportView &&
+                      costProtection &&
+                      !costProtection.locked && (
+                        <CostSwitch enabled={costProtection.allowlist} />
+                      )}
                   </div>
                   <StatusBadge tone={item.tone}>{item.label}</StatusBadge>
                 </li>
@@ -122,6 +144,72 @@ export function SettingsPanel({
           </CardHeader>
         </Card>
       )}
+    </>
+  );
+}
+
+// O interruptor do modo restrito (círculo 5), só com a vista de suporte
+// ligada e sem a trava do servidor. Desligar pede confirmação; depois, a
+// página é lida de novo no servidor, com o estado gravado.
+function CostSwitch({ enabled }: { enabled: boolean }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [saving, startSaving] = useTransition();
+
+  function save(next: boolean) {
+    startSaving(async () => {
+      try {
+        const result = await setAllowlistAction(next);
+        if (!result.ok) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(
+          next ? "Proteção de custo ativada." : "Proteção de custo desativada.",
+        );
+        setConfirming(false);
+        router.refresh();
+      } catch {
+        toast.error(SERVER_UNREACHABLE);
+      }
+    });
+  }
+
+  return (
+    <>
+      <label className="flex w-fit items-center gap-2 pt-2 text-sm">
+        <Switch
+          checked={enabled}
+          disabled={saving}
+          onCheckedChange={(next) => (next ? save(true) : setConfirming(true))}
+        />
+        {enabled ? "Proteção de custo ativada" : "Proteção de custo desativada"}
+      </label>
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desativar a proteção de custo?</DialogTitle>
+            <DialogDescription>
+              Qualquer documento passa a ser consultado na JUDIT, com cobrança.
+              Continuam valendo o limite por minuto e o teto diário de chamadas
+              cobradas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirming(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={saving}
+              onClick={() => save(false)}
+            >
+              {saving && <Spinner data-icon="inline-start" />}
+              Desativar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

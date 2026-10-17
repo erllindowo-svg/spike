@@ -10,6 +10,7 @@ const allSet: EnvFacts = {
   webhookToken: true,
   publicOrigin: true,
   allowlist: true,
+  allowlistLocked: false,
   callsPerMinute: 30,
   dailyCallLimit: 50,
 };
@@ -118,6 +119,7 @@ describe("readEnvFacts", () => {
       webhookToken: false,
       publicOrigin: false,
       allowlist: true,
+      allowlistLocked: false,
       callsPerMinute: 30,
       dailyCallLimit: 50,
     });

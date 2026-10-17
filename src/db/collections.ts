@@ -56,6 +56,13 @@ export type StoredWarrantDoc = Doc<StoredWarrant>;
 export type LawsuitStatsDoc = Doc<LawsuitStats>;
 export type FindingDoc = Doc<Finding>;
 export type SearchEntryDoc = Doc<SearchEntry>;
+// Ajustes do app guardados no banco (círculo 5), um documento por ajuste,
+// com o nome do ajuste no `_id`. Hoje só "cost-protection".
+export type AppSettingDoc = {
+  _id: "cost-protection";
+  allowlist: boolean;
+  updatedAt: Date;
+};
 
 export function collections(db: Db) {
   return {
@@ -73,6 +80,7 @@ export function collections(db: Db) {
     findings: db.collection<FindingDoc>("findings"),
     // Busca (círculo 3B): derivada das coleções acima.
     searchEntries: db.collection<SearchEntryDoc>("search_entries"),
+    appSettings: db.collection<AppSettingDoc>("app_settings"),
   };
 }
 

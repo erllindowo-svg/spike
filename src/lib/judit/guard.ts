@@ -1,6 +1,7 @@
 import "server-only";
 
 import { normalizeCnpj } from "@/features/parties/cnpj";
+import { getCostProtection } from "@/features/settings/cost-protection";
 import { normalizeCnj } from "@/features/processes/cnj";
 import { getServerEnv } from "@/lib/env";
 
@@ -10,8 +11,8 @@ import { JuditGuardError, JuditLiveCallsDisabledError } from "./errors";
 // through server-side checks before reaching the network:
 //
 // 1. Kill switch: JUDIT_LIVE_CALLS must be exactly "enabled". Every call.
-// 2. Allowlist (restricted mode, on by default; JUDIT_ALLOWLIST="disabled"
-//    turns it off): searches by document, name or CNJ only run for keys
+// 2. Allowlist (restricted mode): searches by document, name or CNJ only
+//    run for keys
 //    listed below. Calls by id (GET /requests/{id}, PATCH/DELETE /tracking/{id}) and
 //    account-wide lists (GET /requests, /responses, /tracking) carry no search
 //    key, so only the kill switch applies to them: they can read or change
@@ -26,10 +27,12 @@ export function assertLiveCallsEnabled(): void {
   }
 }
 
-// Restricted mode (the allowlist below) stays on unless JUDIT_ALLOWLIST is
-// exactly "disabled": turning it off must be a deliberate act.
-export function allowlistEnabled(): boolean {
-  return getServerEnv("JUDIT_ALLOWLIST") !== "disabled";
+// Restricted mode (the allowlist below): JUDIT_ALLOWLIST="locked" keeps it
+// on; otherwise the switch in Configurações decides, and before anyone uses
+// it, the variable ("disabled" turns it off). See
+// src/features/settings/cost-protection.ts.
+export async function allowlistEnabled(): Promise<boolean> {
+  return (await getCostProtection()).allowlist;
 }
 
 // Search types that identify a person, company or lawsuit, as listed in the
@@ -67,10 +70,10 @@ const NORMALIZERS: Record<GuardedSearchType, (value: string) => string> = {
 
 // Only checks. Which format is sent to JUDIT (formatted or digits only) is
 // decided by each service function, based on its docs page.
-export function assertAllowedSearchKey(
+export async function assertAllowedSearchKey(
   searchType: GuardedSearchType,
   searchKey: string,
-): void {
+): Promise<void> {
   const normalize = NORMALIZERS[searchType];
   const normalized = normalize(searchKey);
 
@@ -80,7 +83,7 @@ export function assertAllowedSearchKey(
 
   // Modo aberto: qualquer documento passa; sobram o limite por minuto e o
   // teto diário (rate-limit.ts e src/features/queries/budget.ts).
-  if (!allowlistEnabled()) return;
+  if (!(await allowlistEnabled())) return;
 
   const allowed = ALLOWLIST[searchType].some(
     (entry) => normalize(entry) === normalized,

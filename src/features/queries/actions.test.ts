@@ -26,6 +26,14 @@ import {
 // refresh() only works inside a real Next.js request.
 // The daily cap reads the database; covered in src/features/queries/budget.test.ts.
 vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
+// Sem banco de verdade aqui: o interruptor da proteção de custo nunca foi
+// usado, então vale a variável JUDIT_ALLOWLIST (cost-protection.ts).
+vi.mock("@/features/settings/cost-protection", () => ({
+  getCostProtection: async () => ({
+    allowlist: process.env.JUDIT_ALLOWLIST !== "disabled",
+    locked: false,
+  }),
+}));
 vi.mock("@/features/parties/db", () => ({ getPartyByDocument: vi.fn() }));
 vi.mock("./db", () => ({
   findOpenJuditRequest: vi.fn(),

@@ -26,7 +26,9 @@ export const serverEnvSchema = z.object({
   // "enabled".
   JUDIT_LIVE_CALLS: z.string().trim().optional(),
   // Restricted mode: searches by document or CNJ only for the keys listed in
-  // src/lib/judit/guard.ts. On unless the value is exactly "disabled".
+  // src/lib/judit/guard.ts. "locked" keeps it on with no switch; otherwise
+  // the switch in Configurações decides, starting off only with "disabled"
+  // (src/features/settings/cost-protection.ts).
   JUDIT_ALLOWLIST: z.string().trim().optional(),
   // Our own pace limit, below JUDIT's 180 per minute (README item 43).
   // Empty means the default in src/lib/judit/rate-limit.ts.

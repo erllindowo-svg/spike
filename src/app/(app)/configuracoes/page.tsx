@@ -6,6 +6,7 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 
 import { billedCallsToday } from "@/features/queries/budget";
 import { SettingsPanel } from "@/features/settings/components/settings-panel";
+import { getCostProtection } from "@/features/settings/cost-protection";
 import { describeIntegrations, readEnvFacts } from "@/features/settings/status";
 
 export const metadata: Metadata = { title: "Configurações" };
@@ -23,10 +24,12 @@ async function SettingsContent() {
   // Lê o ambiente a cada requisição, e não uma vez no build: sem isso, a
   // página mostraria as variáveis da máquina onde o build rodou.
   await connection();
-  const facts = readEnvFacts();
+  const protection = await getCostProtection();
+  const facts = { ...readEnvFacts(), allowlist: protection.allowlist };
   return (
     <SettingsPanel
       integrations={describeIntegrations(facts, await usageToday(facts))}
+      costProtection={facts.dataSource === "db" ? protection : null}
     />
   );
 }

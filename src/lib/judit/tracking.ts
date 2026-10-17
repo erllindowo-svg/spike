@@ -50,7 +50,7 @@ export async function createTracking(params: {
   callbackUrl?: string;
 }) {
   const searchKey = params.searchKey.trim();
-  assertAllowedSearchKey(params.searchType, searchKey);
+  await assertAllowedSearchKey(params.searchType, searchKey);
 
   const searchParams = {
     ...(params.lawsuitInstance !== undefined

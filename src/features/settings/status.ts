@@ -3,7 +3,6 @@ import "server-only";
 import type { StatusTone } from "@/components/shared/status-badge";
 import { dailyCallLimit } from "@/features/queries/budget";
 import { getServerEnv, hasServerEnv } from "@/lib/env";
-import { allowlistEnabled } from "@/lib/judit/guard";
 import { callsPerMinuteLimit } from "@/lib/judit/rate-limit";
 
 // Situação de cada integração, calculada no servidor a partir das variáveis
@@ -19,8 +18,11 @@ export type EnvFacts = {
   liveCalls: boolean;
   webhookToken: boolean;
   publicOrigin: boolean;
-  // Proteções de custo (círculo 2, S1 a S3).
+  // Proteções de custo (círculo 2, S1 a S3). `allowlist` é o modo restrito
+  // em vigor, lido pela página (o interruptor fica no banco: círculo 5);
+  // `allowlistLocked`, a trava JUDIT_ALLOWLIST="locked".
   allowlist: boolean;
+  allowlistLocked: boolean;
   callsPerMinute: number;
   dailyCallLimit: number;
 };
@@ -34,6 +36,8 @@ export type IntegrationStatus = {
   description: string;
 };
 
+// `allowlist` sai daqui com o valor da variável; a página troca pelo que
+// está em vigor (getCostProtection), que pode vir do interruptor.
 export function readEnvFacts(): EnvFacts {
   return {
     dataSource: getServerEnv("DATA_SOURCE"),
@@ -43,7 +47,8 @@ export function readEnvFacts(): EnvFacts {
     liveCalls: getServerEnv("JUDIT_LIVE_CALLS") === "enabled",
     webhookToken: hasServerEnv("JUDIT_WEBHOOK_TOKEN"),
     publicOrigin: hasServerEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN"),
-    allowlist: allowlistEnabled(),
+    allowlist: getServerEnv("JUDIT_ALLOWLIST") !== "disabled",
+    allowlistLocked: getServerEnv("JUDIT_ALLOWLIST") === "locked",
     callsPerMinute: callsPerMinuteLimit(),
     dailyCallLimit: dailyCallLimit(),
   };
@@ -82,13 +87,13 @@ function cost(facts: EnvFacts, billedToday: number | null): IntegrationStatus {
         id,
         tone: "info",
         label: "Modo restrito",
-        description: `Allowlist ligada: só os documentos de teste saem do servidor. ${limits}`,
+        description: `Allowlist ligada: só os documentos de teste saem do servidor${facts.allowlistLocked ? ' (travada por JUDIT_ALLOWLIST="locked")' : ""}. ${limits}`,
       }
     : {
         id,
         tone: "warning",
         label: "Modo aberto",
-        description: `Qualquer documento pode ser consultado (JUDIT_ALLOWLIST="disabled"). ${limits}`,
+        description: `Qualquer documento pode ser consultado. ${limits}`,
       };
 }
 
@@ -124,8 +129,9 @@ function judit(facts: EnvFacts): IntegrationStatus {
     id,
     tone: "success",
     label: "Ligada",
-    description:
-      "Chave definida e chamadas reais ligadas. Buscas por documento ou CNJ só saem do servidor para os itens da lista de teste (allowlist).",
+    // O que pode sair do servidor depende do modo restrito: está na linha
+    // "Proteção de custo".
+    description: "Chave definida e chamadas reais ligadas.",
   };
 }
 
