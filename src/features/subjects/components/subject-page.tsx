@@ -98,6 +98,13 @@ function Known({
   );
 }
 
+// Como os resultados do monitoramento chegam (círculo 3, fatia 8).
+function deliveryText(trackings: { delivery: "polling" | "webhook" }[]) {
+  return trackings.some((t) => t.delivery === "webhook")
+    ? "Os resultados chegam sozinhos, por webhook, e viram alertas."
+    : "Os resultados não chegam sozinhos (sem webhook): veja em “Ver resultados”.";
+}
+
 export function SubjectPage({
   searchType,
   searchKey,
@@ -288,7 +295,7 @@ export function SubjectPage({
           <CardTitle>Monitoramento</CardTitle>
           <CardDescription>
             {ownTrackings.length > 0
-              ? "Pausar, reativar, ver resultados ou excluir: no menu de cada linha."
+              ? `Pausar, reativar, ver resultados ou excluir: no menu de cada linha. ${deliveryText(ownTrackings)}`
               : canTrack
                 ? "Não monitorado. Para monitorar, use a página Consultar."
                 : "A JUDIT não monitora este tipo de identificador."}

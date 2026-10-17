@@ -437,7 +437,7 @@ function NewTrackingForm({
         <InfoIcon />
         <AlertDescription>
           {dataSource === "db"
-            ? `${TRACKING_MODES[trackingModeFor(searchType)].label}: cria um monitoramento real na JUDIT (POST /tracking), que roda a cada N dias e gera cobrança recorrente até ser pausado ou excluído. A primeira execução acontece em até 24 horas.`
+            ? `${TRACKING_MODES[trackingModeFor(searchType)].label}: cria um monitoramento real na JUDIT (POST /tracking), que roda a cada N dias e gera cobrança recorrente até ser pausado ou excluído. A primeira execução acontece em até 24 horas. Com o webhook configurado, os resultados chegam sozinhos; sem ele, aparecem em “Ver resultados”.`
             : "Modo de demonstração: o item é adicionado apenas à lista local. Nenhuma requisição é enviada à JUDIT."}
         </AlertDescription>
       </Alert>

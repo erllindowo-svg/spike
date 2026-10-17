@@ -3,10 +3,19 @@
 Recebimento (etapa 5) e processamento (etapa 6) das entregas que a JUDIT
 envia para a `callback_url` de uma requisição ou de um monitoramento.
 
+Desde o círculo 3 (fatia 8), o monitoramento criado pelo app também leva a
+`callback_url` quando `JUDIT_WEBHOOK_PUBLIC_ORIGIN` está preenchida
+(documentado em https://docs.judit.io/tracking/tracking-document e
+/tracking/tracking, "callback_url no payload da requisição"), e o
+monitoramento fica com `delivery: "webhook"`. Sem a origem, continua
+`polling` ("Ver resultados"). A entrega real de um monitoramento ainda não
+foi observada com a `callback_url` por requisição (IK11).
+
 ## Fluxo
 
 ```
 servidor ── POST /requests + callback_url=https://<túnel>/api/webhooks/judit?token=… ──▶ JUDIT
+servidor ── POST /tracking + callback_url (o mesmo endereço; círculo 3, fatia 8) ──▶ JUDIT
 JUDIT ── POST JSON (uma entrega por resposta) ──▶ túnel ──▶ src/proxy.ts ──▶ route.ts
 route.ts: token → JSON → envelope → grava em webhook_events (pending) → 200
           └─ after(): process.ts → associa → atualiza estado / cria alerta → processed | ignored | failed

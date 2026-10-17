@@ -250,9 +250,12 @@ export async function confirmReservation(
   id: string,
   juditTrackingId: string,
   remote: RemoteTrackingFields,
+  // "webhook" quando a criação levou a callback_url (círculo 3, fatia 8).
+  delivery: Tracking["delivery"] = "polling",
 ): Promise<Tracking | null> {
   return setCreation(id, "confirmed", null, {
     juditTrackingId,
+    delivery,
     ...remoteFields(remote),
   });
 }

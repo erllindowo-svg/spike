@@ -1291,3 +1291,14 @@ implementação ficam marcadas como _decisão do agente_.
    para o store do navegador (`queries`), para a barra montar os assuntos.
    Testes da lógica pura; o comportamento de digitar na barra não foi
    conferido num navegador interativo.
+8. **Webhook nos monitoramentos (D6).** Conferido na documentação: a
+   `callback_url` vai no corpo de `POST /tracking`, no nível de cima
+   (tracking-document e tracking, seção do webhook; `Tracking.Body.Post` no
+   OpenAPI), então não precisa do `PATCH` depois. `createTracking` aceita
+   `callbackUrl`; o envio da reserva usa `productCallbackUrl()` (a mesma das
+   consultas assíncronas): com `JUDIT_WEBHOOK_PUBLIC_ORIGIN` preenchida, o
+   monitoramento leva a `callback_url` e é confirmado com
+   `delivery: "webhook"`; sem ela, `polling`. Webhook pela metade (origem
+   sem token) devolve a reserva a pendente sem chamar a JUDIT. A mensagem
+   de criação, o diálogo e a ficha dizem como os resultados chegam. A
+   entrega real depende de túnel e de um teste do usuário (não feito).

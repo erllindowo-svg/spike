@@ -8,6 +8,7 @@ import { getPartyByDocument } from "@/features/parties/db";
 import { saveQuietly } from "@/features/base/db";
 import { saveResponsesToBase } from "@/features/base/ingest";
 import { isDocumentType } from "@/features/parties/documents";
+import { productCallbackUrl } from "@/features/webhooks/callback";
 import { assertDailyBudget } from "@/features/queries/budget";
 import {
   juditActionFailure,
@@ -187,6 +188,25 @@ async function sendReservation(id: string): Promise<{
   if (!claimed) return null;
 
   const requestedRecurrence = claimed.recurrenceDays ?? 30;
+
+  // Webhook como padrão (D6): com JUDIT_WEBHOOK_PUBLIC_ORIGIN preenchida, a
+  // criação leva a callback_url e cada resultado chega sozinho. Uma
+  // configuração pela metade (origem sem token) falha aqui, antes da
+  // chamada cobrada: a reserva volta a pendente.
+  let callbackUrl: string | null;
+  try {
+    callbackUrl = productCallbackUrl();
+  } catch (error) {
+    const reason = `Webhook configurado pela metade: ${error instanceof Error ? error.message : String(error)} A reserva continua pendente.`;
+    console.error(`[trackings] envio not_sent: ${reason}`);
+    const tracking = await releaseReservation(id, reason);
+    return {
+      tracking: tracking ?? claimed,
+      outcome: "not_sent",
+      message: reason,
+    };
+  }
+
   try {
     // Teto diário: barrado aqui, a reserva volta a "pendente" (not_sent).
     await assertDailyBudget();
@@ -195,16 +215,19 @@ async function sendReservation(id: string): Promise<{
       searchKey: claimed.searchKey,
       recurrence: requestedRecurrence,
       stepTerms: claimed.stepTerms ?? undefined,
+      callbackUrl: callbackUrl ?? undefined,
     });
     // O tracking_id não é segredo e é a única forma de achar o monitoramento
     // na JUDIT se a gravação abaixo falhar; por isso vai para o log antes.
     console.info(
       `[trackings] monitoramento criado na JUDIT: tracking_id ${remote.tracking_id}`,
     );
+    const delivery = callbackUrl ? "webhook" : "polling";
     const tracking = await confirmReservation(
       id,
       remote.tracking_id,
       remoteFields(remote),
+      delivery,
     );
     return {
       tracking: tracking ?? claimed,
@@ -213,6 +236,9 @@ async function sendReservation(id: string): Promise<{
         remote.hour_range !== undefined
           ? `Criado na JUDIT. Primeira execução prevista por volta das ${formatHourRange(remote.hour_range)}, em até 24 horas.`
           : "Criado na JUDIT. A primeira execução acontece em até 24 horas.",
+        delivery === "webhook"
+          ? "Os resultados chegam sozinhos, por webhook."
+          : "Sem endereço público para o webhook: os resultados aparecem em “Ver resultados”.",
         recurrenceWarning(requestedRecurrence, remote.recurrence),
       ]
         .filter(Boolean)
