@@ -1763,3 +1763,67 @@ no build de demonstração, com capturas. **Não verificado:** a carteira e a
 consulta pela ficha com a JUDIT real; o interruptor sendo acionado (gravaria
 no banco do usuário); o aviso do contador (precisa de 10 chamadas
 cobradas); a página no celular.
+
+## Círculo 6: notificações do sistema (proposta, 2026-10-17)
+
+_Ditado do usuário (resumido):_ um alerta deve virar notificação do sistema
+operacional (Windows, Linux), mesmo com a aba fechada. Ao clicar no sino
+dos alertas, uma sobreposição pergunta se a pessoa quer receber
+notificações na área de trabalho. É a última interação da etapa 7. Decisões
+de escopo ditadas na mesma conversa: a etapa 8 é só a auditoria, então tudo
+o que faltar entra na etapa 7; conta e login estão cancelados, porque o
+projeto é uma peça de portfólio.
+
+_Plano do agente:_
+
+1. **Pergunta no sino.** No modo banco, com o navegador capaz de receber
+   push e sem decisão tomada, clicar no sino abre a sobreposição
+   ("Receber os alertas na área de trabalho?", "Agora não" / "Ativar").
+   "Agora não" fica lembrado neste navegador; Configurações ganha um cartão
+   para ativar ou desativar depois.
+2. **Ativar.** O navegador pede a permissão; um service worker
+   (`public/sw.js`) é registrado; a inscrição de push vai para o MongoDB
+   (`push_subscriptions`, uma por endpoint, com índice único).
+3. **Enviar.** O evento `alert.created` (`notifications/outbound.ts`), que
+   existe sem destino desde o círculo 1, ganha o primeiro destino: cada
+   alerta novo vira um push para cada navegador inscrito (sem contas, todos
+   recebem todos). Inscrições vencidas (404 ou 410 do serviço de push) são
+   apagadas. A notificação diz "Raio-X Jurídico" e o título do alerta; o
+   clique abre a ficha do assunto.
+4. **Segredos e dependência.** Chaves VAPID no `.env.local`
+   (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, que é pública por desenho, e
+   `VAPID_PRIVATE_KEY`, segredo do servidor); biblioteca `web-push`, a do
+   guia oficial do Next.js ("Progressive Web Apps"). Sem as chaves, a
+   função fica desligada e Configurações diz o que falta.
+5. **Teste.** A mesma entrega fictícia do teste local dispara a
+   notificação no desktop do usuário.
+
+_Fatos:_ o conteúdo do push vai cifrado de ponta a ponta (só o navegador
+inscrito tem a chave); o serviço de push (Mozilla ou Google) vê o endereço,
+o tamanho e a hora, não o texto. O navegador precisa estar rodando, mesmo
+sem a aba. Na demonstração, não há push.
+
+### Círculo 6: decisão e implementação (2026-10-17)
+
+_Decisão do usuário:_ o Web Push saiu. Qualquer forma de ter as chaves
+VAPID (um comando a mais na instalação, ou um segredo gerado e guardado no
+banco) custava mais do que valia. Fica o aviso na própria aba do navegador:
+o ponto vermelho no ícone e o número no título.
+
+_Implementação:_ `src/components/layout/tab-badge.tsx`, montado no
+cabeçalho. Com alertas não lidos, o título começa com o número ("(1)
+Acervo · Raio-X Jurídico") e o ícone da aba ganha um ponto vermelho,
+desenhado num canvas sobre o ícone original. De minuto em minuto, no modo
+banco, a aba pergunta ao servidor quantos alertas não lidos há
+(`countUnreadAlertsAction`, uma contagem no MongoDB, sem a JUDIT); se mudou,
+relê a página, e o sino e a aba se atualizam juntos. Funciona com a aba em
+segundo plano; com o navegador fechado, não há aviso.
+
+_Conferência:_ 386 testes (novo: a contagem de não lidos); lint, typecheck
+e build. No Firefox, contra o servidor do usuário: com o alerta fictício do
+teste local não lido, o título mostrou "(1)" e o ícone o ponto; com o
+alerta marcado como lido direto no banco, o título voltou ao normal sozinho,
+cerca de um minuto depois, sem recarregar a página.
+
+_Observação:_ o ícone da aba ainda é o padrão do Next.js ("N"), nunca
+trocado pela marca do app. Candidato ao fechamento da etapa 7.

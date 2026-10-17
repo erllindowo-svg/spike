@@ -16,6 +16,7 @@ import {
   markAlertRead,
   markAllAlertsRead,
   type NewAlert,
+  countUnreadAlerts,
 } from "./db";
 
 // Same setup as the other db tests: a temporary real MongoDB with the app's
@@ -84,6 +85,15 @@ describe("markAlertRead", () => {
 
     expect(afterFirst.readAt).toBeInstanceOf(Date);
     expect(afterSecond.readAt).toEqual(afterFirst.readAt);
+  });
+
+  it("counts the unread alerts for the browser tab", async () => {
+    const { alert: first } = await createAlert(alert("k1"));
+    await createAlert(alert("k2"));
+    expect(await countUnreadAlerts()).toBe(2);
+
+    await markAlertRead(first!.id);
+    expect(await countUnreadAlerts()).toBe(1);
   });
 
   it("marks every unread alert at once", async () => {

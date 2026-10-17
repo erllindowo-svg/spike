@@ -475,6 +475,14 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Causa provável: o consumo exige chave administrativa; o saldo é só do pré-pago (caso K1).
 - Lição de suporte: a carteira mostra o que a chave pode ler; trocar a chave resolve, não o código.
 
+**M4. A aba não mostra o número de alertas novos.** _Previsto em 2026-10-17 (círculo 6)._
+
+- Sinal: o alerta existe (aparece ao recarregar), mas a aba aberta não mostrou "(1)" nem o ponto.
+- Camada: aplicação (navegador) ou banco.
+- Hipóteses: (1) ainda não passou um minuto desde o alerta; (2) o banco não respondeu à contagem (a aba fica com o último número); (3) modo demonstração, que não confere o servidor.
+- Teste que separou: esperar um minuto com a aba aberta; recarregar e comparar com o sino.
+- Lição de suporte: um aviso que depende de consulta periódica tem atraso por desenho; "demorou um minuto" não é falha.
+
 ### Modelo para novos casos
 
 ```
@@ -1736,6 +1744,40 @@ Sete fatias, uma por commit: sem o ⓘ; Consultar com o campo no meio e o desliz
 **Como pensamos (resumo do agente)**
 
 Cada fatia seguiu a decisão do usuário, e onde ele deixou a escolha, o agente escolheu o caminho mais simples de explicar: o deslize só com CSS; o contador da carteira contando no banco do app, sem chamar a JUDIT; a ficha relendo o servidor em vez de desenhar o resultado de novo. Dois cuidados de suporte: o interruptor falha para o lado seguro (sem banco, modo restrito), e a busca se remonta sozinha quando as regras mudam.
+
+### 2026-10-17 / Alertas de monitoramento e navegadores
+
+**Resumo técnico**
+
+PR #7 mergeado. Alertas de monitoramento: regras cobertas por testes com entregas fictícias, nenhuma entrega real observada (IK11, C14). Navegadores: a mesma tela de Consultar saiu igual no Firefox e no Chromium; a falha L4 veio de uma técnica frágil, não do motor do navegador.
+
+### 2026-10-17 / Teste local de uma entrega de monitoramento
+
+**Resumo técnico**
+
+Uma entrega fictícia, no formato do exemplo da documentação, foi enviada por script à rota local (`POST /api/webhooks/judit?token=…`) para o monitoramento do CNPJ de teste. Resposta 200; alerta `new_lawsuit` criado e visível no sino e na ficha. O processo fictício (`0000001-58.2026.8.23.0001`) também entrou na base própria e na busca. Não prova o formato real da JUDIT (IK11 continua aberta).
+
+### 2026-10-17 / Notificações fora da aba (pergunta)
+
+**Resumo técnico**
+
+O usuário perguntou se um alerta pode virar notificação do sistema. Há dois níveis: a Notification API, com o app aberto em alguma aba, e o Web Push, com service worker, chaves VAPID e a biblioteca `web-push` (guia "Progressive Web Apps" da documentação do Next). Nada implementado; decisão pendente.
+
+### 2026-10-17 / Círculo 6 proposto: notificações do sistema
+
+**Resumo técnico**
+
+Decisões do usuário: notificação do sistema mesmo com a aba fechada, perguntada ao clicar no sino; tudo dentro da etapa 7 (a 8 é auditoria); sem conta nem login, porque o projeto é portfólio. Plano: Web Push com service worker, chaves VAPID e `web-push`, ligado ao evento `alert.created`.
+
+### 2026-10-17 / Círculo 6 implementado: aviso na aba
+
+**Resumo técnico**
+
+O Web Push saiu; ficou o aviso na aba: número no título e ponto vermelho no ícone, conferidos de minuto em minuto por uma contagem no MongoDB. Testado no Firefox com o alerta fictício: apareceu e sumiu sozinho. 386 testes.
+
+**Como pensamos (resumo do agente)**
+
+O agente expôs o custo do Web Push (dependência, chaves, um passo a mais na instalação) e explicou mal quem rodaria o comando. O usuário cortou pelo mais simples que resolve o caso principal: perceber um alerta com o app aberto em outra aba. A lição é de produto: uma etapa de instalação a mais pesa mais que uma funcionalidade a menos.
 
 ---
 

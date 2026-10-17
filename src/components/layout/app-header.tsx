@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { WalletButton } from "@/features/settings/components/wallet";
+import { TabBadge } from "./tab-badge";
 import { SupportOnly } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 
@@ -206,6 +207,7 @@ export function AppHeader() {
 
           <WalletButton />
           <AlertsBell />
+          <TabBadge />
 
           <Tooltip>
             <TooltipTrigger

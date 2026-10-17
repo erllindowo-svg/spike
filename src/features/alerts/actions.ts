@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { getDataSource } from "@/lib/data";
 
-import { markAlertRead, markAllAlertsRead } from "./db";
+import { countUnreadAlerts, markAlertRead, markAllAlertsRead } from "./db";
 
 // "Marcar como lido" no modo "db". Grava `readAt` e chama refresh(): o
 // layout relê os alertas do banco. No modo demo, a leitura fica só na
@@ -22,6 +22,18 @@ export async function markAlertReadAction(
     return { ok: false, message: "Identificador de alerta inválido." };
   }
   return run(() => markAlertRead(parsed.data));
+}
+
+// A contagem que a aba confere de minuto em minuto (círculo 6): uma
+// contagem no MongoDB, sem a JUDIT. Nula na demonstração ou com o banco
+// fora do ar.
+export async function countUnreadAlertsAction(): Promise<number | null> {
+  if (getDataSource() !== "db") return null;
+  try {
+    return await countUnreadAlerts();
+  } catch {
+    return null;
+  }
 }
 
 // Com `trackingId`, só os alertas daquele monitoramento (filtro da aba
