@@ -4,7 +4,7 @@ import { MongoClient, type Db } from "mongodb";
 
 import { getServerEnv } from "@/lib/env";
 
-import { rebuildSearchEntriesIfEmpty } from "@/features/search/entries";
+import { rebuildSearchEntriesIfStale } from "@/features/search/entries";
 
 import { ensureIndexes } from "./collections";
 import { migrateCompaniesToParties } from "./migrations";
@@ -17,8 +17,9 @@ async function connect(): Promise<Db> {
   // as empresas migradas.
   await migrateCompaniesToParties(db);
   await ensureIndexes(db);
-  // A busca (círculo 3B) é derivada: vazia, é montada com o que já existe.
-  await rebuildSearchEntriesIfEmpty(db);
+  // A busca (círculo 3B) é derivada: vazia ou montada por regras antigas, é
+  // montada de novo com o que já existe.
+  await rebuildSearchEntriesIfStale(db);
   return db;
 }
 

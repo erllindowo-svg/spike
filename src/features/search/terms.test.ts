@@ -36,6 +36,17 @@ describe("search terms", () => {
     expect(parseQuery("  ")).toBeNull();
   });
 
+  it("finds a CPF, CNPJ or CNJ by a group from the middle", () => {
+    const cpf = buildTerms([], ["52998224725"], "cpf");
+    expect(cpf).toEqual(
+      expect.arrayContaining(["52998224725", "529", "982", "247", "25"]),
+    );
+    const query = parseQuery("982.247")!;
+    expect(matchesTerms(cpf, query)).toBe(true);
+    // Other types keep the whole key only.
+    expect(buildTerms([], ["123456SP"], "oab")).toEqual(["123456sp"]);
+  });
+
   it("needs every typed word", () => {
     expect(match("joao pereira")).toBe(false);
   });

@@ -109,7 +109,11 @@ export function demoEntries(data: {
       terms: [
         ...new Set([
           ...(current?.terms ?? []),
-          ...buildTerms([name, ...(extra.texts ?? [])], [searchKey]),
+          ...buildTerms(
+            [name, ...(extra.texts ?? [])],
+            [searchKey],
+            searchType,
+          ),
         ]),
       ],
     });

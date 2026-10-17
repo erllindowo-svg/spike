@@ -5,7 +5,19 @@
 // palavra ("llan") não é achado. Funções puras: o banco
 // (src/features/search/entries.ts) e a demonstração usam as mesmas.
 
+import { formatSearchKey } from "@/features/consult/identify";
+import type { SearchType } from "@/db/models";
+
 export const MIN_QUERY_LENGTH = 3;
+
+// Versão das regras de buildTerms, gravada em cada entrada. Ao mudar as
+// regras, aumente o número: na conexão, as entradas de versão antiga são
+// remontadas (src/features/search/entries.ts). 2: grupos do número
+// formatado (círculo 5).
+export const TERMS_VERSION = 2;
+
+// Números que têm máscara: os grupos dela também viram termos.
+const GROUPED_TYPES: ReadonlySet<SearchType> = new Set(["cpf", "cnpj", "cnj"]);
 
 // "Ação Cível" -> "acao civel".
 export function normalizeText(value: string): string {
@@ -25,11 +37,14 @@ export function compactOf(value: string): string {
   return normalizeText(value).replace(/[^0-9a-z]/g, "");
 }
 
-// Os termos de uma entrada: as palavras dos textos e as chaves inteiras,
-// sem repetição.
+// Os termos de uma entrada: as palavras dos textos, as chaves inteiras e,
+// em CPF, CNPJ e CNJ, cada grupo do número formatado (529.982.247-25 dá
+// "529", "982", "247" e "25"), para achar o número pelo meio, como no CPF
+// mascarado das listas (círculo 5). Sem repetição.
 export function buildTerms(
   texts: (string | null | undefined)[],
   keys: string[],
+  type?: SearchType,
 ): string[] {
   const terms = new Set<string>();
   for (const text of texts)
@@ -37,6 +52,11 @@ export function buildTerms(
   for (const key of keys) {
     const compact = compactOf(key);
     if (compact) terms.add(compact);
+    if (type && GROUPED_TYPES.has(type)) {
+      for (const group of tokensOf(formatSearchKey(type, key))) {
+        terms.add(group);
+      }
+    }
   }
   return [...terms];
 }

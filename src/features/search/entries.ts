@@ -5,7 +5,13 @@ import type { Db } from "mongodb";
 import { collections, toModel } from "@/db/collections";
 import type { SearchEntry, SearchType } from "@/db/models";
 
-import { buildTerms, escapeRegex, parseQuery, type SearchQuery } from "./terms";
+import {
+  buildTerms,
+  escapeRegex,
+  parseQuery,
+  TERMS_VERSION,
+  type SearchQuery,
+} from "./terms";
 
 // A coleção `search_entries` (círculo 3B). É derivada: cada entrada é
 // RECALCULADA a partir das outras coleções (partes, cadastros, processos,
@@ -127,7 +133,8 @@ export async function refreshSearchEntry(
         name,
         detail,
         lawsuits: findings.filter((f) => f.kind === "lawsuit").length,
-        terms: buildTerms(texts, keys),
+        terms: buildTerms(texts, keys, searchType),
+        termsVersion: TERMS_VERSION,
         lastSeenAt,
       },
       $setOnInsert: { _id: randomUUID() },
@@ -172,11 +179,19 @@ export async function rebuildSearchEntries(db: Db): Promise<number> {
   return subjects.length;
 }
 
-// Na conexão: com a coleção vazia (primeira vez, ou depois de apagada), o
-// que já existe no banco entra na busca.
-export async function rebuildSearchEntriesIfEmpty(db: Db): Promise<void> {
+// Na conexão: com a coleção vazia (primeira vez, ou depois de apagada) ou
+// com entradas montadas por regras antigas (TERMS_VERSION, em terms.ts), o
+// que já existe no banco entra na busca de novo.
+export async function rebuildSearchEntriesIfStale(db: Db): Promise<void> {
   const { searchEntries } = collections(db);
-  if ((await searchEntries.estimatedDocumentCount()) > 0) return;
+  const empty = (await searchEntries.estimatedDocumentCount()) === 0;
+  const stale =
+    !empty &&
+    (await searchEntries.findOne(
+      { termsVersion: { $ne: TERMS_VERSION } },
+      { projection: { _id: 1 } },
+    )) !== null;
+  if (!empty && !stale) return;
   const count = await rebuildSearchEntries(db);
   if (count > 0) console.info(`[search] busca montada: ${count} entrada(s).`);
 }

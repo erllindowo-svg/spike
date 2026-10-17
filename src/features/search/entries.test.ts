@@ -19,7 +19,7 @@ import { deleteSubject } from "@/features/subjects/db";
 import {
   findSearchEntries,
   getSearchEntry,
-  rebuildSearchEntriesIfEmpty,
+  rebuildSearchEntriesIfStale,
 } from "./entries";
 
 // A temporary real MongoDB with the app's indexes; the app's getDb() points
@@ -128,8 +128,31 @@ describe("search_entries", () => {
     await seed();
     await collections(db()).searchEntries.deleteMany({});
 
-    await rebuildSearchEntriesIfEmpty(db());
+    await rebuildSearchEntriesIfStale(db());
 
     expect(await collections(db()).searchEntries.countDocuments()).toBe(2);
+  });
+
+  it("is rebuilt when an entry was built by older rules", async () => {
+    await seed();
+    const { searchEntries } = collections(db());
+    await searchEntries.updateMany(
+      {},
+      { $set: { terms: [] }, $unset: { termsVersion: "" } },
+    );
+
+    await rebuildSearchEntriesIfStale(db());
+
+    expect((await find("A1B2")).map((e) => e.searchKey)).toContain(
+      CNPJ.searchKey,
+    );
+  });
+
+  it("finds a number by a group from its middle", async () => {
+    await seed();
+    expect((await find("3D4")).map((e) => e.searchKey)).toContain(
+      CNPJ.searchKey,
+    );
+    expect((await find("2026")).map((e) => e.searchKey)).toContain(CNJ);
   });
 });
