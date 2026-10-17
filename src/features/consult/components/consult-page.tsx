@@ -84,7 +84,7 @@ import { subjectHref } from "@/features/subjects/subjects";
 // da chamada; a parte só entra na lista se a pessoa pedir.
 
 const TYPE_HINT =
-  "CPF, CNPJ, número de processo (CNJ), OAB com UF, nome ou RJI (mandados).";
+  "CPF, CNPJ, número de processo (CNJ), OAB com UF, RJI (mandados) ou nome.";
 
 export function ConsultPage() {
   const searchParams = useSearchParams();
@@ -148,6 +148,16 @@ export function ConsultPage() {
     setResult(null);
   }
 
+  // Campo no meio da tela até o primeiro reconhecimento (círculo 5); daí
+  // ele sobe e só volta ao meio com a caixa vazia, para a página não subir
+  // e descer enquanto se digita (um CPF deixa de ser reconhecido no 12º
+  // dígito, a caminho de um CNPJ). Ajuste de estado durante a renderização,
+  // como o da URL acima: com um identificador já na URL, a página abre em
+  // cima, sem animação.
+  const [raised, setRaised] = useState(false);
+  if (target && !raised) setRaised(true);
+  if (!target && raised && value.trim() === "") setRaised(false);
+
   const targetKey = target ? `${target.type}:${target.key}` : null;
   const known = context?.key === targetKey ? context.data : null;
   const isKnown = !!known?.known;
@@ -207,54 +217,70 @@ export function ConsultPage() {
 
   return (
     <>
-      <Card>
-        <CardContent className="flex flex-col gap-3">
-          {/* Com um identificador conhecido, as instruções se recolhem e o
+      {/* O deslize: a altura mínima vai da tela inteira a zero, e o campo,
+          centralizado nela, sobe junto; o cartão se alarga até a largura da
+          página (só CSS). */}
+      <div
+        className={cn(
+          "flex flex-col justify-center transition-[min-height] duration-500 ease-out motion-reduce:transition-none",
+          raised
+            ? "min-h-0"
+            : "min-h-[calc(100svh-3.5rem-2rem)] md:min-h-[calc(100svh-3.5rem-3rem)]",
+        )}
+      >
+        <Card
+          className={cn(
+            "mx-auto w-full transition-[max-width] duration-500 ease-out motion-reduce:transition-none",
+            raised ? "max-w-7xl" : "max-w-2xl",
+          )}
+        >
+          <CardContent className="flex flex-col gap-3">
+            {/* Com um identificador conhecido, as instruções se recolhem e o
               nome aparece em cima do campo; apagando um dígito, voltam. */}
-          <Collapse open={!isKnown}>
-            <div className="flex flex-col gap-1.5 pb-1">
-              <h2 className="font-heading text-lg font-medium">
-                O que você quer consultar?
-              </h2>
-              <p className="text-sm text-muted-foreground">{TYPE_HINT}</p>
-            </div>
-          </Collapse>
-          <Collapse open={isKnown}>
-            {target && known && (
-              <div className="flex flex-col gap-0.5 pb-1">
-                <span className="text-xs text-muted-foreground">
-                  {SEARCH_TYPES[target.type].description}
-                </span>
-                <h2 className="font-heading text-xl font-semibold tracking-tight">
-                  {known.name ?? formatSearchKey(target.type, target.key)}
+            <Collapse open={!isKnown}>
+              <div className="flex flex-col gap-1.5 pb-1">
+                <h2 className="font-heading text-lg font-medium">
+                  Qual documento você quer consultar?
                 </h2>
               </div>
-            )}
-          </Collapse>
-          <IdentifierField
-            value={value}
-            target={target}
-            invalid={identification.status === "invalid"}
-            onChange={changeValue}
-            onEnter={() => {
-              if (target && !running) run();
-            }}
-          />
-          <div id="consult-status" aria-live="polite" className="min-h-6">
-            <RecognitionStatus
-              identification={identification}
+            </Collapse>
+            <Collapse open={isKnown}>
+              {target && known && (
+                <div className="flex flex-col gap-0.5 pb-1">
+                  <span className="text-xs text-muted-foreground">
+                    {SEARCH_TYPES[target.type].description}
+                  </span>
+                  <h2 className="font-heading text-xl font-semibold tracking-tight">
+                    {known.name ?? formatSearchKey(target.type, target.key)}
+                  </h2>
+                </div>
+              )}
+            </Collapse>
+            <IdentifierField
+              value={value}
               target={target}
-              onChoose={(type) => {
-                setChosenType(type);
-                setResult(null);
+              invalid={identification.status === "invalid"}
+              onChange={changeValue}
+              onEnter={() => {
+                if (target && !running) run();
               }}
             />
-          </div>
-        </CardContent>
-      </Card>
+            <div id="consult-status" aria-live="polite" className="min-h-6">
+              <RecognitionStatus
+                identification={identification}
+                target={target}
+                onChoose={(type) => {
+                  setChosenType(type);
+                  setResult(null);
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {target && feature && (
-        <Card>
+        <Card className="animate-in duration-500 fade-in slide-in-from-bottom-4 motion-reduce:animate-none">
           <CardHeader>
             <CardTitle>O que você quer saber?</CardTitle>
             <CardDescription>
@@ -269,7 +295,7 @@ export function ConsultPage() {
               aria-label="O que você quer saber"
               className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
             >
-              {features.map((f) => {
+              {features.map((f, index) => {
                 const info = featureInfo(f.id);
                 const active = f.id === feature.id;
                 const monitorable = !!trackingFor(f.id, target.type);
@@ -283,8 +309,10 @@ export function ConsultPage() {
                       setFeatureId(f.id);
                       setResult(null);
                     }}
+                    // As perguntas entram deslizando, uma depois da outra.
+                    style={{ animationDelay: `${150 + index * 60}ms` }}
                     className={cn(
-                      "flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left text-sm transition outline-none hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring/50",
+                      "flex animate-in flex-col items-start gap-1.5 rounded-lg border p-3 text-left text-sm transition fill-mode-backwards outline-none fade-in slide-in-from-bottom-3 hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:animate-none",
                       active && "border-primary ring-1 ring-primary/40",
                     )}
                   >
@@ -732,11 +760,7 @@ function RecognitionStatus({
   onChoose: (type: SearchType) => void;
 }) {
   if (identification.status === "empty") {
-    return (
-      <p className="text-sm text-muted-foreground">
-        O tipo é reconhecido enquanto você digita.
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{TYPE_HINT}</p>;
   }
   if (identification.status !== "recognized") {
     return (
