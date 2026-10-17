@@ -14,7 +14,6 @@ import { MongoClient } from "mongodb";
 // Valores que podem aparecer na tela porque não são segredos.
 const PUBLIC_VALUES = new Set([
   "MONGODB_DB",
-  "DATA_SOURCE",
   "JUDIT_LIVE_CALLS",
   "JUDIT_ALLOWLIST",
   "JUDIT_MAX_CALLS_PER_MINUTE",

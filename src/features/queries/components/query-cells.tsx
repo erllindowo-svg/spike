@@ -18,7 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
 import type { Lawsuit } from "@/features/processes/types";
 import { formatSearchKey } from "@/features/trackings/format";
-import { SERVER_UNREACHABLE } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE } from "@/lib/app-store";
 import { formatNumber } from "@/lib/format";
 
 import { checkAsyncQueryAction } from "../actions";

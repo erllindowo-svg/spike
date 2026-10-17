@@ -59,7 +59,6 @@ function mockFetch(body: unknown, status = 200) {
 }
 
 beforeEach(() => {
-  vi.stubEnv("DATA_SOURCE", "db");
   vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
   vi.mocked(ensureParty).mockReset().mockResolvedValue(company);
   vi.mocked(getPartyByDocument).mockReset().mockResolvedValue(company);
@@ -68,19 +67,6 @@ beforeEach(() => {
 });
 
 describe("addPartyAction", () => {
-  it("refuses in demo mode, even when called directly", async () => {
-    vi.stubEnv("DATA_SOURCE", "demo");
-
-    expect(
-      await addPartyAction({
-        documentType: "cnpj",
-        document: TEST_CNPJ,
-        lookup: true,
-      }),
-    ).toMatchObject({ ok: false, reason: "unavailable" });
-    expect(ensureParty).not.toHaveBeenCalled();
-  });
-
   it("saves without calling JUDIT when no lookup is asked", async () => {
     expect(
       await addPartyAction({

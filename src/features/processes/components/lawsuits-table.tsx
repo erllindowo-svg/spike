@@ -42,7 +42,7 @@ const statusItems = [
 export function LawsuitsTable({
   lawsuits,
   onSelect,
-  emptyDescription = "Não há processos associados a este CNPJ nos dados de demonstração.",
+  emptyDescription = "Nenhum processo encontrado.",
   highlighted,
 }: {
   lawsuits: Lawsuit[];

@@ -4,7 +4,6 @@ import {
   DatabaseIcon,
   KeyRoundIcon,
   LifeBuoyIcon,
-  RotateCcwIcon,
   ShieldCheckIcon,
   WalletIcon,
   WebhookIcon,
@@ -48,7 +47,7 @@ import type {
 } from "@/features/settings/status";
 import { useSupportView } from "@/features/settings/support-view";
 import { AccountReading } from "./account-reading";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useAppStore } from "@/lib/app-store";
 
 const integrationInfo: Record<
   IntegrationId,
@@ -66,10 +65,9 @@ export function SettingsPanel({
 }: {
   // Calculado no servidor (status.ts): só a situação, nunca os valores.
   integrations: IntegrationStatus[];
-  // O modo restrito em vigor e a trava; nulo na demonstração.
-  costProtection: CostProtection | null;
+  // O modo restrito em vigor e a trava.
+  costProtection: CostProtection;
 }) {
-  const { reset, dataSource } = useDemoStore();
   const [supportView] = useSupportView();
 
   return (
@@ -104,7 +102,6 @@ export function SettingsPanel({
                     </span>
                     {item.id === "cost" &&
                       supportView &&
-                      costProtection &&
                       !costProtection.locked && (
                         <CostSwitch enabled={costProtection.allowlist} />
                       )}
@@ -120,30 +117,6 @@ export function SettingsPanel({
       <JuditAccountCard />
 
       <SupportViewCard />
-
-      {dataSource === "demo" && (
-        <Card className="max-w-3xl">
-          <CardHeader>
-            <CardTitle>Dados de demonstração</CardTitle>
-            <CardDescription>
-              Monitoramentos criados, alertas lidos e eventos simulados existem
-              apenas na memória desta aba.
-            </CardDescription>
-            <CardAction>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  reset();
-                  toast.success("Dados de demonstração restaurados.");
-                }}
-              >
-                <RotateCcwIcon data-icon="inline-start" />
-                Restaurar
-              </Button>
-            </CardAction>
-          </CardHeader>
-        </Card>
-      )}
     </>
   );
 }
@@ -251,7 +224,7 @@ function SupportViewCard() {
 // O Diagnóstico de webhooks mora aqui desde que a barra lateral saiu
 // (círculo 3, fatia 3), com o número de entregas pendentes ou com falha.
 function DiagnosticsLink() {
-  const { webhookEvents } = useDemoStore();
+  const { webhookEvents } = useAppStore();
   const pending = webhookEvents.filter(
     (e) => e.processingStatus === "failed" || e.processingStatus === "pending",
   ).length;
@@ -275,11 +248,8 @@ function DiagnosticsLink() {
 
 // Saldo e consumo da conta na JUDIT, por clique (F27 e F28 do mapa).
 function JuditAccountCard() {
-  const { dataSource } = useDemoStore();
   const [result, setResult] = useState<AccountResult | null>(null);
   const [loading, startLoading] = useTransition();
-
-  if (dataSource !== "db") return null;
 
   return (
     <Card className="max-w-3xl">

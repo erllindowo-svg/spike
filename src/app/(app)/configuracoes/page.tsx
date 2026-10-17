@@ -29,7 +29,7 @@ async function SettingsContent() {
   return (
     <SettingsPanel
       integrations={describeIntegrations(facts, await usageToday(facts))}
-      costProtection={facts.dataSource === "db" ? protection : null}
+      costProtection={protection}
     />
   );
 }
@@ -39,7 +39,7 @@ async function SettingsContent() {
 async function usageToday(
   facts: ReturnType<typeof readEnvFacts>,
 ): Promise<number | null> {
-  if (facts.dataSource !== "db" || !facts.mongoUri) return null;
+  if (!facts.mongoUri) return null;
   try {
     return await billedCallsToday();
   } catch {

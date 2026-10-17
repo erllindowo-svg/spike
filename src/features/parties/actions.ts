@@ -9,7 +9,6 @@ import {
   type JuditActionFailure,
 } from "@/features/queries/failure";
 import { logSyncQuery, syncFailureFor } from "@/features/queries/sync-log";
-import { getDataSource } from "@/lib/data";
 import { saveBatch, saveQuietly } from "@/features/base/db";
 import { registrationRecords } from "@/features/base/records";
 import { getEntity } from "@/lib/judit/lawsuits";
@@ -27,14 +26,9 @@ import { fromJuditEntities, type RegistrationData } from "./registration";
 //                                    a JUDIT recusar, nada é salvo.
 //
 // Como as outras actions que chamam a JUDIT, nada aqui confia no navegador:
-// modo "db", documento validado de novo, teto diário e as proteções do
-// client.
+// documento validado de novo, teto diário e as proteções do client.
 
-type Unavailable = {
-  ok: false;
-  reason: "unavailable" | "invalid";
-  message: string;
-};
+type Invalid = { ok: false; reason: "invalid"; message: string };
 
 const addInputSchema = z.intersection(
   partyRefSchema,
@@ -48,14 +42,12 @@ export type AddPartyResult =
       // Nulo quando a parte foi salva sem consultar.
       registration: RegistrationData | null;
     }
-  | Unavailable
+  | Invalid
   | JuditActionFailure;
 
 export async function addPartyAction(
   input: PartyRef & { lookup: boolean },
 ): Promise<AddPartyResult> {
-  if (getDataSource() !== "db") return unavailable();
-
   const parsed = addInputSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -148,12 +140,4 @@ async function lookupRegistration(
       ),
   );
   return fromJuditEntities(response, ref.document);
-}
-
-function unavailable(): Unavailable {
-  return {
-    ok: false,
-    reason: "unavailable",
-    message: "Disponível só no modo banco de dados.",
-  };
 }

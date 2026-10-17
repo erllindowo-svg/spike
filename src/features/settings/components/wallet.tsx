@@ -1,10 +1,9 @@
 "use client";
 
-import { FlaskConicalIcon, RefreshCwIcon, WalletIcon } from "lucide-react";
+import { RefreshCwIcon, WalletIcon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -18,7 +17,7 @@ import {
   readJuditAccountAction,
   type AccountResult,
 } from "@/features/settings/account-actions";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE } from "@/lib/app-store";
 import { formatTime } from "@/lib/format";
 
 import { AccountReading } from "./account-reading";
@@ -33,33 +32,14 @@ const CHECK_EVERY_MS = 60_000;
 // Preferência de quem vê, no navegador: só marca até onde já se avisou.
 const LAST_NOTICE_KEY = "raio-x:wallet-last-notice";
 
-// Na demonstração, uma leitura fictícia, marcada como tal.
-const DEMO_READING: Extract<AccountResult, { ok: true }> = {
-  ok: true,
-  consumption: {
-    ok: true,
-    value: { consumption: 120, max_consumption: 1000, remaining: 880 },
-  },
-  balance: {
-    ok: false,
-    message: "Na demonstração, só o consumo fictício.",
-  },
-};
-
 type Reading = { result: AccountResult; at: Date };
 
 export function WalletButton() {
-  const { dataSource } = useDemoStore();
-  const demo = dataSource !== "db";
   const [open, setOpen] = useState(false);
   const [reading, setReading] = useState<Reading | null>(null);
   const [loading, startLoading] = useTransition();
 
   const read = useCallback(() => {
-    if (demo) {
-      setReading({ result: DEMO_READING, at: new Date() });
-      return;
-    }
     startLoading(async () => {
       let result: AccountResult;
       try {
@@ -69,9 +49,9 @@ export function WalletButton() {
       }
       setReading({ result, at: new Date() });
     });
-  }, [demo]);
+  }, []);
 
-  useBilledCallsNotice(demo, () => {
+  useBilledCallsNotice(() => {
     setOpen(true);
     read();
   });
@@ -93,12 +73,6 @@ export function WalletButton() {
         <div className="flex items-center justify-between gap-2">
           <PopoverTitle className="flex items-center gap-2">
             Carteira
-            {demo && (
-              <StatusBadge tone="warning">
-                <FlaskConicalIcon className="size-3" aria-hidden />
-                Fictícia
-              </StatusBadge>
-            )}
           </PopoverTitle>
           <Button
             variant="ghost"
@@ -123,7 +97,7 @@ export function WalletButton() {
             )}
             <p className="text-xs text-muted-foreground">
               Lido às {formatTime(reading.at)}
-              {demo ? " (dados fictícios)." : " na JUDIT."}
+              {" na JUDIT."}
             </p>
           </>
         ) : null}
@@ -135,9 +109,8 @@ export function WalletButton() {
 // O contador: de minuto em minuto, com a página visível, pergunta ao
 // servidor quantas chamadas cobradas o app fez desde o último aviso (uma
 // contagem no MongoDB, sem a JUDIT).
-function useBilledCallsNotice(demo: boolean, onOpenWallet: () => void) {
+function useBilledCallsNotice(onOpenWallet: () => void) {
   useEffect(() => {
-    if (demo) return;
     let since = readLastNotice();
     let stopped = false;
 
@@ -167,7 +140,7 @@ function useBilledCallsNotice(demo: boolean, onOpenWallet: () => void) {
     // onOpenWallet muda a cada renderização; o aviso usa a versão do
     // momento em que foi criado, o que basta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demo]);
+  }, []);
 }
 
 // Sem nada guardado (primeira vez, janela anônima, armazenamento

@@ -44,7 +44,6 @@ import {
   SEARCH_TYPES as SEARCH_TYPE_INFO,
 } from "@/features/consult/identify";
 import { isDocumentType } from "@/features/parties/documents";
-import { normalizeCnj } from "@/features/processes/cnj";
 import { TRACKING_MODES, trackingModeFor } from "@/features/queries/modes";
 import {
   formatRecurrence,
@@ -53,7 +52,7 @@ import {
   type TrackingSearchType,
 } from "@/features/trackings/types";
 import { subjectHref } from "@/features/subjects/subjects";
-import { useDemoStore } from "@/lib/demo-store";
+import { useAppStore } from "@/lib/app-store";
 
 type Defaults = {
   searchType?: TrackingSearchType;
@@ -182,7 +181,7 @@ function NewTrackingForm({
   onDone: () => void;
 }) {
   const router = useRouter();
-  const { addTracking, parties, lawsuits, dataSource } = useDemoStore();
+  const { addTracking, parties } = useAppStore();
   const [saving, setSaving] = useState(false);
   const [searchType, setSearchType] = useState<TrackingSearchType>(
     defaults.searchType ?? "cnpj",
@@ -198,7 +197,7 @@ function NewTrackingForm({
         ]),
       ) as Record<TrackingSearchType, string>,
   );
-  // Padrão de 30 dias: no modo "db", cada execução na JUDIT pode ser cobrada.
+  // Padrão de 30 dias: cada execução na JUDIT pode ser cobrada.
   const [recurrence, setRecurrence] = useState("30");
   // Só CNJ: termos separados por vírgula ("sentença, intimação").
   const [terms, setTerms] = useState("");
@@ -214,13 +213,6 @@ function NewTrackingForm({
           p.documentType === searchType &&
           p.document === normalizeKey(searchType, value),
       );
-  const matchedLawsuit =
-    searchType === "cnj"
-      ? lawsuits.find((l) => l.cnj === normalizeCnj(value))
-      : undefined;
-  const lawsuitParty = matchedLawsuit?.partyId
-    ? parties.find((p) => p.id === matchedLawsuit.partyId)
-    : undefined;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -235,10 +227,7 @@ function NewTrackingForm({
     const result = await addTracking({
       searchType,
       searchKey,
-      partyId:
-        searchType === "cnj"
-          ? (matchedLawsuit?.partyId ?? null)
-          : (matchedParty?.id ?? null),
+      partyId: searchType === "cnj" ? null : (matchedParty?.id ?? null),
       recurrenceDays: Number(recurrence),
       stepTerms: searchType === "cnj" ? parseTerms(terms) : undefined,
     });
@@ -256,33 +245,21 @@ function NewTrackingForm({
       label: "Abrir ficha",
       onClick: () => router.push(subjectHref(searchType, searchKey)),
     };
-    if (result.notice) {
-      // Modo "db": a reserva foi gravada; o envio à JUDIT pode ter dado certo
-      // ou não, e a mensagem diz o que aconteceu.
-      const show = result.notice.sent ? toast.success : toast.warning;
-      show(
-        result.notice.sent
-          ? "Monitoramento criado na JUDIT"
-          : "Monitoramento reservado, mas não criado na JUDIT",
-        { description: result.notice.message, action },
-      );
-      return;
-    }
-    toast.success("Monitoramento adicionado em modo de demonstração", {
-      description:
-        "Nenhum monitoramento foi criado na JUDIT. O item existe apenas nesta sessão do navegador.",
-      action,
-    });
+    // A reserva foi gravada; o envio à JUDIT pode ter dado certo ou não, e a
+    // mensagem diz o que aconteceu.
+    const show = result.notice.sent ? toast.success : toast.warning;
+    show(
+      result.notice.sent
+        ? "Monitoramento criado na JUDIT"
+        : "Monitoramento reservado, mas não criado na JUDIT",
+      { description: result.notice.message, action },
+    );
   }
 
   const matchDescription =
-    searchType === "cnj"
-      ? matchedLawsuit
-        ? `Processo no ${matchedLawsuit.tribunal}${lawsuitParty?.name ? ` · ${lawsuitParty.name}` : ""}`
-        : null
-      : matchedParty
-        ? `${dataSource === "db" ? "Já na lista" : "Encontrado nos dados de demonstração"}: ${matchedParty.name ?? "nome não consultado"}.`
-        : null;
+    searchType !== "cnj" && matchedParty
+      ? `Já na lista: ${matchedParty.name ?? "nome não consultado"}.`
+      : null;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
@@ -412,7 +389,7 @@ function NewTrackingForm({
             Intervalo, em dias, entre as execuções na JUDIT.
           </FieldDescription>
         </Field>
-        {defaults.alsoConsult && dataSource === "db" && (
+        {defaults.alsoConsult && (
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -436,9 +413,7 @@ function NewTrackingForm({
       <Alert>
         <InfoIcon />
         <AlertDescription>
-          {dataSource === "db"
-            ? `${TRACKING_MODES[trackingModeFor(searchType)].label}: cria um monitoramento real na JUDIT (POST /tracking), que roda a cada N dias e gera cobrança recorrente até ser pausado ou excluído. A primeira execução acontece em até 24 horas. Com o webhook configurado, os resultados chegam sozinhos; sem ele, aparecem em “Ver resultados”.`
-            : "Modo de demonstração: o item é adicionado apenas à lista local. Nenhuma requisição é enviada à JUDIT."}
+          {`${TRACKING_MODES[trackingModeFor(searchType)].label}: cria um monitoramento real na JUDIT (POST /tracking), que roda a cada N dias e gera cobrança recorrente até ser pausado ou excluído. A primeira execução acontece em até 24 horas. Com o webhook configurado, os resultados chegam sozinhos; sem ele, aparecem em “Ver resultados”.`}
         </AlertDescription>
       </Alert>
 
@@ -448,7 +423,7 @@ function NewTrackingForm({
         </Button>
         <Button type="submit" disabled={saving}>
           {saving && <Spinner data-icon="inline-start" />}
-          {dataSource === "db" ? "Criar na JUDIT" : "Adicionar monitoramento"}
+          Criar na JUDIT
         </Button>
       </DialogFooter>
     </form>

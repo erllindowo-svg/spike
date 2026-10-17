@@ -33,7 +33,7 @@ import type { Lawsuit } from "@/features/processes/types";
 import type { QueryView } from "@/features/queries/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingsTable } from "@/features/trackings/components/trackings-table";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useAppStore } from "@/lib/app-store";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -80,8 +80,7 @@ export function SubjectPage({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { parties, trackings, alerts, markAlertRead, dataSource } =
-    useDemoStore();
+  const { parties, trackings, alerts, markAlertRead } = useAppStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [selected, setSelected] = useState<Lawsuit | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -190,16 +189,14 @@ export function SubjectPage({
             <SearchIcon data-icon="inline-start" />
             Consultar
           </Button>
-          {dataSource === "db" && (
-            <Button
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setConfirming(true)}
-            >
-              <Trash2Icon data-icon="inline-start" />
-              Apagar este assunto
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2Icon data-icon="inline-start" />
+            Apagar este assunto
+          </Button>
         </div>
       </div>
 
@@ -350,7 +347,6 @@ export function SubjectPage({
           searchType={searchType}
           searchKey={searchKey}
           features={notAsked}
-          consultHref={consultHref}
         />
       )}
 

@@ -14,7 +14,7 @@ import {
 import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
 import { alertHref } from "@/features/alerts/links";
 import type { AlertView } from "@/features/alerts/types";
-import { useDemoStore } from "@/lib/demo-store";
+import { useAppStore } from "@/lib/app-store";
 import { formatShortDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -29,8 +29,7 @@ const SHOWN = 30;
 
 export function AlertsMenu() {
   const router = useRouter();
-  const { alerts, trackings, markAlertRead, markAllAlertsRead } =
-    useDemoStore();
+  const { alerts, trackings, markAlertRead, markAllAlertsRead } = useAppStore();
   const [open, setOpen] = useState(false);
 
   const sorted = [...alerts].sort(

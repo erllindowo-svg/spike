@@ -15,12 +15,11 @@ import type { SearchType, TrackingSearchType } from "@/db/models";
 import { runConsultAction } from "@/features/consult/actions";
 import type { ConsultFeature } from "@/features/consult/catalog";
 import {
-  demoUnavailable,
   QuestionActions,
   QuestionOption,
 } from "@/features/consult/components/question-parts";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE } from "@/lib/app-store";
 import { lowerFirst } from "@/lib/format";
 
 // "O que ainda não se sabe" (círculo 5): consultar e monitorar na própria
@@ -28,20 +27,17 @@ import { lowerFirst } from "@/lib/format";
 // Consultar. A consulta é a mesma Server Action de Consultar; ela grava na
 // base própria antes de responder, então basta reler a página no servidor
 // (router.refresh) para o dado aparecer na seção dele e a pergunta sair
-// daqui. Na demonstração, nada é gravado: o aviso diz isso.
+// daqui.
 export function AskHere({
   searchType,
   searchKey,
   features,
-  consultHref,
 }: {
   searchType: SearchType;
   searchKey: string;
   features: ConsultFeature[];
-  consultHref: string;
 }) {
   const router = useRouter();
-  const { dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [featureId, setFeatureId] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState(false);
@@ -49,7 +45,6 @@ export function AskHere({
   const [running, startRun] = useTransition();
 
   const feature = features.find((f) => f.id === featureId) ?? null;
-  const unavailable = demoUnavailable(dataSource, searchType);
 
   function run() {
     if (!feature) return;
@@ -64,17 +59,6 @@ export function AskHere({
         });
         if (!result.ok) {
           setError(result.message);
-          return;
-        }
-        if (result.demo) {
-          toast.info("Resposta fictícia recebida", {
-            description:
-              "Na demonstração, a ficha não guarda resultados. A resposta aparece na página Consultar.",
-            action: {
-              label: "Abrir em Consultar",
-              onClick: () => router.push(consultHref),
-            },
-          });
           return;
         }
         toast.success(
@@ -147,7 +131,6 @@ export function AskHere({
               aiSummary={aiSummary}
               onAiSummaryChange={setAiSummary}
               running={running}
-              unavailable={unavailable}
               onRun={run}
               onMonitor={monitor}
             />

@@ -1,7 +1,5 @@
 "use server";
 
-import { getDataSource } from "@/lib/data";
-
 import { allowlistLocked, setAllowlist } from "./cost-protection";
 
 // Server Action do interruptor da proteção de custo (círculo 5). Como toda
@@ -13,9 +11,6 @@ export async function setAllowlistAction(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (typeof allowlist !== "boolean") {
     return { ok: false, message: "Valor inválido." };
-  }
-  if (getDataSource() !== "db") {
-    return { ok: false, message: "A demonstração não chama a JUDIT." };
   }
   if (allowlistLocked()) {
     return {

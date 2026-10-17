@@ -12,7 +12,6 @@ import { saveDeliveryToBase } from "@/features/base/ingest";
 import { saveWebhookEvent } from "@/features/webhooks/db";
 import { prepareWebhookEvent } from "@/features/webhooks/envelope";
 import { processWebhookEvent } from "@/features/webhooks/process";
-import { getServerEnv } from "@/lib/env";
 
 // Recebe as entregas da JUDIT (https://docs.judit.io/webhook/callbacks).
 //
@@ -21,7 +20,7 @@ import { getServerEnv } from "@/lib/env";
 // resposta 4xx não é repetida. Por isso o status escolhido em cada caso é uma
 // decisão sobre "a JUDIT deve tentar de novo?":
 //
-//   404  webhook desligado (sem token ou fora do modo "db")   não repete
+//   404  webhook desligado (sem token)                         não repete
 //   401  token ausente ou errado (não veio da JUDIT)          não repete
 //   400  corpo não é JSON ou o envelope tem tipo errado       não repete
 //   200  evento gravado, ou reentrega já gravada antes        entregue
@@ -37,7 +36,6 @@ import { getServerEnv } from "@/lib/env";
 export async function POST(request: Request) {
   let token: string | undefined;
   try {
-    if (getServerEnv("DATA_SOURCE") !== "db") return reply(404);
     token = getWebhookToken();
   } catch {
     // Variável com valor inválido (ex.: token com menos de 32 caracteres).

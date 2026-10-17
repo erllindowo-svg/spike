@@ -1,5 +1,5 @@
 // Cookie da vista de suporte, lido nos dois lados: o navegador grava e lê
-// (support-view.tsx); o servidor lê no modo "db" para já desenhar a página
+// (support-view.tsx); o servidor lê para já desenhar a página
 // com a vista certa (layout do app). Não é segredo nem proteção: só a
 // preferência de interface de quem usa este navegador.
 

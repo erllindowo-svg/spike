@@ -365,7 +365,6 @@ export type SearchEntry = {
   // Palavras pesquisáveis, em minúsculas e sem acento (terms.ts).
   terms: string[];
   // Versão das regras que montaram `terms` (TERMS_VERSION, em terms.ts).
-  // Só no banco: a demonstração monta tudo na hora.
   termsVersion?: number;
   // A atividade mais recente: consulta, dado recebido ou monitoramento.
   lastSeenAt: Date;

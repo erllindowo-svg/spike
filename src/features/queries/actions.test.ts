@@ -105,7 +105,6 @@ function sentUrl(fetchMock: ReturnType<typeof mockFetch>, call: number) {
 }
 
 beforeEach(() => {
-  vi.stubEnv("DATA_SOURCE", "db");
   vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
   vi.stubEnv("JUDIT_API_KEY", "test-key");
   vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "");
@@ -124,20 +123,6 @@ beforeEach(() => {
 });
 
 describe("startAsyncQueryAction", () => {
-  it("refuses in demo mode, even when called directly", async () => {
-    vi.stubEnv("DATA_SOURCE", "demo");
-    mockFetch();
-
-    expect(
-      await startAsyncQueryAction({
-        mode: "historical_async",
-        documentType: "cnpj",
-        document: TEST_CNPJ,
-      }),
-    ).toMatchObject({ ok: false, reason: "unavailable" });
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
   it("historical_async sends neither on_demand nor cache_ttl_in_days", async () => {
     const fetchMock = mockFetch(createdRequestBody);
 

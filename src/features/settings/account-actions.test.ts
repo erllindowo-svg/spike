@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getDataSource } from "@/lib/data";
-
 import { readJuditAccountAction } from "./account-actions";
 
 // Real JUDIT client with a mocked fetch that answers by URL.
-vi.mock("@/lib/data", () => ({ getDataSource: vi.fn() }));
 
 function mockByUrl(responses: Record<string, [unknown, number]>) {
   const fetchMock = vi.fn(async (url: URL) => {
@@ -21,7 +18,6 @@ function mockByUrl(responses: Record<string, [unknown, number]>) {
 
 beforeEach(() => {
   vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
-  vi.mocked(getDataSource).mockReturnValue("db");
 });
 
 describe("readJuditAccountAction", () => {
@@ -74,12 +70,5 @@ describe("readJuditAccountAction", () => {
       },
       balance: { ok: true },
     });
-  });
-
-  it("does not call JUDIT in demo mode", async () => {
-    vi.mocked(getDataSource).mockReturnValue("demo");
-
-    expect(await readJuditAccountAction()).toMatchObject({ ok: false });
-    expect(fetch).not.toHaveBeenCalled();
   });
 });

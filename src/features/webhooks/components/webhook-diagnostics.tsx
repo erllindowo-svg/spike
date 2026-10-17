@@ -1,19 +1,8 @@
 "use client";
 
-import {
-  ChevronDownIcon,
-  CopyXIcon,
-  FilePlus2Icon,
-  InfoIcon,
-  ScrollTextIcon,
-  SearchIcon,
-  TriangleAlertIcon,
-  WebhookIcon,
-  XIcon,
-} from "lucide-react";
+import { InfoIcon, SearchIcon, WebhookIcon, XIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   LimitNotice,
@@ -25,15 +14,6 @@ import { PageIntro } from "@/components/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -58,7 +38,7 @@ import {
   type WebhookEventView,
   type WebhookProcessingStatus,
 } from "@/features/webhooks/types";
-import { useDemoStore, type SimulationScenario } from "@/lib/demo-store";
+import { useAppStore } from "@/lib/app-store";
 import { LIST_LIMITS } from "@/lib/list-limits";
 import {
   formatDuration,
@@ -72,38 +52,6 @@ import { WebhookEventSheet } from "./webhook-event-sheet";
 
 const NO_EVENT_TYPE = "__none__";
 
-const scenarios: {
-  value: SimulationScenario;
-  label: string;
-  description: string;
-  icon: typeof WebhookIcon;
-}[] = [
-  {
-    value: "lawsuit_movement",
-    label: "Movimentação em processo monitorado",
-    description: "Processado com sucesso e gera um alerta",
-    icon: ScrollTextIcon,
-  },
-  {
-    value: "new_lawsuit",
-    label: "Novo processo para CNPJ monitorado",
-    description: "Processado com sucesso e gera um alerta",
-    icon: FilePlus2Icon,
-  },
-  {
-    value: "unknown_reference",
-    label: "Referência desconhecida",
-    description: "Recebido, mas falha no processamento",
-    icon: TriangleAlertIcon,
-  },
-  {
-    value: "duplicate_delivery",
-    label: "Reentrega duplicada",
-    description: "Mesmo callback_id; descartado sem reprocessar",
-    icon: CopyXIcon,
-  },
-];
-
 function shortId(id: string | null): string {
   if (!id) return "—";
   return id.length > 13 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id;
@@ -113,7 +61,7 @@ export function WebhookDiagnostics() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { webhookEvents, simulateWebhookEvent, dataSource } = useDemoStore();
+  const { webhookEvents } = useAppStore();
 
   const reference = searchParams.get("referencia");
   const selectedId = searchParams.get("evento");
@@ -171,28 +119,6 @@ export function WebhookDiagnostics() {
   const hasFilters =
     !!term || status !== "all" || eventType !== "all" || !!reference;
 
-  function simulate(scenario: SimulationScenario) {
-    const result = simulateWebhookEvent(scenario);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success(
-      result.duplicate
-        ? "Reentrega simulada: callback_id já conhecido"
-        : "Evento simulado recebido",
-      {
-        description: result.duplicate
-          ? "O evento original não foi reprocessado; apenas o contador de reentregas aumentou. Nada foi enviado à JUDIT."
-          : "O evento foi inserido localmente e será processado em instantes. Nada foi enviado à JUDIT.",
-        action: {
-          label: "Abrir",
-          onClick: () => setParam("evento", result.eventId),
-        },
-      },
-    );
-  }
-
   const tiles: {
     label: string;
     value: number;
@@ -231,64 +157,17 @@ export function WebhookDiagnostics() {
 
   return (
     <>
-      <PageIntro description="Inspecione os callbacks recebidos, o processamento de cada um e os alertas gerados. Útil para investigar duplicidades, falhas e eventos ainda não processados.">
-        {/* A simulação só existe no modo de demonstração. */}
-        {dataSource === "demo" && (
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button />}>
-              <WebhookIcon data-icon="inline-start" />
-              Simular evento
-              <ChevronDownIcon data-icon="inline-end" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  Simulação local: nenhum dado é enviado ou recebido da JUDIT.
-                </DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              {scenarios.map((s) => (
-                <DropdownMenuItem
-                  key={s.value}
-                  onClick={() => simulate(s.value)}
-                  className="items-start"
-                >
-                  <s.icon className="mt-0.5" />
-                  <span className="flex flex-col">
-                    <span>{s.label}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {s.description}
-                    </span>
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </PageIntro>
+      <PageIntro description="Inspecione os callbacks recebidos, o processamento de cada um e os alertas gerados. Útil para investigar duplicidades, falhas e eventos ainda não processados." />
 
       <Alert>
         <InfoIcon />
-        {dataSource === "db" ? (
-          <>
-            <AlertTitle>Entregas reais da JUDIT</AlertTitle>
-            <AlertDescription>
-              Cada linha é uma entrega gravada pela rota do webhook. O
-              processamento roda logo depois da resposta à JUDIT; um evento com
-              falha ou ignorado pode ser reprocessado no detalhe. Mostra as 200
-              entregas mais recentes.
-            </AlertDescription>
-          </>
-        ) : (
-          <>
-            <AlertTitle>Modo demonstração</AlertTitle>
-            <AlertDescription>
-              Os eventos abaixo são fictícios e o processamento é simulado no
-              navegador. No modo banco de dados, esta tela mostra as entregas
-              reais gravadas pela rota do webhook.
-            </AlertDescription>
-          </>
-        )}
+        <AlertTitle>Entregas reais da JUDIT</AlertTitle>
+        <AlertDescription>
+          Cada linha é uma entrega gravada pela rota do webhook. O processamento
+          roda logo depois da resposta à JUDIT; um evento com falha ou ignorado
+          pode ser reprocessado no detalhe. Mostra as 200 entregas mais
+          recentes.
+        </AlertDescription>
       </Alert>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -412,9 +291,7 @@ export function WebhookDiagnostics() {
               description={
                 hasFilters
                   ? "Ajuste a busca ou os filtros."
-                  : dataSource === "db"
-                    ? "As entregas aparecem aqui quando a JUDIT chama a rota do webhook (src/features/webhooks/README.md)."
-                    : "Use “Simular evento” para inserir um callback fictício."
+                  : "As entregas aparecem aqui quando a JUDIT chama a rota do webhook (src/features/webhooks/README.md)."
               }
               action={
                 hasFilters ? (
@@ -457,10 +334,7 @@ export function WebhookDiagnostics() {
               </Table>
               <ListPagination paged={paged} />
               <LimitNotice
-                reached={
-                  dataSource === "db" &&
-                  webhookEvents.length >= LIST_LIMITS.webhookEvents
-                }
+                reached={webhookEvents.length >= LIST_LIMITS.webhookEvents}
                 limit={LIST_LIMITS.webhookEvents}
                 what="as entregas"
               />

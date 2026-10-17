@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useAppStore } from "@/lib/app-store";
 
 import { addPartyAction, type AddPartyResult } from "../actions";
 import {
@@ -41,9 +41,7 @@ import {
 //   Salvar sem consultar         grátis; a parte fica só com o documento
 //   Consultar na JUDIT e salvar  cobrado; preenche nome e situação cadastral
 //
-// A validação do documento se repete no servidor (addPartyAction). Na
-// demonstração, só o primeiro caminho existe, e a parte fica na memória da
-// aba (addDemoParty em src/lib/demo-store.tsx).
+// A validação do documento se repete no servidor (addPartyAction).
 
 export function AddPartyDialog({
   documentType,
@@ -82,8 +80,7 @@ function AddPartyForm({
   onDone: () => void;
 }) {
   const router = useRouter();
-  const { parties, dataSource, addDemoParty } = useDemoStore();
-  const isDemo = dataSource === "demo";
+  const { parties } = useAppStore();
   const info = DOCUMENTS[documentType];
   const isCompany = documentType === "cnpj";
   const [value, setValue] = useState(
@@ -103,22 +100,6 @@ function AddPartyForm({
     const parsed = documentSchema(documentType).safeParse(value);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? `${info.label} inválido`);
-      return;
-    }
-
-    if (isDemo) {
-      const party = addDemoParty(documentType, parsed.data);
-      onDone();
-      toast.success(
-        isCompany
-          ? "Empresa adicionada (demonstração)"
-          : "Pessoa adicionada (demonstração)",
-        {
-          description:
-            "Fica só nesta aba e some ao recarregar. Nada foi consultado na JUDIT.",
-        },
-      );
-      router.push(partyHref(party.documentType, party.document));
       return;
     }
 
@@ -162,7 +143,7 @@ function AddPartyForm({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        void save(!isDemo);
+        void save(true);
       }}
       className="flex flex-col gap-5"
       noValidate
@@ -206,37 +187,31 @@ function AddPartyForm({
       <Alert>
         <InfoIcon />
         <AlertDescription>
-          {isDemo
-            ? "Demonstração: a parte fica só nesta aba, sem nome nem dados cadastrais, e some ao recarregar a página. Nada é consultado na JUDIT."
-            : "A consulta de dados cadastrais é cobrada por requisição e preenche o nome e a situação na Receita. Sem ela, a parte é salva só com o documento."}
+          A consulta de dados cadastrais é cobrada por requisição e preenche o
+          nome e a situação na Receita. Sem ela, a parte é salva só com o
+          documento.
         </AlertDescription>
       </Alert>
 
-      {isDemo ? (
-        <DialogFooter>
-          <Button type="submit">Adicionar à demonstração</Button>
-        </DialogFooter>
-      ) : (
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!!pending}
-            onClick={() => void save(false)}
-          >
-            {pending === "plain" && <Spinner data-icon="inline-start" />}
-            Salvar sem consultar
-          </Button>
-          <Button type="submit" disabled={!!pending}>
-            {pending === "lookup" ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <CloudDownloadIcon data-icon="inline-start" />
-            )}
-            Consultar na JUDIT e salvar
-          </Button>
-        </DialogFooter>
-      )}
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!!pending}
+          onClick={() => void save(false)}
+        >
+          {pending === "plain" && <Spinner data-icon="inline-start" />}
+          Salvar sem consultar
+        </Button>
+        <Button type="submit" disabled={!!pending}>
+          {pending === "lookup" ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <CloudDownloadIcon data-icon="inline-start" />
+          )}
+          Consultar na JUDIT e salvar
+        </Button>
+      </DialogFooter>
     </form>
   );
 }

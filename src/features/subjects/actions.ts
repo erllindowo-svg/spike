@@ -3,11 +3,7 @@
 import { refresh } from "next/cache";
 
 import { parseSearchKey } from "@/features/consult/identify";
-import {
-  getDataSource,
-  getSubjectContext,
-  type SubjectContext,
-} from "@/lib/data";
+import { getSubjectContext, type SubjectContext } from "@/lib/data";
 
 import { deleteSubject } from "./db";
 import { isSearchType } from "./subjects";
@@ -28,12 +24,6 @@ export async function deleteSubjectAction(input: {
   searchType: string;
   searchKey: string;
 }): Promise<DeleteSubjectActionResult> {
-  if (getDataSource() !== "db") {
-    return {
-      ok: false,
-      message: "Na demonstração, os dados fictícios não são apagados.",
-    };
-  }
   const searchType = isSearchType(input.searchType) ? input.searchType : null;
   const searchKey = searchType
     ? parseSearchKey(searchType, input.searchKey)

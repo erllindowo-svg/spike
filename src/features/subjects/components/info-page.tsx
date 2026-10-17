@@ -30,7 +30,7 @@ import { parseQuery } from "@/features/search/terms";
 import { useKnownSearch } from "@/features/search/use-known-search";
 import { formatSearchKey } from "@/features/trackings/format";
 import { getTrackingDisplayState } from "@/features/trackings/types";
-import { useDemoStore } from "@/lib/demo-store";
+import { useAppStore } from "@/lib/app-store";
 import { formatDate, formatNumber } from "@/lib/format";
 
 import {
@@ -53,7 +53,7 @@ const ACERVO_SEARCH_LIMIT = 50;
 
 export function InfoPage({ queries }: { queries: QueryView[] }) {
   const searchParams = useSearchParams();
-  const { parties, trackings, alerts } = useDemoStore();
+  const { parties, trackings, alerts } = useAppStore();
   const initialType = searchParams.get("tipo") ?? "";
   const [type, setType] = useState<SearchType | "all">(
     isSearchType(initialType) ? initialType : "all",

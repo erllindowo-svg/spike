@@ -2,8 +2,8 @@
 // palavras pesquisáveis em minúsculas e sem acento (`terms`), num campo com
 // índice comum do MongoDB. A busca acha as palavras que COMEÇAM com o que
 // foi digitado ("erl" acha "Erllan"), como a barra do Google; o meio da
-// palavra ("llan") não é achado. Funções puras: o banco
-// (src/features/search/entries.ts) e a demonstração usam as mesmas.
+// palavra ("llan") não é achado. Funções puras, usadas pelo banco
+// (src/features/search/entries.ts).
 
 import { formatSearchKey } from "@/features/consult/identify";
 import type { SearchType } from "@/db/models";

@@ -17,9 +17,6 @@ export const serverEnvSchema = z.object({
   // Database name inside the cluster. Explicit default so data never lands
   // silently in the driver's fallback database ("test").
   MONGODB_DB: z.string().trim().min(1).default("raio_x"),
-  // Where the app reads and writes its data: "demo" (fictitious data in
-  // memory, the default) or "db" (MongoDB). See src/lib/data.ts.
-  DATA_SOURCE: z.enum(["demo", "db"]).default("demo"),
   JUDIT_API_KEY: z.string().trim().min(1),
   // Kill switch for real JUDIT calls. Optional on purpose: absent means
   // "disabled", and src/lib/judit/guard.ts only accepts the exact value
@@ -111,4 +108,13 @@ export function hasServerEnv(key: keyof ServerEnv): boolean {
   const value = process.env[key];
   if (value === undefined || value.trim() === "") return false;
   return serverEnvSchema.shape[key].safeParse(value).success;
+}
+
+// What the app needs to open at all: the database and the JUDIT key. Without
+// them, the layout shows the setup screen (src/components/layout/setup-screen.tsx)
+// instead of the app. Names only, never values.
+export const REQUIRED_ENV = ["MONGODB_URI", "JUDIT_API_KEY"] as const;
+
+export function missingRequiredEnv(): (typeof REQUIRED_ENV)[number][] {
+  return REQUIRED_ENV.filter((key) => !hasServerEnv(key));
 }

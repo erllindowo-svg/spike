@@ -6,7 +6,6 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { SearchType } from "@/db/models";
-import { isDocumentType } from "@/features/parties/documents";
 import { lowerFirst } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -21,14 +20,6 @@ import {
 // As peças de uma pergunta, comuns à página Consultar e à ficha do Acervo
 // (círculo 5): o cartão da pergunta e o bloco com a explicação, os botões e
 // o custo. Mesmas regras nas duas páginas.
-
-// Os dados fictícios só têm empresas, pessoas e processos (D7).
-export function demoUnavailable(
-  dataSource: "demo" | "db",
-  type: SearchType,
-): boolean {
-  return dataSource !== "db" && type !== "cnj" && !isDocumentType(type);
-}
 
 // Uma pergunta, como opção de um grupo (role="radio"). Entra deslizando,
 // depois das anteriores (`index`).
@@ -88,7 +79,6 @@ export function QuestionActions({
   aiSummary,
   onAiSummaryChange,
   running,
-  unavailable,
   onRun,
   onMonitor,
 }: {
@@ -97,7 +87,6 @@ export function QuestionActions({
   aiSummary: boolean;
   onAiSummaryChange: (value: boolean) => void;
   running: boolean;
-  unavailable: boolean;
   onRun: () => void;
   onMonitor: () => void;
 }) {
@@ -122,7 +111,7 @@ export function QuestionActions({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={onRun} disabled={running || unavailable}>
+        <Button onClick={onRun} disabled={running}>
           {running ? (
             <Spinner data-icon="inline-start" />
           ) : (
@@ -131,7 +120,7 @@ export function QuestionActions({
           Consultar
         </Button>
         {tracking && (
-          <Button variant="outline" onClick={onMonitor} disabled={unavailable}>
+          <Button variant="outline" onClick={onMonitor}>
             <RadarIcon data-icon="inline-start" />
             Monitorar
           </Button>
@@ -146,12 +135,6 @@ export function QuestionActions({
           <ExternalLinkIcon className="size-3" aria-hidden />
         </a>
       </div>
-      {unavailable && (
-        <p className="text-sm text-warning">
-          Indisponível na demonstração: os dados fictícios só têm empresas,
-          pessoas e processos.
-        </p>
-      )}
       <p className="text-xs text-muted-foreground">
         {tracking
           ? `Consultar: uma resposta agora, cobrada uma vez. Monitorar (${lowerFirst(tracking.label)}): ${lowerFirst(tracking.follows)} Cobrado a cada execução, até ser pausado.`

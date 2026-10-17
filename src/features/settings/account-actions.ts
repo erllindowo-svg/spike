@@ -2,7 +2,6 @@
 
 import { countBilledCallsSince } from "@/features/queries/budget";
 import { juditActionFailure } from "@/features/queries/failure";
-import { getDataSource } from "@/lib/data";
 import {
   getBillingConsumption,
   getCreditBalance,
@@ -28,9 +27,6 @@ export type AccountResult =
   | { ok: false; message: string };
 
 export async function readJuditAccountAction(): Promise<AccountResult> {
-  if (getDataSource() !== "db") {
-    return { ok: false, message: "A demonstração não chama a JUDIT." };
-  }
   const [balance, consumption] = await Promise.allSettled([
     getCreditBalance(),
     getBillingConsumption(),
@@ -83,9 +79,8 @@ function accountError(error: unknown): string {
 
 // O contador da carteira (círculo 5): quantas chamadas cobradas o app fez
 // desde o último aviso, contadas no histórico do próprio app (as mesmas do
-// teto diário, budget.ts). Não chama a JUDIT. Na demonstração, nenhuma.
+// teto diário, budget.ts). Não chama a JUDIT.
 export async function billedCallsSinceAction(since: string): Promise<number> {
-  if (getDataSource() !== "db") return 0;
   const date = new Date(since);
   if (Number.isNaN(date.getTime())) return 0;
   return countBilledCallsSince(date);

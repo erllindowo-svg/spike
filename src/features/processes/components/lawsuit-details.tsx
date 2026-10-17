@@ -12,7 +12,7 @@ import { partyRoleLabels, type Lawsuit } from "@/features/processes/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
 import { isTrackingClosed } from "@/features/trackings/types";
-import { useDemoStore } from "@/lib/demo-store";
+import { useAppStore } from "@/lib/app-store";
 import {
   formatCurrency,
   formatDate,
@@ -38,7 +38,7 @@ function InfoItem({
 }
 
 export function LawsuitTrackingAction({ cnj }: { cnj: string }) {
-  const { trackings } = useDemoStore();
+  const { trackings } = useAppStore();
   const { openNewTracking } = useNewTrackingDialog();
   const tracking = trackings.find(
     (t) =>
@@ -66,7 +66,7 @@ export function LawsuitTrackingAction({ cnj }: { cnj: string }) {
 }
 
 export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
-  const { getParty, dataSource } = useDemoStore();
+  const { getParty } = useAppStore();
   const company = getParty(lawsuit.partyId);
 
   return (
@@ -123,17 +123,10 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
       <section className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold">Movimentações</h3>
-          {dataSource === "demo" && (
-            <span className="text-xs text-muted-foreground">
-              Exemplos fictícios
-            </span>
-          )}
         </div>
         {lawsuit.movements.length === 0 ? (
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            {dataSource === "db"
-              ? "As movimentações dos processos da JUDIT ainda não são exibidas."
-              : "Nenhuma movimentação disponível."}
+            As movimentações dos processos da JUDIT ainda não são exibidas.
           </p>
         ) : (
           <ol className="flex flex-col">

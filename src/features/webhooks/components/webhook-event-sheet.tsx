@@ -23,7 +23,7 @@ import {
   getProcessingDurationMs,
   type WebhookEventView,
 } from "@/features/webhooks/types";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useAppStore } from "@/lib/app-store";
 import { formatDuration, formatPreciseDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -101,7 +101,7 @@ export function WebhookEventSheet({
   event: WebhookEventView | null;
   onClose: () => void;
 }) {
-  const { trackings, alerts, dataSource } = useDemoStore();
+  const { trackings, alerts } = useAppStore();
   const tracking = event?.referenceId
     ? trackings.find((t) => t.juditTrackingId === event.referenceId)
     : undefined;
@@ -136,10 +136,9 @@ export function WebhookEventSheet({
 
               <TabsContent value="summary" className="overflow-y-auto p-4">
                 <div className="flex flex-col gap-5">
-                  {dataSource === "db" &&
-                    event.processingStatus !== "processed" && (
-                      <ReprocessButton eventId={event.id} />
-                    )}
+                  {event.processingStatus !== "processed" && (
+                    <ReprocessButton eventId={event.id} />
+                  )}
                   {event.processingError && (
                     <Alert variant="destructive">
                       <CircleAlertIcon />

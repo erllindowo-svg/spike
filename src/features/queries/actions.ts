@@ -12,7 +12,6 @@ import { cnjSchema, formatCnj } from "@/features/processes/cnj";
 import { productCallbackUrl } from "@/features/webhooks/callback";
 import { listEventPayloadsForReference } from "@/features/webhooks/db";
 import { processEventsForReference } from "@/features/webhooks/process";
-import { getDataSource } from "@/lib/data";
 
 import { saveQuietly } from "@/features/base/db";
 import { saveResponsesToBase } from "@/features/base/ingest";
@@ -44,14 +43,10 @@ import { summarizeResponses, type ResponsesSummary } from "./responses";
 // ninguém perguntar. O passo 2 continua disponível: se o túnel cair, a
 // entrega se perde, mas o resultado não.
 //
-// Como em searchCompanyLawsuitsAction, nada aqui confia no navegador: modo
-// "db", parte cadastrada, teto diário e as proteções do client.
+// Como em searchCompanyLawsuitsAction, nada aqui confia no navegador: parte
+// cadastrada, teto diário e as proteções do client.
 
-type Unavailable = {
-  ok: false;
-  reason: "unavailable" | "invalid";
-  message: string;
-};
+type Invalid = { ok: false; reason: "invalid"; message: string };
 
 // Consultas por documento (a parte precisa estar salva):
 //   historical_async / historical_on_demand   capa e partes de todos os
@@ -121,13 +116,11 @@ const startInputSchema = z
 export type StartAsyncQueryInput = z.input<typeof startInputSchema>;
 
 export type StartAsyncQueryResult =
-  { ok: true; request: JuditRequest } | Unavailable | JuditActionFailure;
+  { ok: true; request: JuditRequest } | Invalid | JuditActionFailure;
 
 export async function startAsyncQueryAction(
   input: StartAsyncQueryInput,
 ): Promise<StartAsyncQueryResult> {
-  if (getDataSource() !== "db") return unavailable();
-
   const parsed = startInputSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -265,14 +258,12 @@ export type CheckAsyncQueryResult =
       // Só com entrega por webhook e resultado (deliveries.ts).
       deliveryCheck: DeliveryCheck | null;
     }
-  | Unavailable
+  | Invalid
   | JuditActionFailure;
 
 export async function checkAsyncQueryAction(
   requestId: string,
 ): Promise<CheckAsyncQueryResult> {
-  if (getDataSource() !== "db") return unavailable();
-
   const parsedId = z.string().min(1).max(100).safeParse(requestId);
   if (!parsedId.success) {
     return { ok: false, reason: "invalid", message: "request_id inválido." };
@@ -378,12 +369,4 @@ async function readDeliveryCheck(
     );
     return null;
   }
-}
-
-function unavailable(): Unavailable {
-  return {
-    ok: false,
-    reason: "unavailable",
-    message: "Consultas à JUDIT só funcionam no modo banco de dados.",
-  };
 }

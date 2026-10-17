@@ -3,18 +3,15 @@
 import { z } from "zod";
 
 import type { QuerySearchType, SearchType, SyncQueryMode } from "@/db/models";
-import { ensureParty, updatePartyRegistration } from "@/features/parties/db";
-import { isDocumentType } from "@/features/parties/documents";
 import {
-  fromJuditEntities,
-  type RegistrationData,
-} from "@/features/parties/registration";
+  ensureParty,
+  getPartyByDocument,
+  updatePartyRegistration,
+} from "@/features/parties/db";
+import { isDocumentType } from "@/features/parties/documents";
+import { fromJuditEntities } from "@/features/parties/registration";
 import { formatCnj } from "@/features/processes/cnj";
 import { fromJuditLawsuit } from "@/features/processes/judit";
-import {
-  summarizeDistribution,
-  type Lawsuit,
-} from "@/features/processes/types";
 import { startAsyncQueryAction } from "@/features/queries/actions";
 import { assertDailyBudget } from "@/features/queries/budget";
 import {
@@ -22,12 +19,6 @@ import {
   type JuditActionFailure,
 } from "@/features/queries/failure";
 import { logSyncQuery, syncFailureFor } from "@/features/queries/sync-log";
-import {
-  getDataSource,
-  getLawsuitByCnj,
-  getPartyByDocument,
-  listLawsuits,
-} from "@/lib/data";
 import { JuditHttpError } from "@/lib/judit/errors";
 import {
   countLawsuits,
@@ -63,9 +54,6 @@ import { syntheticGroups, type ConsultPayload } from "./results";
 // e chave validados de novo, teto diário e as proteções do client. Cada
 // chamada que chega à JUDIT entra no histórico (sync_queries), só com
 // metadados.
-//
-// Na demonstração, as respostas vêm dos dados fictícios (src/lib/data.ts):
-// a tela é a mesma, e o resultado diz que é fictício.
 
 const MAX_LAWSUITS_ON_SCREEN = 500;
 
@@ -104,8 +92,6 @@ export type ConsultInput = {
 export type ConsultResult =
   | {
       ok: true;
-      // Resultado montado com os dados fictícios da demonstração.
-      demo: boolean;
       payload: ConsultPayload;
     }
   | { ok: false; reason: "unavailable" | "invalid"; message: string }
@@ -123,8 +109,6 @@ export async function runConsultAction(
     };
   }
   const query = parsed.data;
-
-  if (getDataSource() !== "db") return demoConsult(query);
 
   if (ASYNC_CONSULT_FEATURES.includes(query.feature)) {
     return startAsync(query);
@@ -184,7 +168,7 @@ export async function runConsultAction(
         if (outcome.stats) await saveStats(subject, source, outcome.stats);
       },
     );
-    return { ok: true, demo: false, payload: outcome.payload };
+    return { ok: true, payload: outcome.payload };
   } catch (error) {
     return juditActionFailure(error, "consult");
   }
@@ -419,87 +403,6 @@ async function startAsync(query: ParsedQuery): Promise<ConsultResult> {
   if (!result.ok) return result;
   return {
     ok: true,
-    demo: false,
     payload: { kind: "async", requestId: result.request.requestId },
   };
-}
-
-// Demonstração: as mesmas respostas, montadas com os dados fictícios.
-async function demoConsult(query: ParsedQuery): Promise<ConsultResult> {
-  const demo = (payload: ConsultPayload): ConsultResult => ({
-    ok: true,
-    demo: true,
-    payload,
-  });
-
-  if (ASYNC_CONSULT_FEATURES.includes(query.feature)) {
-    return {
-      ok: false,
-      reason: "unavailable",
-      message:
-        "Na demonstração, as consultas assíncronas não existem: elas são criadas na JUDIT e acompanhadas depois.",
-    };
-  }
-
-  if (query.searchType === "cnj") {
-    const lawsuit = await getLawsuitByCnj(query.searchKey);
-    return demo({ kind: "lawsuit", lawsuits: lawsuit ? [lawsuit] : [] });
-  }
-  // Os dados fictícios só têm empresas, pessoas e processos.
-  if (!isDocumentType(query.searchType)) {
-    return {
-      ok: false,
-      reason: "unavailable",
-      message: "Busca por OAB, nome ou RJI indisponível na demonstração.",
-    };
-  }
-
-  const party = await getPartyByDocument(query.searchType, query.searchKey);
-  const lawsuits: Lawsuit[] = party
-    ? await listLawsuits({ partyId: party.id })
-    : [];
-
-  switch (query.feature) {
-    case "count":
-      return demo({ kind: "count", total: lawsuits.length });
-    case "synthetic":
-      return demo({
-        kind: "synthetic",
-        total: lawsuits.length,
-        groups: [
-          {
-            title: "Tribunal",
-            data: summarizeDistribution(lawsuits, "tribunal"),
-          },
-          { title: "Área", data: summarizeDistribution(lawsuits, "area") },
-        ].filter((group) => group.data.length > 0),
-      });
-    case "lawsuits":
-      return demo({ kind: "lawsuits", lawsuits, total: lawsuits.length });
-    case "registration":
-    case "registration_on_demand": {
-      const registration: RegistrationData = party
-        ? {
-            found: true,
-            name: party.name,
-            registrationStatus: party.registrationStatus,
-            tradeName: null,
-            specialStatus: null,
-          }
-        : {
-            found: false,
-            name: null,
-            registrationStatus: null,
-            tradeName: null,
-            specialStatus: null,
-          };
-      return demo({ kind: "registration", registration });
-    }
-    default:
-      return {
-        ok: false,
-        reason: "unavailable",
-        message: "Consulta não disponível na demonstração.",
-      };
-  }
 }

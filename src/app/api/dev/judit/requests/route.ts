@@ -11,7 +11,6 @@ import {
   readInput,
   readQuery,
 } from "@/lib/judit/dev-route";
-import { getServerEnv } from "@/lib/env";
 import { createRequest, listRequests } from "@/lib/judit/requests";
 import { lawsuitFilterSchema } from "@/lib/judit/schemas/lawsuits";
 
@@ -55,9 +54,7 @@ export async function POST(request: Request) {
       ? null
       : !getWebhookToken()
         ? "JUDIT_WEBHOOK_TOKEN não configurado"
-        : getServerEnv("DATA_SOURCE") !== "db"
-          ? 'o webhook só grava com DATA_SOURCE="db"'
-          : null;
+        : null;
     if (webhookProblem) {
       return Response.json(
         {

@@ -12,7 +12,6 @@ import { callsPerMinuteLimit } from "@/lib/judit/rate-limit";
 // `pnpm env:check --db`).
 
 export type EnvFacts = {
-  dataSource: "demo" | "db";
   mongoUri: boolean;
   apiKey: boolean;
   liveCalls: boolean;
@@ -40,7 +39,6 @@ export type IntegrationStatus = {
 // está em vigor (getCostProtection), que pode vir do interruptor.
 export function readEnvFacts(): EnvFacts {
   return {
-    dataSource: getServerEnv("DATA_SOURCE"),
     mongoUri: hasServerEnv("MONGODB_URI"),
     apiKey: hasServerEnv("JUDIT_API_KEY"),
     // Mesma regra do guard.ts: só o valor exato "enabled" liga.
@@ -56,7 +54,7 @@ export function readEnvFacts(): EnvFacts {
 
 // Função pura, para os testes cobrirem cada combinação sem mexer no ambiente.
 // `billedToday`: chamadas cobradas hoje, lidas do banco pela página (nulo se
-// o banco não respondeu ou na demonstração).
+// o banco não respondeu).
 export function describeIntegrations(
   facts: EnvFacts,
   billedToday: number | null = null,
@@ -71,14 +69,6 @@ export function describeIntegrations(
 
 function cost(facts: EnvFacts, billedToday: number | null): IntegrationStatus {
   const id = "cost";
-  if (facts.dataSource === "demo") {
-    return {
-      id,
-      tone: "neutral",
-      label: "Não usada",
-      description: "DATA_SOURCE=demo: a demonstração não chama a JUDIT.",
-    };
-  }
   const limits =
     `Limites: ${facts.callsPerMinute} chamadas por minuto e ${facts.dailyCallLimit} cobradas por dia` +
     (billedToday === null ? "." : ` (hoje: ${billedToday}).`);
@@ -99,14 +89,6 @@ function cost(facts: EnvFacts, billedToday: number | null): IntegrationStatus {
 
 function judit(facts: EnvFacts): IntegrationStatus {
   const id = "judit";
-  if (facts.dataSource === "demo") {
-    return {
-      id,
-      tone: "neutral",
-      label: "Não usada",
-      description: "DATA_SOURCE=demo: a demonstração não chama a JUDIT.",
-    };
-  }
   if (!facts.apiKey) {
     return {
       id,
@@ -135,18 +117,10 @@ function judit(facts: EnvFacts): IntegrationStatus {
   };
 }
 
-// A rota só funciona no modo "db" e com o token; a origem pública decide se
+// A rota só funciona com o token; a origem pública decide se
 // as consultas pedem entrega por webhook (src/features/webhooks/callback.ts).
 function webhooks(facts: EnvFacts): IntegrationStatus {
   const id = "webhooks";
-  if (facts.dataSource === "demo") {
-    return {
-      id,
-      tone: "neutral",
-      label: "Não usado",
-      description: "Fora do modo db, a rota /api/webhooks/judit responde 404.",
-    };
-  }
   if (!facts.webhookToken && facts.publicOrigin) {
     return {
       id,
@@ -185,21 +159,12 @@ function webhooks(facts: EnvFacts): IntegrationStatus {
 
 function database(facts: EnvFacts): IntegrationStatus {
   const id = "database";
-  if (facts.dataSource === "demo") {
-    return {
-      id,
-      tone: "neutral",
-      label: "Não usado",
-      description:
-        "DATA_SOURCE=demo: os dados são fictícios e ficam em memória.",
-    };
-  }
   if (!facts.mongoUri) {
     return {
       id,
       tone: "warning",
       label: "Incompleto",
-      description: "DATA_SOURCE=db, mas MONGODB_URI está ausente ou inválida.",
+      description: "MONGODB_URI está ausente ou inválida.",
     };
   }
   return {
