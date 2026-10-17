@@ -20,7 +20,11 @@ import {
   toHit,
   type SearchHit,
 } from "@/features/search/hits";
-import { toSubjectView, type SubjectView } from "@/features/subjects/view";
+import {
+  EMPTY_SUBJECT_VIEW,
+  toSubjectView,
+  type SubjectView,
+} from "@/features/subjects/view";
 import { isAlertType, type AlertView } from "@/features/alerts/types";
 import * as partiesDb from "@/features/parties/db";
 import type { Party } from "@/features/parties/types";
@@ -36,10 +40,18 @@ import * as trackingsDb from "@/features/trackings/db";
 import type { Tracking } from "@/features/trackings/types";
 import * as webhooksDb from "@/features/webhooks/db";
 import type { WebhookEventView } from "@/features/webhooks/types";
+import { hasServerEnv } from "@/lib/env";
 import { LIST_LIMITS } from "@/lib/list-limits";
 
 // As páginas leem o banco na requisição, e não no build: sem isso, o Next
 // tentaria consultar o MongoDB durante o prerender e congelaria o resultado.
+// Sem MONGODB_URI, o layout mostra a tela de configuração; as páginas, que o
+// Next desenha em paralelo com o layout, recebem listas vazias em vez de
+// quebrar (e encher o log de erros).
+async function databaseReady(): Promise<boolean> {
+  await connection();
+  return hasServerEnv("MONGODB_URI");
+}
 
 // Preferência da vista de suporte (support-view.tsx). A página já é
 // desenhada a cada requisição, então ler o cookie não custa nada e a página
@@ -51,7 +63,7 @@ export async function getSupportViewPreference(): Promise<boolean> {
 }
 
 export async function listParties(): Promise<Party[]> {
-  await connection();
+  if (!(await databaseReady())) return [];
   return partiesDb.listParties();
 }
 
@@ -70,6 +82,9 @@ export async function getSubjectContext(
   searchType: SearchType,
   searchKey: string,
 ): Promise<SubjectContext> {
+  if (!(await databaseReady())) {
+    return { known: false, name: null, view: EMPTY_SUBJECT_VIEW, queries: [] };
+  }
   const [view, allQueries] = await Promise.all([
     getSubjectView(searchType, searchKey),
     listQueries(),
@@ -87,7 +102,7 @@ export async function searchKnown(
   text: string,
   limit: number = SEARCH_LIMIT,
 ): Promise<SearchHit[]> {
-  await connection();
+  if (!(await databaseReady())) return [];
   const db = await getDb();
   const entries = await findSearchEntries(db, text, limit);
   const result = identify(text);
@@ -112,7 +127,7 @@ export async function getSubjectView(
   searchType: SearchType,
   searchKey: string,
 ): Promise<SubjectView> {
-  await connection();
+  if (!(await databaseReady())) return EMPTY_SUBJECT_VIEW;
   return toSubjectView(
     await baseDb.getSubjectRecords({ searchType, searchKey }),
   );
@@ -121,7 +136,7 @@ export async function getSubjectView(
 // Todas as consultas, síncronas e assíncronas (Acervo, barra de pesquisa e
 // ficha do assunto).
 export async function listQueries(): Promise<QueryView[]> {
-  await connection();
+  if (!(await databaseReady())) return [];
   const [requests, syncQueries] = await Promise.all([
     queriesDb.listRecentJuditRequests(),
     queriesDb.listSyncQueries(),
@@ -140,7 +155,9 @@ export type AppState = {
 
 // Coleções que as telas compartilham no navegador (app-store.tsx).
 export async function getInitialState(): Promise<AppState> {
-  await connection();
+  if (!(await databaseReady())) {
+    return { trackings: [], alerts: [], webhookEvents: [] };
+  }
   const [trackings, alerts, events] = await Promise.all([
     trackingsDb.listTrackings(),
     alertsDb.listAlerts(),
