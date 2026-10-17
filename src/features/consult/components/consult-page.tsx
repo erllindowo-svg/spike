@@ -27,7 +27,6 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { QuerySearchType } from "@/db/models";
 import { AddPartyDialog } from "@/features/parties/components/add-party-dialog";
 import {
   DOCUMENTS,
@@ -52,6 +51,10 @@ import type { ConsultPayload } from "../results";
 // Consultas avulsas (círculo 2 do escopo): escolher o identificador, escolher
 // a consulta no catálogo, ver a resposta aqui. Nada é salvo, exceto o
 // histórico da chamada; a parte só entra na lista se a pessoa pedir.
+
+// Os tipos que esta tela oferece no seletor. OAB, nome e RJI chegam com a
+// página nova (círculo 3, fatia 4).
+type QuerySearchType = "cnpj" | "cpf" | "cnj";
 
 const TYPES: { value: QuerySearchType; label: string }[] = [
   { value: "cnpj", label: "CNPJ" },

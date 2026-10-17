@@ -36,7 +36,9 @@ import {
 // Not exposed on purpose: `should_search_superior_instances` (+30% cost) and
 // `customer_key` (credential vault).
 export async function createRequest(params: {
-  searchType: "cpf" | "cnpj" | "oab" | "name" | "lawsuit_cnj";
+  // "rji" (BNMP number) only with responseType "warrant"
+  // (https://docs.judit.io/criminal-consultation/warrant).
+  searchType: "cpf" | "cnpj" | "oab" | "name" | "rji" | "lawsuit_cnj";
   searchKey: string;
   // What comes back: lawsuits (default), arrest warrants
   // (https://docs.judit.io/criminal-consultation/warrant) or penal executions

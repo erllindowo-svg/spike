@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import type { JuditRequest, QuerySearchType } from "@/db/models";
 import { getPartyByDocument } from "@/features/parties/db";
-import { partyRefSchema } from "@/features/parties/documents";
+import { CONSULT_FEATURES } from "@/features/consult/catalog";
+import { parseSearchKey } from "@/features/consult/identify";
+import { isDocumentType, partyRefSchema } from "@/features/parties/documents";
 import { cnjSchema, formatCnj } from "@/features/processes/cnj";
 import { productCallbackUrl } from "@/features/webhooks/callback";
 import { listEventPayloadsForReference } from "@/features/webhooks/db";
@@ -58,16 +60,17 @@ type Unavailable = {
 //   lawsuit_async   o processo inteiro pelo CNJ, com resumo por IA opcional
 const documentModesSchema = z.intersection(
   partyRefSchema,
-  z.discriminatedUnion("mode", [
-    z.object({ mode: z.literal("historical_async") }),
-    z.object({
-      mode: z.literal("historical_on_demand"),
-      // A documentação define "integer (> 0)" e não informa limite superior.
-      cacheTtlInDays: z.number().int().positive().optional(),
-    }),
-    z.object({ mode: z.literal("criminal_execution") }),
-    z.object({ mode: z.literal("warrant") }),
-  ]),
+  z.object({
+    mode: z.enum([
+      "historical_async",
+      "historical_on_demand",
+      "criminal_execution",
+      "warrant",
+    ]),
+    // Só vale na on-demand (ignorado nas outras). A documentação define
+    // "integer (> 0)" e não informa limite superior.
+    cacheTtlInDays: z.number().int().positive().optional(),
+  }),
 );
 
 const lawsuitModeSchema = z.object({
@@ -76,11 +79,41 @@ const lawsuitModeSchema = z.object({
   aiSummary: z.boolean().optional(),
 });
 
-const startInputSchema = z
-  .union([lawsuitModeSchema, documentModesSchema])
-  .refine((query) => query.mode !== "warrant" || query.documentType === "cpf", {
-    message: "Mandados de prisão só são consultados por CPF.",
+// Consultas por OAB, nome, RJI ou CNJ (círculo 3): não há parte salva, e a
+// consulta é acompanhada no histórico. Os tipos aceitos por modalidade vêm
+// do catálogo da página Consultar (conferidos na documentação).
+const subjectModesSchema = z
+  .object({
+    mode: z.enum(["historical_async", "criminal_execution", "warrant"]),
+    searchType: z.enum(["oab", "name", "rji", "cnj"]),
+    searchKey: z.string(),
+  })
+  .transform((value, ctx) => {
+    const feature = CONSULT_FEATURES.find((f) => f.mode === value.mode);
+    if (!feature?.searchTypes.includes(value.searchType)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Esta consulta não aceita esse tipo de identificador.",
+      });
+      return z.NEVER;
+    }
+    const searchKey = parseSearchKey(value.searchType, value.searchKey);
+    if (!searchKey) {
+      ctx.addIssue({ code: "custom", message: "Identificador inválido." });
+      return z.NEVER;
+    }
+    return { ...value, searchKey };
   });
+
+const startInputSchema = z
+  .union([lawsuitModeSchema, documentModesSchema, subjectModesSchema])
+  .refine(
+    (query) =>
+      query.mode !== "warrant" ||
+      !("documentType" in query) ||
+      query.documentType === "cpf",
+    { message: "Mandados de prisão não são consultados por CNPJ." },
+  );
 
 export type StartAsyncQueryInput = z.input<typeof startInputSchema>;
 
@@ -115,6 +148,12 @@ export async function startAsyncQueryAction(
     };
     if (query.mode === "lawsuit_async") {
       target = { partyId: null, searchType: "cnj", searchKey: query.cnj };
+    } else if ("searchType" in query) {
+      target = {
+        partyId: null,
+        searchType: query.searchType,
+        searchKey: query.searchKey,
+      };
     } else {
       const party = await getPartyByDocument(
         query.documentType,
@@ -169,8 +208,14 @@ export async function startAsyncQueryAction(
             callbackUrl: callbackUrl ?? undefined,
           }
         : {
-            searchType: query.documentType,
-            searchKey: target.searchKey,
+            searchType:
+              target.searchType === "cnj" ? "lawsuit_cnj" : target.searchType,
+            // CNJ formatado, como nos exemplos da documentação; documentos
+            // sem máscara.
+            searchKey:
+              target.searchType === "cnj"
+                ? formatCnj(target.searchKey)
+                : target.searchKey,
             responseType:
               query.mode === "warrant"
                 ? "warrant"
@@ -242,12 +287,12 @@ export async function checkAsyncQueryAction(
         message: "Consulta não encontrada nesta aplicação.",
       };
     }
-    // Consulta por processo: não há parte para descobrir o lado.
-    const party =
-      stored.searchType === "cnj"
-        ? null
-        : await getPartyByDocument(stored.searchType, stored.searchKey);
-    if (stored.searchType !== "cnj" && !party) {
+    // Só CPF e CNPJ têm parte salva; nas outras (CNJ, OAB, nome, RJI) não
+    // há parte para descobrir o lado.
+    const party = isDocumentType(stored.searchType)
+      ? await getPartyByDocument(stored.searchType, stored.searchKey)
+      : null;
+    if (isDocumentType(stored.searchType) && !party) {
       return {
         ok: false,
         reason: "invalid",

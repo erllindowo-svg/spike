@@ -1155,3 +1155,20 @@ implementação ficam marcadas como _decisão do agente_.
    processo, o número está errado; OAB aceita as duas ordens e o prefixo
    "OAB", com UF válida, e é gravada como número + UF (hipótese, README
    item 47); nome pede ao menos 5 caracteres e traz a nota de homônimos.
+2. **Catálogo ampliado** (`src/features/consult/catalog.ts`). Cada consulta
+   declara `searchTypes` (conferidos em 2026-10-17 nas páginas count,
+   cache-grouped, hotstorage, registration-data, request-document, warrant e
+   criminal-execution), `question` (a pergunta para o leigo), `timing`
+   (tempo e custo) e `tracking` (o monitoramento equivalente e o que ele
+   acompanha; `trackingFor` diz se vale para o identificador). Documentado:
+   o monitoramento por documento aceita cpf, cnpj e oab
+   (tracking/tracking-document), então monitoramento por OAB entra na fatia
+   4. `QuerySearchType` passou a ser `SearchType` (registros antigos
+   continuam válidos); `isDocumentType` separa o que tem parte salva.
+   `createRequest` aceita `rji`. Consultas assíncronas por OAB, nome, RJI e
+   CNJ (execução penal) são criadas sem parte e acompanhadas no histórico.
+   _Decisões do agente:_ contagem sem CNJ e sem RJI (a JUDIT aceita, mas
+   contar processos de um processo não informa, e D3 deixa o RJI só nos
+   mandados); dados cadastrais on-demand só por CPF e CNPJ (a página não diz
+   se o on_demand vale para nome); por nome, a tela mostra o primeiro
+   cadastro devolvido.

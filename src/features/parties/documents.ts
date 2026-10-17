@@ -66,6 +66,12 @@ export function documentSchema(type: DocumentType) {
 
 export const documentTypeSchema = z.enum(DOCUMENT_TYPES);
 
+// CPF e CNPJ identificam uma parte (coleção `parties`); OAB, nome, RJI e CNJ,
+// não.
+export function isDocumentType(type: string): type is DocumentType {
+  return (DOCUMENT_TYPES as readonly string[]).includes(type);
+}
+
 // Página da parte, pelo tipo e documento.
 export function partyHref(type: DocumentType, document: string): string {
   return `${DOCUMENTS[type].basePath}/${document}`;

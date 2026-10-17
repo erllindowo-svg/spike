@@ -1,4 +1,4 @@
-import type { Party, QuerySearchType, Tracking } from "@/db/models";
+import type { Party, Tracking } from "@/db/models";
 import { identify } from "@/features/consult/identify";
 import {
   displayDocument,
@@ -113,7 +113,7 @@ export function buildSuggestions(
 
 function consultTarget(
   query: string,
-): { type: QuerySearchType; key: string } | null {
+): { type: "cnpj" | "cpf" | "cnj"; key: string } | null {
   const result = identify(query);
   if (result.status !== "recognized") return null;
   const { type, key } = result.candidates[0];

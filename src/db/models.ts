@@ -160,8 +160,10 @@ export type SyncQueryMode = Extract<
   | "lawsuit_on_demand"
 >;
 
-// O que se procura numa consulta: um documento (parte) ou um processo (CNJ).
-export type QuerySearchType = DocumentType | "cnj";
+// O que se procura numa consulta: um documento (parte), um processo (CNJ),
+// uma OAB, um nome ou um RJI (círculo 3). Registros antigos só têm os três
+// primeiros.
+export type QuerySearchType = SearchType;
 
 // Modalidades assíncronas: geram um `request_id` que precisa ser guardado
 // para buscar o resultado depois.

@@ -2,17 +2,14 @@
 
 import { z } from "zod";
 
-import type { QuerySearchType, SyncQueryMode } from "@/db/models";
+import type { QuerySearchType, SearchType, SyncQueryMode } from "@/db/models";
 import { ensureParty, updatePartyRegistration } from "@/features/parties/db";
-import {
-  documentSchema,
-  type DocumentType,
-} from "@/features/parties/documents";
+import { isDocumentType } from "@/features/parties/documents";
 import {
   fromJuditEntities,
   type RegistrationData,
 } from "@/features/parties/registration";
-import { cnjSchema, formatCnj } from "@/features/processes/cnj";
+import { formatCnj } from "@/features/processes/cnj";
 import { fromJuditLawsuit } from "@/features/processes/judit";
 import {
   summarizeDistribution,
@@ -46,6 +43,7 @@ import {
   CONSULT_FEATURE_IDS,
   type ConsultFeatureId,
 } from "./catalog";
+import { parseSearchKey } from "./identify";
 import { syntheticGroups, type ConsultPayload } from "./results";
 
 // Server Action da página Consultar: uma consulta avulsa, escolhida no
@@ -66,7 +64,7 @@ const MAX_LAWSUITS_ON_SCREEN = 500;
 const inputSchema = z
   .object({
     feature: z.enum(CONSULT_FEATURE_IDS),
-    searchType: z.enum(["cnpj", "cpf", "cnj"]),
+    searchType: z.enum(["cnpj", "cpf", "cnj", "oab", "name", "rji"]),
     searchKey: z.string(),
     // Só na consulta processual completa (lawsuit_async).
     aiSummary: z.boolean().optional(),
@@ -79,17 +77,13 @@ const inputSchema = z
       });
       return z.NEVER;
     }
-    const parsed = (
-      value.searchType === "cnj" ? cnjSchema : documentSchema(value.searchType)
-    ).safeParse(value.searchKey);
-    if (!parsed.success) {
-      ctx.addIssue({
-        code: "custom",
-        message: parsed.error.issues[0]?.message ?? "Identificador inválido.",
-      });
+    // A mesma regra de reconhecimento da tela (identify.ts).
+    const searchKey = parseSearchKey(value.searchType, value.searchKey);
+    if (!searchKey) {
+      ctx.addIssue({ code: "custom", message: "Identificador inválido." });
       return z.NEVER;
     }
-    return { ...value, searchKey: parsed.data };
+    return { ...value, searchKey };
   });
 
 export type ConsultInput = {
@@ -130,10 +124,9 @@ export async function runConsultAction(
 
   try {
     await assertDailyBudget();
-    const party =
-      query.searchType === "cnj"
-        ? null
-        : await getPartyByDocument(query.searchType, query.searchKey);
+    const party = isDocumentType(query.searchType)
+      ? await getPartyByDocument(query.searchType, query.searchKey)
+      : null;
     const mode = consultFeature(query.feature).mode as SyncQueryMode;
     const base = {
       mode,
@@ -173,13 +166,30 @@ export async function runConsultAction(
 
 type ParsedQuery = {
   feature: ConsultFeatureId;
-  searchType: QuerySearchType;
+  searchType: SearchType;
   searchKey: string;
   aiSummary?: boolean;
 };
 
+// O `search_type` da JUDIT para cada tipo do app nas consultas por parte
+// (CNJ tem as suas próprias consultas, abaixo).
+type JuditDocumentSearchType = "cpf" | "cnpj" | "oab" | "name";
+
+function documentSearch(query: ParsedQuery): {
+  searchType: JuditDocumentSearchType;
+  searchKey: string;
+} {
+  const { searchType } = query;
+  if (searchType === "cnj" || searchType === "rji") {
+    throw new Error(`Tipo ${searchType} não é aceito nesta consulta.`);
+  }
+  return { searchType, searchKey: query.searchKey };
+}
+
 // Uma chamada à JUDIT por consulta. Documentos vão sem máscara, como nas
-// outras consultas; o CNJ vai formatado, como nos exemplos da documentação.
+// outras consultas; o CNJ vai formatado, como nos exemplos da documentação;
+// a OAB vai como número + UF (README da integração, item 47); o nome, como
+// foi digitado, sem espaços sobrando.
 async function callJudit(
   query: ParsedQuery,
   party: { id: string; document: string } | null,
@@ -188,14 +198,9 @@ async function callJudit(
   requestId: string | null;
   resultCount: number | null;
 }> {
-  const document = {
-    searchType: query.searchType as DocumentType,
-    searchKey: query.searchKey,
-  };
-
   switch (query.feature) {
     case "count": {
-      const result = await countLawsuits(document);
+      const result = await countLawsuits(documentSearch(query));
       return {
         payload: { kind: "count", total: result.total },
         requestId: null,
@@ -203,7 +208,7 @@ async function callJudit(
       };
     }
     case "synthetic": {
-      const result = await getLawsuitsSynthetic(document);
+      const result = await getLawsuitsSynthetic(documentSearch(query));
       return {
         payload: {
           kind: "synthetic",
@@ -215,7 +220,7 @@ async function callJudit(
       };
     }
     case "lawsuits": {
-      const result = await searchLawsuits(document);
+      const result = await searchLawsuits(documentSearch(query));
       return {
         payload: {
           kind: "lawsuits",
@@ -230,13 +235,19 @@ async function callJudit(
     }
     case "registration":
     case "registration_on_demand": {
+      const { searchType, searchKey } = documentSearch(query);
+      if (searchType === "oab") {
+        throw new Error("Dados cadastrais não aceitam OAB.");
+      }
       const result = await getEntity({
-        searchType: query.searchType as DocumentType,
-        searchKey: query.searchKey,
+        searchType,
+        searchKey,
         // Receita em tempo real: mais cara e mais lenta.
         onDemand: query.feature === "registration_on_demand",
       });
-      const registration = fromJuditEntities(result, query.searchKey);
+      // Por nome, a JUDIT pode devolver mais de um cadastro; a tela mostra o
+      // primeiro (o desenho da base própria, fatia 5, guarda todos).
+      const registration = fromJuditEntities(result, searchKey);
       // A parte salva fica com os dados novos; uma parte não salva continua
       // fora da lista (a consulta é avulsa).
       if (party && registration.found) {
@@ -297,11 +308,18 @@ async function callJudit(
   }
 }
 
-// As consultas assíncronas são acompanhadas depois: as por documento na
+// As consultas assíncronas são acompanhadas depois: as por CPF ou CNPJ na
 // página da parte (por isso a parte é salva antes, sem consultar dados
-// cadastrais), a por CNJ no histórico de consultas. O resto é a mesma action
-// do card da parte (teto diário, consulta igual em aberto, webhook).
+// cadastrais), as por CNJ, OAB, nome ou RJI no histórico de consultas. O
+// resto é a mesma action do card da parte (teto diário, consulta igual em
+// aberto, webhook).
 async function startAsync(query: ParsedQuery): Promise<ConsultResult> {
+  const mode =
+    query.feature === "warrants"
+      ? "warrant"
+      : query.feature === "criminal_execution"
+        ? "criminal_execution"
+        : "historical_async";
   let result;
   if (query.feature === "lawsuit_async") {
     result = await startAsyncQueryAction({
@@ -309,19 +327,19 @@ async function startAsync(query: ParsedQuery): Promise<ConsultResult> {
       cnj: query.searchKey,
       aiSummary: query.aiSummary,
     });
+  } else if (!isDocumentType(query.searchType)) {
+    result = await startAsyncQueryAction({
+      mode,
+      searchType: query.searchType,
+      searchKey: query.searchKey,
+    });
   } else {
-    const documentType = query.searchType as DocumentType;
+    const documentType = query.searchType;
     try {
       await ensureParty(documentType, query.searchKey);
     } catch (error) {
       return juditActionFailure(error, "consult");
     }
-    const mode =
-      query.feature === "warrants"
-        ? "warrant"
-        : query.feature === "criminal_execution"
-          ? "criminal_execution"
-          : "historical_async";
     result = await startAsyncQueryAction({
       mode,
       documentType,
@@ -356,6 +374,14 @@ async function demoConsult(query: ParsedQuery): Promise<ConsultResult> {
   if (query.searchType === "cnj") {
     const lawsuit = await getLawsuitByCnj(query.searchKey);
     return demo({ kind: "lawsuit", lawsuits: lawsuit ? [lawsuit] : [] });
+  }
+  // Os dados fictícios só têm empresas, pessoas e processos.
+  if (!isDocumentType(query.searchType)) {
+    return {
+      ok: false,
+      reason: "unavailable",
+      message: "Busca por OAB, nome ou RJI indisponível na demonstração.",
+    };
   }
 
   const party = await getPartyByDocument(query.searchType, query.searchKey);

@@ -288,4 +288,87 @@ describe("runConsultAction", () => {
     });
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  describe("OAB, name and RJI (circle 3)", () => {
+    beforeEach(() => vi.stubEnv("JUDIT_ALLOWLIST", "disabled"));
+
+    it("counts by OAB, sent as number + UF, with no party", async () => {
+      const fetchMock = mockFetch({ total: 3 });
+
+      const result = await runConsultAction({
+        feature: "count",
+        searchType: "oab",
+        searchKey: "SP 123456",
+      });
+
+      expect(result).toMatchObject({ ok: true, payload: { total: 3 } });
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]
+          .body as string,
+      );
+      expect(body.search).toMatchObject({
+        search_type: "oab",
+        search_key: "123456SP",
+      });
+      expect(getPartyByDocument).not.toHaveBeenCalled();
+      expect(saveSyncQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ partyId: null, searchType: "oab" }),
+      );
+    });
+
+    it("refuses registration data by OAB (not in the docs)", async () => {
+      expect(
+        await runConsultAction({
+          feature: "registration",
+          searchType: "oab",
+          searchKey: "123456SP",
+        }),
+      ).toMatchObject({ ok: false, reason: "invalid" });
+    });
+
+    it("refuses a key that is not recognized as the given type", async () => {
+      expect(
+        await runConsultAction({
+          feature: "count",
+          searchType: "name",
+          searchKey: "Ana",
+        }),
+      ).toMatchObject({ ok: false, reason: "invalid" });
+    });
+
+    it("starts a warrant query by RJI without saving a party", async () => {
+      vi.mocked(startAsyncQueryAction).mockResolvedValue({
+        ok: true,
+        request: { requestId: "req-1" } as never,
+      });
+
+      const result = await runConsultAction({
+        feature: "warrants",
+        searchType: "rji",
+        searchKey: "00000000000000000000",
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        payload: { kind: "async", requestId: "req-1" },
+      });
+      expect(startAsyncQueryAction).toHaveBeenCalledWith({
+        mode: "warrant",
+        searchType: "rji",
+        searchKey: "00000000000000000000",
+      });
+      expect(ensureParty).not.toHaveBeenCalled();
+    });
+
+    it("is unavailable in demo mode", async () => {
+      vi.mocked(getDataSource).mockReturnValue("demo");
+      expect(
+        await runConsultAction({
+          feature: "count",
+          searchType: "name",
+          searchKey: "Padaria de Exemplo",
+        }),
+      ).toMatchObject({ ok: false, reason: "unavailable" });
+    });
+  });
 });

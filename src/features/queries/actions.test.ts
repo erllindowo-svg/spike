@@ -181,7 +181,7 @@ describe("startAsyncQueryAction", () => {
     );
   });
 
-  it("asks for arrest warrants only by CPF", async () => {
+  it("does not ask for arrest warrants by CNPJ", async () => {
     mockFetch(createdRequestBody);
 
     expect(
@@ -218,6 +218,53 @@ describe("startAsyncQueryAction", () => {
         response_type: "warrant",
       },
     });
+  });
+
+  it("starts a query by name, RJI or CNJ with no party (circle 3)", async () => {
+    vi.stubEnv("JUDIT_ALLOWLIST", "disabled");
+    const fetchMock = mockFetch(createdRequestBody, createdRequestBody);
+
+    expect(
+      await startAsyncQueryAction({
+        mode: "warrant",
+        searchType: "rji",
+        searchKey: "00000000000000000000",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(sentBody(fetchMock, 0).search).toEqual({
+      search_type: "rji",
+      search_key: "00000000000000000000",
+      response_type: "warrant",
+    });
+
+    expect(
+      await startAsyncQueryAction({
+        mode: "criminal_execution",
+        searchType: "cnj",
+        searchKey: "00000003920268260050",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(sentBody(fetchMock, 1).search).toEqual({
+      search_type: "lawsuit_cnj",
+      search_key: "0000000-39.2026.8.26.0050",
+      response_type: "execution",
+    });
+    expect(getPartyByDocument).not.toHaveBeenCalled();
+    expect(saveJuditRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ partyId: null, searchType: "cnj" }),
+    );
+  });
+
+  it("refuses an identifier the mode does not accept, before JUDIT", async () => {
+    mockFetch(createdRequestBody);
+    expect(
+      await startAsyncQueryAction({
+        mode: "historical_async",
+        searchType: "rji",
+        searchKey: "00000000000000000000",
+      }),
+    ).toMatchObject({ ok: false, reason: "invalid" });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("refuses a second query while the same one is still open, without calling JUDIT", async () => {
