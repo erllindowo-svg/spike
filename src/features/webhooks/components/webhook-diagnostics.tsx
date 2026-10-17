@@ -15,11 +15,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  LimitNotice,
-  ListPagination,
-  usePaged,
-} from "@/components/shared/list-pagination";
+import { ListPagination, usePaged } from "@/components/shared/list-pagination";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -59,7 +55,6 @@ import {
   type WebhookProcessingStatus,
 } from "@/features/webhooks/types";
 import { useDemoStore, type SimulationScenario } from "@/lib/demo-store";
-import { LIST_LIMITS } from "@/lib/list-limits";
 import {
   formatDuration,
   formatNumber,
@@ -113,7 +108,7 @@ export function WebhookDiagnostics() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { webhookEvents, simulateWebhookEvent, dataSource } = useDemoStore();
+  const { webhookEvents, simulateWebhookEvent } = useDemoStore();
 
   const reference = searchParams.get("referencia");
   const selectedId = searchParams.get("evento");
@@ -232,63 +227,47 @@ export function WebhookDiagnostics() {
   return (
     <>
       <PageIntro description="Inspecione os callbacks recebidos, o processamento de cada um e os alertas gerados. Útil para investigar duplicidades, falhas e eventos ainda não processados.">
-        {/* A simulação só existe no modo de demonstração. */}
-        {dataSource === "demo" && (
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button />}>
-              <WebhookIcon data-icon="inline-start" />
-              Simular evento
-              <ChevronDownIcon data-icon="inline-end" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  Simulação local: nenhum dado é enviado ou recebido da JUDIT.
-                </DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              {scenarios.map((s) => (
-                <DropdownMenuItem
-                  key={s.value}
-                  onClick={() => simulate(s.value)}
-                  className="items-start"
-                >
-                  <s.icon className="mt-0.5" />
-                  <span className="flex flex-col">
-                    <span>{s.label}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {s.description}
-                    </span>
+        {/* Simulação local: nada é enviado ou recebido da JUDIT. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button />}>
+            <WebhookIcon data-icon="inline-start" />
+            Simular evento
+            <ChevronDownIcon data-icon="inline-end" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                Simulação local: nenhum dado é enviado ou recebido da JUDIT.
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            {scenarios.map((s) => (
+              <DropdownMenuItem
+                key={s.value}
+                onClick={() => simulate(s.value)}
+                className="items-start"
+              >
+                <s.icon className="mt-0.5" />
+                <span className="flex flex-col">
+                  <span>{s.label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {s.description}
                   </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </PageIntro>
 
       <Alert>
         <InfoIcon />
-        {dataSource === "db" ? (
-          <>
-            <AlertTitle>Entregas reais da JUDIT</AlertTitle>
-            <AlertDescription>
-              Cada linha é uma entrega gravada pela rota do webhook. O
-              processamento roda logo depois da resposta à JUDIT; um evento com
-              falha ou ignorado pode ser reprocessado no detalhe. Mostra as 200
-              entregas mais recentes.
-            </AlertDescription>
-          </>
-        ) : (
-          <>
-            <AlertTitle>Modo demonstração</AlertTitle>
-            <AlertDescription>
-              Os eventos abaixo são fictícios e o processamento é simulado no
-              navegador. No modo banco de dados, esta tela mostra as entregas
-              reais gravadas pela rota do webhook.
-            </AlertDescription>
-          </>
-        )}
+        <AlertTitle>Modo demonstração</AlertTitle>
+        <AlertDescription>
+          Os eventos abaixo são fictícios e o processamento é simulado no
+          navegador. No app real, esta tela mostra as entregas reais gravadas
+          pela rota do webhook.
+        </AlertDescription>
       </Alert>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -412,9 +391,7 @@ export function WebhookDiagnostics() {
               description={
                 hasFilters
                   ? "Ajuste a busca ou os filtros."
-                  : dataSource === "db"
-                    ? "As entregas aparecem aqui quando a JUDIT chama a rota do webhook (src/features/webhooks/README.md)."
-                    : "Use “Simular evento” para inserir um callback fictício."
+                  : "Use “Simular evento” para inserir um callback fictício."
               }
               action={
                 hasFilters ? (
@@ -456,14 +433,6 @@ export function WebhookDiagnostics() {
                 </TableBody>
               </Table>
               <ListPagination paged={paged} />
-              <LimitNotice
-                reached={
-                  dataSource === "db" &&
-                  webhookEvents.length >= LIST_LIMITS.webhookEvents
-                }
-                limit={LIST_LIMITS.webhookEvents}
-                what="as entregas"
-              />
             </>
           )}
         </CardContent>

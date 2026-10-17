@@ -1,4 +1,4 @@
-import type { QueryMode, TrackingMode, TrackingSearchType } from "@/db/models";
+import type { QueryMode, TrackingMode, TrackingSearchType } from "@/lib/models";
 
 // Catálogo das modalidades de consulta à JUDIT usadas pela aplicação. Cada
 // consulta declara a sua modalidade pelo identificador (`QueryMode`), que é

@@ -2,7 +2,7 @@
 
 import { LifeBuoyIcon } from "lucide-react";
 import Link from "next/link";
-import { createContext, use, useCallback, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -18,25 +18,11 @@ import {
 // interface, não uma proteção: quem tem o endereço abre qualquer página, com
 // a vista ligada ou não.
 //
-// useSyncExternalStore lê o cookie sem divergir do HTML do servidor: no
-// servidor e na hidratação vale o valor que o layout leu do mesmo cookie
-// (SupportViewProvider). No modo "db", os dois coincidem e a página já nasce
-// com a vista certa. Na demonstração, as páginas são pré-renderizadas sem
-// cookie: a página nasce com a vista desligada e liga logo depois.
+// useSyncExternalStore lê o cookie sem divergir do HTML do servidor: as
+// páginas são pré-renderizadas sem cookie, então a página nasce com a vista
+// desligada e liga logo depois, no navegador.
 
 const CHANGE_EVENT = "raio-x:vista-suporte";
-
-const ServerValue = createContext(false);
-
-export function SupportViewProvider({
-  initial,
-  children,
-}: {
-  initial: boolean;
-  children: React.ReactNode;
-}) {
-  return <ServerValue value={initial}>{children}</ServerValue>;
-}
 
 // Usado quando o navegador bloqueia cookies: a vista funciona, mas não
 // sobrevive à recarga.
@@ -59,8 +45,7 @@ function subscribe(onChange: () => void): () => void {
 }
 
 export function useSupportView(): [boolean, (enabled: boolean) => void] {
-  const serverValue = use(ServerValue);
-  const enabled = useSyncExternalStore(subscribe, read, () => serverValue);
+  const enabled = useSyncExternalStore(subscribe, read, () => false);
   const setEnabled = useCallback((next: boolean) => {
     memoryValue = next;
     document.cookie = supportViewCookieValue(next);

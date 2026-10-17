@@ -7,9 +7,9 @@ import { SEARCH_LIMIT, type SearchHit } from "./hits";
 export type SearchResult = { ok: true; hits: SearchHit[] } | { ok: false };
 
 // A barra de pesquisa e o filtro do Acervo chamam esta action enquanto se
-// digita (com uma pausa entre as teclas). Só lê o banco: não consulta a
-// JUDIT nem custa crédito. Uma falha do banco é diferente de "nada
-// encontrado", e a tela diz qual das duas aconteceu.
+// digita (com uma pausa entre as teclas). Lê os dados fictícios: não
+// consulta a JUDIT. Uma falha é diferente de "nada encontrado", e a tela diz
+// qual das duas aconteceu.
 export async function searchKnownAction(
   text: string,
   // A barra mostra poucos; o filtro do Acervo, mais. Nunca acima de 50.

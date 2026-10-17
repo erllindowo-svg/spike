@@ -10,7 +10,6 @@ import {
   WebhookIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { ListPagination, usePaged } from "@/components/shared/list-pagination";
@@ -31,7 +30,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  formatHourRange,
   formatSearchKey,
   getLastEventByReference,
 } from "@/features/trackings/format";
@@ -48,12 +46,6 @@ import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime } from "@/lib/format";
 
 import { SearchTypeBadge } from "./search-type-badge";
-import {
-  DeleteTrackingDialog,
-  JuditTrackingMenuItems,
-  TrackingResultsSheet,
-  useTrackingResults,
-} from "./tracking-judit-actions";
 import { TrackingStatusBadge } from "./tracking-status-badge";
 
 export function TrackingsTable({
@@ -63,14 +55,11 @@ export function TrackingsTable({
   trackings: Tracking[];
   variant?: "full" | "compact";
 }) {
-  const { getParty, alerts, webhookEvents, setTrackingPaused, dataSource } =
-    useDemoStore();
+  const { getParty, alerts, webhookEvents, setTrackingPaused } = useDemoStore();
   const [supportView] = useSupportView();
   const lastEvents = getLastEventByReference(webhookEvents);
   const alertCounts = countAlertsByTracking(alerts);
   const full = variant === "full";
-  const [deleting, setDeleting] = useState<Tracking | null>(null);
-  const trackingResults = useTrackingResults();
   // Os filtros ficam na página; uma lista nova volta à primeira página.
   const paged = usePaged(
     trackings,
@@ -159,9 +148,7 @@ export function TrackingsTable({
                       </>
                     );
                   })()}
-                  {full && (
-                    <TrackingNote tracking={tracking} dataSource={dataSource} />
-                  )}
+                  {full && <TrackingNote tracking={tracking} />}
                 </TableCell>
                 <TableCell>
                   <span title={searchTypeDescriptions[tracking.searchType]}>
@@ -183,8 +170,7 @@ export function TrackingsTable({
                 )}
                 {full && (
                   <TableCell>
-                    <TrackingAlertsLink
-                      trackingId={tracking.id}
+                    <TrackingAlertsCount
                       counts={alertCounts.get(tracking.id)}
                     />
                   </TableCell>
@@ -263,33 +249,25 @@ export function TrackingsTable({
                               Sem eventos (item local)
                             </DropdownMenuItem>
                           ))}
-                        {dataSource === "db" && (
-                          <JuditTrackingMenuItems
-                            tracking={tracking}
-                            onRequestDelete={setDeleting}
-                            onRequestResults={trackingResults.open}
-                          />
+                        {(state === "active" || state === "paused") && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() =>
+                                togglePause(tracking, state === "active")
+                              }
+                            >
+                              {state === "active" ? (
+                                <PauseIcon />
+                              ) : (
+                                <PlayIcon />
+                              )}
+                              {state === "active"
+                                ? "Pausar (demonstração)"
+                                : "Retomar (demonstração)"}
+                            </DropdownMenuItem>
+                          </>
                         )}
-                        {dataSource === "demo" &&
-                          (state === "active" || state === "paused") && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  togglePause(tracking, state === "active")
-                                }
-                              >
-                                {state === "active" ? (
-                                  <PauseIcon />
-                                ) : (
-                                  <PlayIcon />
-                                )}
-                                {state === "active"
-                                  ? "Pausar (demonstração)"
-                                  : "Retomar (demonstração)"}
-                              </DropdownMenuItem>
-                            </>
-                          )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -300,14 +278,6 @@ export function TrackingsTable({
         </TableBody>
       </Table>
       <ListPagination paged={paged} />
-      <DeleteTrackingDialog
-        tracking={deleting}
-        onOpenChange={(open) => !open && setDeleting(null)}
-      />
-      <TrackingResultsSheet
-        view={trackingResults.view}
-        onOpenChange={(open) => !open && trackingResults.close()}
-      />
     </>
   );
 }
@@ -329,52 +299,27 @@ function countAlertsByTracking(
   return counts;
 }
 
-function TrackingAlertsLink({
-  trackingId,
-  counts,
-}: {
-  trackingId: string;
-  counts: AlertCounts | undefined;
-}) {
+// Os alertas moram no menu do sino (círculo 7); aqui, só a contagem.
+function TrackingAlertsCount({ counts }: { counts: AlertCounts | undefined }) {
   if (!counts) return <span className="text-muted-foreground">Nenhum</span>;
   return (
-    <Link
-      href={`/monitoramentos/alertas?monitoramento=${trackingId}`}
-      className="inline-flex items-center gap-1.5 rounded-sm text-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-    >
+    <span className="inline-flex items-center gap-1.5 text-sm">
       <span className="tabular-nums">{counts.total}</span>
       {counts.unread > 0 && (
         <span className="rounded-full bg-primary/10 px-1.5 text-xs text-primary tabular-nums">
-          {counts.unread} não lidos
+          {counts.unread} {counts.unread === 1 ? "não lido" : "não lidos"}
         </span>
       )}
-    </Link>
+    </span>
   );
 }
 
-// Linha de apoio sob o identificador: o que aconteceu com a criação na
-// JUDIT, ou quando será a primeira execução.
-function TrackingNote({
-  tracking,
-  dataSource,
-}: {
-  tracking: Tracking;
-  dataSource: "demo" | "db";
-}) {
-  let note: string | null = null;
-  if (!tracking.juditTrackingId && dataSource === "demo") {
-    note = "Criado localmente (sem ID da JUDIT)";
-  } else if (tracking.creation === "pending") {
-    note = tracking.creationError ?? "Reservado no banco, ainda não enviado";
-  } else if (
-    tracking.creation === "failed" ||
-    tracking.creation === "uncertain" ||
-    tracking.creation === "sending"
-  ) {
-    note = tracking.creationError ?? "Envio interrompido: conferir na JUDIT";
-  } else if (tracking.status === "created" && tracking.hourRange !== null) {
-    note = `Primeira execução prevista por volta das ${formatHourRange(tracking.hourRange)}`;
-  }
+// Linha de apoio sob o identificador: se o item foi criado nesta aba e os
+// termos que filtram as movimentações.
+function TrackingNote({ tracking }: { tracking: Tracking }) {
+  let note: string | null = tracking.juditTrackingId
+    ? null
+    : "Criado localmente (sem ID da JUDIT)";
   if (tracking.stepTerms?.length) {
     const terms = `Só movimentações com: ${tracking.stepTerms.join(", ")}`;
     note = note ? `${note}. ${terms}` : terms;

@@ -1,4 +1,4 @@
-import type { WebhookEvent, WebhookProcessingStatus } from "@/db/models";
+import type { WebhookEvent, WebhookProcessingStatus } from "@/lib/models";
 
 export type { WebhookProcessingStatus };
 

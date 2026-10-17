@@ -1,10 +1,9 @@
 "use client";
 
-import { RadarIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { RadarIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,16 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Spinner } from "@/components/ui/spinner";
-import type { SearchType, TrackingSearchType } from "@/db/models";
+import type { SearchType, TrackingSearchType } from "@/lib/models";
 import { unreadAlertsByCnj } from "@/features/alerts/links";
 import { featuresFor, trackingFor } from "@/features/consult/catalog";
 import { formatSearchKey, SEARCH_TYPES } from "@/features/consult/identify";
@@ -33,11 +23,10 @@ import type { Lawsuit } from "@/features/processes/types";
 import type { QueryView } from "@/features/queries/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingsTable } from "@/features/trackings/components/trackings-table";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { useDemoStore } from "@/lib/demo-store";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { deleteSubjectAction } from "../actions";
 import { AskHere } from "./ask-here";
 import type { SubjectView } from "../view";
 import {
@@ -80,12 +69,9 @@ export function SubjectPage({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { parties, trackings, alerts, markAlertRead, dataSource } =
-    useDemoStore();
+  const { parties, trackings, alerts, markAlertRead } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [selected, setSelected] = useState<Lawsuit | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const [deleting, startDelete] = useTransition();
 
   const party =
     searchType === "cpf" || searchType === "cnpj"
@@ -147,23 +133,6 @@ export function SubjectPage({
     if (cnjFromUrl) router.replace(pathname, { scroll: false });
   }
 
-  function remove() {
-    startDelete(async () => {
-      try {
-        const result = await deleteSubjectAction({ searchType, searchKey });
-        if (!result.ok) {
-          toast.error("Assunto não apagado", { description: result.message });
-          return;
-        }
-        toast.success("Assunto apagado", { description: result.message });
-        setConfirming(false);
-        router.push("/acervo");
-      } catch {
-        toast.error(SERVER_UNREACHABLE);
-      }
-    });
-  }
-
   return (
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -190,16 +159,6 @@ export function SubjectPage({
             <SearchIcon data-icon="inline-start" />
             Consultar
           </Button>
-          {dataSource === "db" && (
-            <Button
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setConfirming(true)}
-            >
-              <Trash2Icon data-icon="inline-start" />
-              Apagar este assunto
-            </Button>
-          )}
         </div>
       </div>
 
@@ -359,29 +318,6 @@ export function SubjectPage({
         onOpenChange={(open) => !open && closeLawsuit()}
         readOnly
       />
-
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Apagar este assunto?</DialogTitle>
-            <DialogDescription>
-              Sai do banco do app: os dados guardados que só este assunto
-              encontrou, o histórico de consultas dele e a parte salva (se não
-              houver monitoramento). Processos encontrados também por outro
-              assunto continuam. Não muda nada na JUDIT, e não dá para desfazer.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={remove} disabled={deleting}>
-              {deleting && <Spinner data-icon="inline-start" />}
-              Apagar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

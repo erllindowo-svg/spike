@@ -1,78 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { Party } from "@/db/models";
-import { ensureParty, updatePartyRegistration } from "@/features/parties/db";
-import { startAsyncQueryAction } from "@/features/queries/actions";
-import { saveBatch, saveStats } from "@/features/base/db";
-import { saveSyncQuery } from "@/features/queries/db";
-import { getDataSource, getPartyByDocument, listLawsuits } from "@/lib/data";
-import {
-  entityCnpjBody,
-  syntheticBody,
-} from "@/lib/judit/__fixtures__/lawsuits";
+import { describe, expect, it } from "vitest";
 
 import { runConsultAction } from "./actions";
 
-// The action runs with the real JUDIT client (guard, schemas, errors) and a
-// mocked fetch. The data layer, the history record and the async flow are
-// replaced; they have their own tests.
-vi.mock("@/lib/data", () => ({
-  getDataSource: vi.fn(),
-  getPartyByDocument: vi.fn(),
-  getLawsuitByCnj: vi.fn(),
-  listLawsuits: vi.fn(),
-}));
-vi.mock("@/features/parties/db", () => ({
-  ensureParty: vi.fn(),
-  updatePartyRegistration: vi.fn(),
-}));
-vi.mock("@/features/queries/db", () => ({ saveSyncQuery: vi.fn() }));
-// The base itself is covered in src/features/base/db.test.ts.
-vi.mock("@/features/base/db", () => ({
-  saveBatch: vi.fn(),
-  saveStats: vi.fn(),
-  saveQuietly: async (_label: string, save: () => Promise<unknown>) => save(),
-}));
-vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
-vi.mock("@/features/queries/actions", () => ({
-  startAsyncQueryAction: vi.fn(),
-}));
-
-const TEST_CNPJ = "A1B2C3D4E5F668";
-const TEST_CNJ = "00000003920268260050";
-const party: Party = {
-  id: "party-1",
-  documentType: "cnpj",
-  document: TEST_CNPJ,
-  name: null,
-  registrationStatus: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
-function mockFetch(body: unknown, status = 200) {
-  const fetchMock = vi.fn(
-    async () =>
-      new Response(JSON.stringify(body), {
-        status,
-        headers: { "content-type": "application/json" },
-      }),
-  );
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-}
-
-beforeEach(() => {
-  vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
-  vi.mocked(getDataSource).mockReturnValue("db");
-  vi.mocked(getPartyByDocument).mockReset().mockResolvedValue(party);
-  vi.mocked(saveSyncQuery).mockReset();
-  vi.mocked(saveBatch).mockReset();
-  vi.mocked(saveStats).mockReset();
-  vi.mocked(updatePartyRegistration).mockReset();
-  vi.mocked(ensureParty).mockReset().mockResolvedValue(party);
-  vi.mocked(startAsyncQueryAction).mockReset();
-});
+// O protótipo responde com os dados fictícios de src/lib/mock-data.ts, sem
+// rede (o fetch falha em todo teste: vitest.setup.ts).
+const AURORA_CNPJ = "10101010000177";
+const UNKNOWN_CNPJ = "A1B2C3D4E5F668";
+const AURORA_CNJ = "10045122920258260100";
 
 describe("runConsultAction", () => {
   it("refuses a feature that does not accept the identifier type", async () => {
@@ -80,330 +14,68 @@ describe("runConsultAction", () => {
       await runConsultAction({
         feature: "registration",
         searchType: "cnj",
-        searchKey: TEST_CNJ,
+        searchKey: AURORA_CNJ,
       }),
     ).toMatchObject({ ok: false, reason: "invalid" });
-    expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("counts lawsuits and records only the total", async () => {
-    mockFetch({ total: 12 });
-
+  it("counts the fictitious lawsuits of a known company", async () => {
     const result = await runConsultAction({
       feature: "count",
       searchType: "cnpj",
-      searchKey: "A1B2C3D4/E5F6-68",
+      searchKey: AURORA_CNPJ,
     });
+    expect(result).toMatchObject({ ok: true, demo: true });
+    if (!result.ok) throw new Error("expected a result");
+    expect(result.payload).toMatchObject({ kind: "count" });
+    expect(
+      result.payload.kind === "count" && result.payload.total,
+    ).toBeGreaterThan(0);
+  });
 
-    expect(result).toEqual({
-      ok: true,
-      demo: false,
-      payload: { kind: "count", total: 12 },
-    });
-    expect(saveSyncQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "datalake_count",
-        partyId: "party-1",
+  it("answers an unknown company with nothing found", async () => {
+    expect(
+      await runConsultAction({
+        feature: "lawsuits",
         searchType: "cnpj",
-        searchKey: TEST_CNPJ,
-        outcome: "ok",
-        resultCount: 12,
+        searchKey: UNKNOWN_CNPJ,
       }),
-    );
-    // Own database (circle 3, D1): the count is kept per identifier.
-    expect(saveStats).toHaveBeenCalledWith(
-      { searchType: "cnpj", searchKey: TEST_CNPJ },
-      { origin: "sync", mode: "datalake_count", reference: null },
-      expect.objectContaining({ mode: "datalake_count", total: 12 }),
-    );
-  });
-
-  it("groups the synthetic counts for the charts", async () => {
-    mockFetch(syntheticBody);
-
-    const result = await runConsultAction({
-      feature: "synthetic",
-      searchType: "cnpj",
-      searchKey: TEST_CNPJ,
+    ).toEqual({
+      ok: true,
+      demo: true,
+      payload: { kind: "lawsuits", lawsuits: [], total: 0 },
     });
-
-    expect(result).toMatchObject({ ok: true, payload: { kind: "synthetic" } });
-    if (!result.ok || result.payload.kind !== "synthetic") return;
-    expect(result.payload.groups.map((g) => g.title)).toContain("Tribunal");
   });
 
-  it("treats a lawsuit missing from the datalake (404) as a result", async () => {
-    mockFetch(
-      { error: { name: "HttpNotFoundError", message: "NOT_FOUND" } },
-      404,
-    );
-
+  it("finds a fictitious lawsuit by CNJ", async () => {
     const result = await runConsultAction({
       feature: "lawsuit_datalake",
       searchType: "cnj",
-      searchKey: "0000000-39.2026.8.26.0050",
+      searchKey: AURORA_CNJ,
     });
-
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
-      demo: false,
-      payload: { kind: "lawsuit", lawsuits: [] },
+      payload: { kind: "lawsuit", lawsuits: [{ cnj: AURORA_CNJ }] },
     });
-    expect(saveSyncQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "lawsuit_datalake",
-        partyId: null,
-        searchType: "cnj",
-        resultCount: 0,
+  });
+
+  it("has no async queries", async () => {
+    expect(
+      await runConsultAction({
+        feature: "history_async",
+        searchType: "cnpj",
+        searchKey: AURORA_CNPJ,
       }),
-    );
+    ).toMatchObject({ ok: false, reason: "unavailable" });
   });
 
-  it("refreshes a saved party with the registration data", async () => {
-    mockFetch({
-      ...entityCnpjBody,
-      response_data: [
-        { ...entityCnpjBody.response_data[0], main_document: TEST_CNPJ },
-      ],
-    });
-
-    const result = await runConsultAction({
-      feature: "registration",
-      searchType: "cnpj",
-      searchKey: TEST_CNPJ,
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      payload: {
-        kind: "registration",
-        registration: { found: true, tradeName: "FING" },
-      },
-    });
-    expect(updatePartyRegistration).toHaveBeenCalledWith(
-      "party-1",
-      expect.objectContaining({ name: "FINGI - EM RECUPERACAO JUDICIAL" }),
-    );
-  });
-
-  it("asks the Receita in real time for the on-demand registration data", async () => {
-    const fetchMock = mockFetch({ response_data: [] });
-
-    const result = await runConsultAction({
-      feature: "registration_on_demand",
-      searchType: "cnpj",
-      searchKey: TEST_CNPJ,
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      payload: { kind: "registration", registration: { found: false } },
-    });
-    const init = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(JSON.parse(String(init[1].body)).search).toMatchObject({
-      on_demand: true,
-    });
-    expect(saveSyncQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "registration_on_demand" }),
-    );
-  });
-
-  it("saves the party before an async history query", async () => {
-    vi.mocked(startAsyncQueryAction).mockResolvedValue({
-      ok: true,
-      request: { requestId: "r-1" } as never,
-    });
-
-    const result = await runConsultAction({
-      feature: "history_async",
-      searchType: "cnpj",
-      searchKey: TEST_CNPJ,
-    });
-
-    expect(ensureParty).toHaveBeenCalledWith("cnpj", TEST_CNPJ);
-    expect(startAsyncQueryAction).toHaveBeenCalledWith({
-      mode: "historical_async",
-      documentType: "cnpj",
-      document: TEST_CNPJ,
-    });
-    expect(result).toMatchObject({
-      ok: true,
-      payload: { kind: "async", requestId: "r-1" },
-    });
-  });
-
-  it("creates the warrants query for a person, saving the person first", async () => {
-    vi.mocked(startAsyncQueryAction).mockResolvedValue({
-      ok: true,
-      request: { requestId: "r-2" } as never,
-    });
-
-    const result = await runConsultAction({
-      feature: "warrants",
-      searchType: "cpf",
-      searchKey: "000.000.001-91",
-    });
-
-    expect(ensureParty).toHaveBeenCalledWith("cpf", "00000000191");
-    expect(startAsyncQueryAction).toHaveBeenCalledWith({
-      mode: "warrant",
-      documentType: "cpf",
-      document: "00000000191",
-    });
-    expect(result).toMatchObject({ ok: true, payload: { kind: "async" } });
-  });
-
-  it("creates the full lawsuit query by CNJ with the AI summary option", async () => {
-    vi.mocked(startAsyncQueryAction).mockResolvedValue({
-      ok: true,
-      request: { requestId: "r-3" } as never,
-    });
-
-    await runConsultAction({
-      feature: "lawsuit_async",
-      searchType: "cnj",
-      searchKey: "0000000-39.2026.8.26.0050",
-      aiSummary: true,
-    });
-
-    expect(ensureParty).not.toHaveBeenCalled();
-    expect(startAsyncQueryAction).toHaveBeenCalledWith({
-      mode: "lawsuit_async",
-      cnj: TEST_CNJ,
-      aiSummary: true,
-    });
-  });
-
-  it("keeps a CPF out of JUDIT in restricted mode", async () => {
-    const result = await runConsultAction({
-      feature: "count",
-      searchType: "cpf",
-      searchKey: "000.000.001-91",
-    });
-
-    expect(result).toMatchObject({ ok: false, reason: "not_allowed" });
-    expect(fetch).not.toHaveBeenCalled();
-    expect(saveSyncQuery).not.toHaveBeenCalled();
-  });
-
-  it("answers from the fictitious data in demo mode, without JUDIT", async () => {
-    vi.mocked(getDataSource).mockReturnValue("demo");
-    vi.mocked(listLawsuits).mockResolvedValue([]);
-
-    const result = await runConsultAction({
-      feature: "count",
-      searchType: "cnpj",
-      searchKey: TEST_CNPJ,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      demo: true,
-      payload: { kind: "count", total: 0 },
-    });
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("starts the on-demand history for a saved party (moved from the party page)", async () => {
-    vi.mocked(startAsyncQueryAction).mockResolvedValue({
-      ok: true,
-      request: { requestId: "req-2" } as never,
-    });
-
-    await runConsultAction({
-      feature: "history_on_demand",
-      searchType: "cnpj",
-      searchKey: TEST_CNPJ,
-    });
-
-    expect(ensureParty).toHaveBeenCalledWith("cnpj", TEST_CNPJ);
-    expect(startAsyncQueryAction).toHaveBeenCalledWith({
-      mode: "historical_on_demand",
-      documentType: "cnpj",
-      document: TEST_CNPJ,
-    });
-  });
-
-  describe("OAB, name and RJI (circle 3)", () => {
-    beforeEach(() => vi.stubEnv("JUDIT_ALLOWLIST", "disabled"));
-
-    it("counts by OAB, sent as number + UF, with no party", async () => {
-      const fetchMock = mockFetch({ total: 3 });
-
-      const result = await runConsultAction({
+  it("has no search by name", async () => {
+    expect(
+      await runConsultAction({
         feature: "count",
-        searchType: "oab",
-        searchKey: "SP 123456",
-      });
-
-      expect(result).toMatchObject({ ok: true, payload: { total: 3 } });
-      const body = JSON.parse(
-        (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]
-          .body as string,
-      );
-      expect(body.search).toMatchObject({
-        search_type: "oab",
-        search_key: "123456SP",
-      });
-      expect(getPartyByDocument).not.toHaveBeenCalled();
-      expect(saveSyncQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ partyId: null, searchType: "oab" }),
-      );
-    });
-
-    it("refuses registration data by OAB (not in the docs)", async () => {
-      expect(
-        await runConsultAction({
-          feature: "registration",
-          searchType: "oab",
-          searchKey: "123456SP",
-        }),
-      ).toMatchObject({ ok: false, reason: "invalid" });
-    });
-
-    it("refuses a key that is not recognized as the given type", async () => {
-      expect(
-        await runConsultAction({
-          feature: "count",
-          searchType: "name",
-          searchKey: "Ana",
-        }),
-      ).toMatchObject({ ok: false, reason: "invalid" });
-    });
-
-    it("starts a warrant query by RJI without saving a party", async () => {
-      vi.mocked(startAsyncQueryAction).mockResolvedValue({
-        ok: true,
-        request: { requestId: "req-1" } as never,
-      });
-
-      const result = await runConsultAction({
-        feature: "warrants",
-        searchType: "rji",
-        searchKey: "00000000000000000000",
-      });
-
-      expect(result).toMatchObject({
-        ok: true,
-        payload: { kind: "async", requestId: "req-1" },
-      });
-      expect(startAsyncQueryAction).toHaveBeenCalledWith({
-        mode: "warrant",
-        searchType: "rji",
-        searchKey: "00000000000000000000",
-      });
-      expect(ensureParty).not.toHaveBeenCalled();
-    });
-
-    it("is unavailable in demo mode", async () => {
-      vi.mocked(getDataSource).mockReturnValue("demo");
-      expect(
-        await runConsultAction({
-          feature: "count",
-          searchType: "name",
-          searchKey: "Padaria de Exemplo",
-        }),
-      ).toMatchObject({ ok: false, reason: "unavailable" });
-    });
+        searchType: "name",
+        searchKey: "Padaria de Exemplo",
+      }),
+    ).toMatchObject({ ok: false, reason: "unavailable" });
   });
 });

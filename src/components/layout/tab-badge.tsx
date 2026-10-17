@@ -1,9 +1,8 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-import { countUnreadAlertsAction } from "@/features/alerts/actions";
 import { useDemoStore } from "@/lib/demo-store";
 
 // Aviso na aba do navegador (círculo 6): com alertas não lidos, o ícone da
@@ -12,40 +11,17 @@ import { useDemoStore } from "@/lib/demo-store";
 // precisa de configuração. Notificação do sistema com a aba fechada (Web
 // Push) foi descartada: exigiria chaves e um passo a mais na instalação.
 //
-// Um alerta novo nasce no servidor (webhook), sem a aba saber. Por isso, de
-// minuto em minuto, a aba pergunta ao servidor quantos há (uma contagem no
-// MongoDB, sem a JUDIT); se mudou, relê a página, e o sino e a aba se
-// atualizam juntos. Navegadores espaçam os timers de abas em segundo plano
-// para no mínimo um por minuto, que é o ritmo daqui.
+// No protótipo, os alertas nascem na própria aba (simulação de webhook),
+// então o número acompanha o estado da tela. O app real também pergunta ao
+// servidor de minuto em minuto.
 
-const CHECK_EVERY_MS = 60_000;
 const PREFIX = /^\(\d+\+?\) /;
 
 export function TabBadge() {
-  const { alerts, dataSource } = useDemoStore();
+  const { alerts } = useDemoStore();
   const unread = alerts.filter((a) => !a.readAt).length;
-  const router = useRouter();
   const pathname = usePathname();
   const original = useRef<string | null>(null);
-
-  // A contagem no servidor, só no modo banco.
-  useEffect(() => {
-    if (dataSource !== "db") return;
-    let stopped = false;
-    const timer = window.setInterval(async () => {
-      let count: number | null = null;
-      try {
-        count = await countUnreadAlertsAction();
-      } catch {
-        return;
-      }
-      if (!stopped && count !== null && count !== unread) router.refresh();
-    }, CHECK_EVERY_MS);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, [dataSource, unread, router]);
 
   // O número no título. O Next troca o título a cada página; o observador
   // devolve o número quando isso acontece.

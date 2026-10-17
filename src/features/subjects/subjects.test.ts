@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Party, Tracking } from "@/db/models";
+import type { Party, Tracking } from "@/lib/models";
 import type { AlertView } from "@/features/alerts/types";
 import type { QueryView } from "@/features/queries/types";
 

@@ -1,4 +1,4 @@
-import type { Tracking } from "@/db/models";
+import type { Tracking } from "@/lib/models";
 import { subjectHref } from "@/features/subjects/subjects";
 
 import type { AlertView } from "./types";

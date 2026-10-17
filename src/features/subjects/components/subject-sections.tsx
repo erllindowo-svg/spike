@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { RecordOrigin } from "@/db/models";
+import type { RecordOrigin } from "@/lib/models";
 import { formatSearchKey, SEARCH_TYPES } from "@/features/consult/identify";
 import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import type { Lawsuit } from "@/features/processes/types";

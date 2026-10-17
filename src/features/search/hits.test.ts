@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Party, Tracking } from "@/db/models";
+import type { Party, Tracking } from "@/lib/models";
 import type { Lawsuit } from "@/features/processes/types";
 
 import {

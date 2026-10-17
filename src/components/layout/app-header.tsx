@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  DatabaseIcon,
   FlaskConicalIcon,
   SearchIcon,
   SettingsIcon,
@@ -20,8 +19,6 @@ import {
 import { AlertsMenu } from "@/features/alerts/components/alerts-menu";
 import { WalletButton } from "@/features/settings/components/wallet";
 import { TabBadge } from "./tab-badge";
-import { SupportOnly } from "@/features/settings/support-view";
-import { useDemoStore } from "@/lib/demo-store";
 
 import { cn } from "@/lib/utils";
 
@@ -91,7 +88,6 @@ function PageHeading() {
 // carteira, alertas e Configurações. A "conta" espera o login. No celular,
 // a pesquisa vira um ícone que abre uma linha embaixo.
 export function AppHeader() {
-  const { dataSource } = useDemoStore();
   const [searchOpen, setSearchOpen] = useState(false);
 
   return (
@@ -130,42 +126,22 @@ export function AppHeader() {
             {searchOpen ? <XIcon /> : <SearchIcon />}
           </Button>
 
-          {/* Dados fictícios sempre se anunciam; a origem real dos dados só
-              interessa ao suporte. */}
-          {dataSource === "db" ? (
-            <SupportOnly>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span className="hidden h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border bg-muted px-2.5 text-xs font-medium text-muted-foreground sm:inline-flex" />
-                  }
-                >
-                  <DatabaseIcon className="size-3.5" aria-hidden />
-                  Banco
-                </TooltipTrigger>
-                <TooltipContent className="max-w-64">
-                  Empresas, monitoramentos, consultas, webhooks e alertas ficam
-                  no MongoDB. Situação de cada integração em Configurações.
-                </TooltipContent>
-              </Tooltip>
-            </SupportOnly>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 text-xs font-medium text-warning" />
-                }
-              >
-                <FlaskConicalIcon className="size-3.5" aria-hidden />
-                <span className="hidden sm:inline">Demonstração</span>
-                <span className="sm:hidden">Demo</span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-64">
-                Todas as informações são fictícias e ficam apenas em memória.
-                Nenhuma consulta é feita à JUDIT nem ao banco de dados.
-              </TooltipContent>
-            </Tooltip>
-          )}
+          {/* O protótipo sempre se anuncia: tudo aqui é fictício. */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 text-xs font-medium text-warning" />
+              }
+            >
+              <FlaskConicalIcon className="size-3.5" aria-hidden />
+              <span className="hidden sm:inline">Demonstração</span>
+              <span className="sm:hidden">Demo</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">
+              Todas as informações são fictícias e ficam apenas em memória.
+              Nenhuma consulta é feita à JUDIT nem a um banco de dados.
+            </TooltipContent>
+          </Tooltip>
 
           <WalletButton />
           <AlertsMenu />

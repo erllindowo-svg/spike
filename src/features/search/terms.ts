@@ -6,16 +6,10 @@
 // (src/features/search/entries.ts) e a demonstração usam as mesmas.
 
 import { formatSearchKey } from "@/features/consult/identify";
-import type { SearchType } from "@/db/models";
+import type { SearchType } from "@/lib/models";
 import { cnjStates } from "@/features/processes/cnj-states";
 
 export const MIN_QUERY_LENGTH = 3;
-
-// Versão das regras de buildTerms, gravada em cada entrada. Ao mudar as
-// regras, aumente o número: na conexão, as entradas de versão antiga são
-// remontadas (src/features/search/entries.ts). 2: grupos do número
-// formatado; 3: estados do tribunal de um CNJ (círculo 5).
-export const TERMS_VERSION = 3;
 
 // Números que têm máscara: os grupos dela também viram termos.
 const GROUPED_TYPES: ReadonlySet<SearchType> = new Set(["cpf", "cnpj", "cnj"]);
@@ -89,11 +83,4 @@ export function matchesTerms(terms: string[], query: SearchQuery): boolean {
     query.tokens.length > 0 &&
     query.tokens.every((token) => terms.some((term) => term.startsWith(token)));
   return byWords || terms.some((term) => term.startsWith(query.compact));
-}
-
-// Para montar a expressão regular no MongoDB sem que um "." digitado vire
-// "qualquer caractere". Os termos só têm letras e dígitos, mas o cuidado é
-// barato.
-export function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

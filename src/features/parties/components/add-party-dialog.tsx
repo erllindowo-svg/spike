@@ -1,6 +1,6 @@
 "use client";
 
-import { CloudDownloadIcon, InfoIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -22,10 +22,8 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { useDemoStore } from "@/lib/demo-store";
 
-import { addPartyAction, type AddPartyResult } from "../actions";
 import {
   documentSchema,
   DOCUMENTS,
@@ -36,14 +34,9 @@ import {
 } from "../documents";
 
 // Adicionar uma empresa ou pessoa física à lista sem criar um monitoramento
-// (círculos 1 e 2 do escopo). Dois caminhos, com o custo explícito:
-//
-//   Salvar sem consultar         grátis; a parte fica só com o documento
-//   Consultar na JUDIT e salvar  cobrado; preenche nome e situação cadastral
-//
-// A validação do documento se repete no servidor (addPartyAction). Na
-// demonstração, só o primeiro caminho existe, e a parte fica na memória da
-// aba (addDemoParty em src/lib/demo-store.tsx).
+// (círculos 1 e 2 do escopo). No protótipo, a parte fica só na memória da
+// aba (addDemoParty em src/lib/demo-store.tsx), sem nome nem dados
+// cadastrais: o app real pode consultá-los na JUDIT ao salvar.
 
 export function AddPartyDialog({
   documentType,
@@ -82,15 +75,13 @@ function AddPartyForm({
   onDone: () => void;
 }) {
   const router = useRouter();
-  const { parties, dataSource, addDemoParty } = useDemoStore();
-  const isDemo = dataSource === "demo";
+  const { parties, addDemoParty } = useDemoStore();
   const info = DOCUMENTS[documentType];
   const isCompany = documentType === "cnpj";
   const [value, setValue] = useState(
     defaultDocument ? formatDocument(documentType, defaultDocument) : "",
   );
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<"lookup" | "plain" | null>(null);
 
   const existing = parties.find(
     (p) =>
@@ -98,71 +89,32 @@ function AddPartyForm({
       p.document === normalizeDocument(documentType, value),
   );
 
-  async function save(lookup: boolean) {
-    if (pending) return;
+  function save() {
     const parsed = documentSchema(documentType).safeParse(value);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? `${info.label} inválido`);
       return;
     }
 
-    if (isDemo) {
-      const party = addDemoParty(documentType, parsed.data);
-      onDone();
-      toast.success(
-        isCompany
-          ? "Empresa adicionada (demonstração)"
-          : "Pessoa adicionada (demonstração)",
-        {
-          description:
-            "Fica só nesta aba e some ao recarregar. Nada foi consultado na JUDIT.",
-        },
-      );
-      router.push(partyHref(party.documentType, party.document));
-      return;
-    }
-
-    setPending(lookup ? "lookup" : "plain");
-    let result: AddPartyResult;
-    try {
-      result = await addPartyAction({
-        documentType,
-        document: parsed.data,
-        lookup,
-      });
-    } catch {
-      setPending(null);
-      setError(SERVER_UNREACHABLE);
-      return;
-    }
-    setPending(null);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-
+    const party = addDemoParty(documentType, parsed.data);
     onDone();
-    const label = isCompany ? "Empresa adicionada" : "Pessoa adicionada";
-    const registration = result.registration;
-    if (registration && !registration.found) {
-      toast.warning(`${label} sem dados cadastrais`, {
-        description: `A JUDIT não encontrou cadastro para este ${info.label}.`,
-      });
-    } else {
-      toast.success(label, {
-        description: registration
-          ? (registration.name ?? "Cadastro encontrado, sem nome.")
-          : "Os dados cadastrais podem ser consultados na página dela.",
-      });
-    }
-    router.push(partyHref(result.party.documentType, result.party.document));
+    toast.success(
+      isCompany
+        ? "Empresa adicionada (demonstração)"
+        : "Pessoa adicionada (demonstração)",
+      {
+        description:
+          "Fica só nesta aba e some ao recarregar. Nada foi consultado na JUDIT.",
+      },
+    );
+    router.push(partyHref(party.documentType, party.document));
   }
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        void save(!isDemo);
+        save();
       }}
       className="flex flex-col gap-5"
       noValidate
@@ -206,37 +158,14 @@ function AddPartyForm({
       <Alert>
         <InfoIcon />
         <AlertDescription>
-          {isDemo
-            ? "Demonstração: a parte fica só nesta aba, sem nome nem dados cadastrais, e some ao recarregar a página. Nada é consultado na JUDIT."
-            : "A consulta de dados cadastrais é cobrada por requisição e preenche o nome e a situação na Receita. Sem ela, a parte é salva só com o documento."}
+          Demonstração: a parte fica só nesta aba, sem nome nem dados
+          cadastrais, e some ao recarregar a página. Nada é consultado na JUDIT.
         </AlertDescription>
       </Alert>
 
-      {isDemo ? (
-        <DialogFooter>
-          <Button type="submit">Adicionar à demonstração</Button>
-        </DialogFooter>
-      ) : (
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!!pending}
-            onClick={() => void save(false)}
-          >
-            {pending === "plain" && <Spinner data-icon="inline-start" />}
-            Salvar sem consultar
-          </Button>
-          <Button type="submit" disabled={!!pending}>
-            {pending === "lookup" ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <CloudDownloadIcon data-icon="inline-start" />
-            )}
-            Consultar na JUDIT e salvar
-          </Button>
-        </DialogFooter>
-      )}
+      <DialogFooter>
+        <Button type="submit">Adicionar à demonstração</Button>
+      </DialogFooter>
     </form>
   );
 }

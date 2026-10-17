@@ -1,4 +1,4 @@
-import type { SearchType } from "@/db/models";
+import type { SearchType } from "@/lib/models";
 import { displaySearchKey } from "@/features/consult/identify";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
@@ -21,12 +21,4 @@ export function getLastEventByReference(
     }
   }
   return map;
-}
-
-// `hour_range` da JUDIT. A documentação não diz o fuso; a execução observada
-// em 2026-10-15 (hour_range 6, rodou às 06:55 UTC) indica UTC (IK5, catálogo
-// C14). Mostramos os dois, para não afirmar o que não está documentado.
-export function formatHourRange(hour: number): string {
-  const brasilia = (hour + 21) % 24;
-  return `${hour}h UTC (${brasilia}h em Brasília)`;
 }

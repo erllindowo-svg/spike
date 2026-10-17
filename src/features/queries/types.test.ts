@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { JuditRequest, SyncQuery } from "@/db/models";
+import type { JuditRequest, SyncQuery } from "@/lib/models";
 
 import {
   fromJuditRequest,

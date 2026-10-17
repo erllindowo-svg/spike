@@ -3,15 +3,23 @@ import type {
   RecordOrigin,
   StoredLawsuit,
   StoredRegistration,
-  StoredWarrant,
-} from "@/db/models";
-import type { SubjectRecords } from "@/features/base/db";
+} from "@/lib/models";
 import type { Lawsuit } from "@/features/processes/types";
-import type { WarrantView } from "@/features/queries/responses";
 
-// O que a ficha de um assunto mostra da base própria, sem o `juditData`
-// (o item inteiro fica no banco; a tela não precisa dele e ele pode ser
-// grande). Funções puras.
+// O que a ficha de um assunto mostra. No app real, vem da base própria no
+// MongoDB; no protótipo, dos processos fictícios (cadastros, mandados e
+// números ficam vazios). Funções puras.
+
+export type WarrantView = {
+  code: string | null;
+  number: string | null;
+  warrantType: string | null;
+  arrestType: string | null;
+  status: string | null;
+  issueDate: string | null;
+  expirationDate: string | null;
+  judgementSummary: string | null;
+};
 
 type Known = { fetchedAt: Date | null; origin: RecordOrigin | null };
 
@@ -52,62 +60,7 @@ export const EMPTY_SUBJECT_VIEW: SubjectView = {
   stats: [],
 };
 
-function known(record: { fetchedAt: Date; source: { origin: RecordOrigin } }) {
-  return { fetchedAt: record.fetchedAt, origin: record.source.origin };
-}
-
-export function toSubjectView(records: SubjectRecords): SubjectView {
-  return {
-    lawsuits: records.lawsuits.map((l) => ({
-      id: `${l.cnj}-${l.instance}`,
-      cnj: l.cnj,
-      partyId: null,
-      tribunal: l.tribunal ?? "Não informado",
-      area: l.area,
-      className: l.className,
-      subject: l.subject,
-      judgingBody: l.judgingBody,
-      partyRole: l.role,
-      status: l.status,
-      distributedAt: l.distributedAt,
-      lastMovementAt: l.lastMovementAt,
-      amount: l.amount,
-      movements: [],
-      kind: l.kind,
-      secrecyLevel: l.secrecyLevel,
-      aiSummary: l.aiSummary ?? null,
-      ...known(l),
-    })),
-    registrations: records.registrations.map((r) => ({
-      documentType: r.documentType,
-      document: r.document,
-      name: r.name,
-      tradeName: r.tradeName,
-      registrationStatus: r.registrationStatus,
-      specialStatus: r.specialStatus,
-      ...known(r),
-    })),
-    warrants: records.warrants.map((w: StoredWarrant) => ({
-      code: w.code,
-      number: w.number,
-      warrantType: w.warrantType,
-      arrestType: w.arrestType,
-      status: w.status,
-      issueDate: w.issueDate,
-      expirationDate: w.expirationDate,
-      judgementSummary: w.judgementSummary,
-      ...known(w),
-    })),
-    stats: records.stats.map((s) => ({
-      mode: s.mode,
-      total: s.total,
-      groups: s.groups,
-      ...known(s),
-    })),
-  };
-}
-
-// Demonstração: os processos fictícios, sem data de consulta.
+// Os processos fictícios, sem data de consulta.
 export function demoSubjectView(lawsuits: Lawsuit[]): SubjectView {
   return {
     ...EMPTY_SUBJECT_VIEW,

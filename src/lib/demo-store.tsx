@@ -10,10 +10,6 @@ import {
 } from "react";
 
 import type { ActivityItem } from "@/features/activity/types";
-import {
-  markAlertReadAction,
-  markAllAlertsReadAction,
-} from "@/features/alerts/actions";
 import type { AlertView } from "@/features/alerts/types";
 import type { DocumentType } from "@/features/parties/documents";
 import type { Party } from "@/features/parties/types";
@@ -30,28 +26,14 @@ import {
   type NewTrackingInput,
   type Tracking,
 } from "@/features/trackings/types";
-import {
-  createTrackingAction,
-  type CreateTrackingActionResult,
-} from "@/features/trackings/actions";
 import type { WebhookEventView } from "@/features/webhooks/types";
 
-import type { DataSource, DemoState } from "./data";
+import type { DemoState } from "./data";
 
-// Estado da interface no navegador. O nome vem da demonstração, mas o store
-// atende aos dois modos de DATA_SOURCE (ver src/lib/data.ts):
-//
-// - "demo": tudo fica em memória; recarregar a página restaura os dados
-//   iniciais. Nada é persistido nem enviado à JUDIT.
-// - "db": monitoramentos, alertas e eventos de webhook vêm do MongoDB e são
-//   lidos direto do `initialState` do servidor, sem cópia no navegador. Cada
-//   server action que muda esses dados chama refresh(): o layout é
-//   renderizado de novo no servidor, relê o banco e entrega as listas novas.
-//   Simular webhook e restaurar só existem na demonstração.
-//
-// Na demonstração, uma parte adicionada pelo usuário também fica só na
-// memória da aba (addDemoParty); a página dela é desenhada no navegador
-// (DemoPartyPage), porque o servidor não a conhece.
+// Estado da interface no navegador. Tudo fica em memória: recarregar a
+// página restaura os dados fictícios iniciais. Nada é persistido nem enviado
+// à JUDIT. Uma parte adicionada pelo usuário também fica só na memória da
+// aba (addDemoParty).
 
 export type SimulationScenario =
   | "lawsuit_movement"
@@ -159,17 +141,9 @@ function newId(): string {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 }
 
-// A server action não respondeu (servidor reiniciando, rede). A operação pode
-// ter sido concluída no servidor mesmo assim.
+// A server action não respondeu (servidor reiniciando, rede).
 export const SERVER_UNREACHABLE =
-  "Sem resposta do servidor da aplicação. A operação pode ter sido concluída: recarregue a página e confira antes de repetir.";
-
-const trackingErrorMessages = {
-  duplicate: "Já existe um monitoramento ativo para este identificador.",
-  invalid_input: "Os dados do monitoramento são inválidos.",
-  unavailable: "Gravação no banco indisponível no modo de demonstração.",
-  error: "Não foi possível salvar no banco. Tente novamente em instantes.",
-} as const;
+  "Sem resposta do servidor da aplicação. Recarregue a página e tente de novo.";
 
 function trackingActivity(
   tracking: Tracking,
@@ -191,36 +165,27 @@ function trackingActivity(
   };
 }
 
-// `notice` resume o que aconteceu com o envio à JUDIT (só no modo "db").
 export type AddTrackingResult =
-  | {
-      ok: true;
-      tracking: Tracking;
-      notice?: { sent: boolean; message: string };
-    }
-  | { ok: false; error: string };
+  { ok: true; tracking: Tracking } | { ok: false; error: string };
 
 export type SimulationResult =
   | { ok: true; eventId: string; duplicate: boolean }
   | { ok: false; error: string };
 
 type DemoStore = DemoState & {
-  dataSource: DataSource;
   parties: Party[];
   lawsuits: Lawsuit[];
-  // Histórico de consultas (síncronas e assíncronas), lido do servidor a
-  // cada navegação. A barra de pesquisa monta os assuntos com ele.
+  // Histórico de consultas (síncronas e assíncronas). A barra de pesquisa
+  // monta os assuntos com ele.
   queries: QueryView[];
   getParty: (id: string | null) => Party | null;
-  // Só na demonstração (no modo "db", addPartyAction grava no banco).
   // Devolve a parte já existente quando o documento está na lista.
   addDemoParty: (documentType: DocumentType, document: string) => Party;
   addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
   markAlertRead: (id: string) => void;
-  // Resolve com a mensagem de erro, ou null se deu certo.
   // Sem argumento, todos; com o id de um monitoramento, só os dele.
-  markAllAlertsRead: (trackingId?: string) => Promise<string | null>;
+  markAllAlertsRead: (trackingId?: string) => void;
   simulateWebhookEvent: (scenario: SimulationScenario) => SimulationResult;
   reset: () => void;
 };
@@ -230,14 +195,12 @@ const DemoStoreContext = createContext<DemoStore | null>(null);
 const PROCESSING_DELAY_MS = 1500;
 
 export function DemoStoreProvider({
-  dataSource,
   initialState,
   parties,
   lawsuits,
   queries,
   children,
 }: {
-  dataSource: DataSource;
   initialState: DemoState;
   parties: Party[];
   lawsuits: Lawsuit[];
@@ -246,22 +209,14 @@ export function DemoStoreProvider({
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [addedParties, setAddedParties] = useState<Party[]>([]);
-  // No modo "db", as listas são as do servidor (ver o comentário no topo).
-  // O reducer só guarda os dados da demonstração e a atividade.
-  const fromServer = dataSource === "db";
-  const trackings = fromServer ? initialState.trackings : state.trackings;
-  const alerts = fromServer ? initialState.alerts : state.alerts;
-  const webhookEvents = fromServer
-    ? initialState.webhookEvents
-    : state.webhookEvents;
   const allParties = useMemo(
     () =>
-      fromServer || addedParties.length === 0
+      addedParties.length === 0
         ? parties
         : [...addedParties, ...parties].sort((a, b) =>
             (a.name ?? a.document).localeCompare(b.name ?? b.document, "pt-BR"),
           ),
-    [fromServer, parties, addedParties],
+    [parties, addedParties],
   );
 
   const companiesById = useMemo(
@@ -298,49 +253,6 @@ export function DemoStoreProvider({
 
   const addTracking = useCallback(
     async (input: NewTrackingInput): Promise<AddTrackingResult> => {
-      if (dataSource === "db") {
-        // A regra de duplicidade e a validação ficam no servidor (banco). O
-        // monitoramento novo chega à lista pelo refresh() da action.
-        let result: CreateTrackingActionResult;
-        try {
-          result = await createTrackingAction(
-            input.searchType === "cnj"
-              ? {
-                  searchType: "cnj",
-                  searchKey: input.searchKey,
-                  recurrenceDays: input.recurrenceDays,
-                  stepTerms: input.stepTerms,
-                }
-              : {
-                  searchType: input.searchType,
-                  searchKey: input.searchKey,
-                  recurrenceDays: input.recurrenceDays,
-                },
-          );
-        } catch {
-          return { ok: false, error: SERVER_UNREACHABLE };
-        }
-        if (!result.ok) {
-          return { ok: false, error: trackingErrorMessages[result.reason] };
-        }
-        const sent = result.outcome === "confirmed";
-        dispatch({
-          type: "addActivity",
-          activity: trackingActivity(
-            result.tracking,
-            getParty(result.tracking.partyId),
-            sent
-              ? "Monitoramento criado na JUDIT"
-              : "Monitoramento reservado no banco",
-          ),
-        });
-        return {
-          ok: true,
-          tracking: result.tracking,
-          notice: { sent, message: result.message },
-        };
-      }
-
       const duplicate = state.trackings.find(
         (t) =>
           t.searchType === input.searchType &&
@@ -386,60 +298,26 @@ export function DemoStoreProvider({
       });
       return { ok: true, tracking };
     },
-    [dataSource, state.trackings, getParty],
+    [state.trackings, getParty],
   );
 
-  // Só para a demonstração. No modo "db", pausar chama a JUDIT
-  // (pauseTrackingAction em src/features/trackings/actions.ts).
-  const setTrackingPaused = useCallback(
-    (id: string, paused: boolean) => {
-      if (dataSource === "db") return;
-      dispatch({
-        type: "setTrackingStatus",
-        id,
-        status: paused ? "paused" : "updated",
-      });
-    },
-    [dataSource],
-  );
+  const setTrackingPaused = useCallback((id: string, paused: boolean) => {
+    dispatch({
+      type: "setTrackingStatus",
+      id,
+      status: paused ? "paused" : "updated",
+    });
+  }, []);
 
-  // No modo "db", a leitura é gravada no banco; o alerta aparece como lido
-  // quando o refresh() da action entrega a lista nova. Uma falha só deixa o
-  // alerta como não lido.
-  const markAlertRead = useCallback(
-    (id: string) => {
-      if (dataSource === "db") {
-        markAlertReadAction(id).catch(() => {});
-        return;
-      }
-      dispatch({ type: "markAlertRead", id });
-    },
-    [dataSource],
-  );
-  const markAllAlertsRead = useCallback(
-    async (trackingId?: string): Promise<string | null> => {
-      if (dataSource === "db") {
-        try {
-          const result = await markAllAlertsReadAction(trackingId);
-          return result.ok ? null : result.message;
-        } catch {
-          return SERVER_UNREACHABLE;
-        }
-      }
-      dispatch({ type: "markAllAlertsRead", trackingId });
-      return null;
-    },
-    [dataSource],
-  );
+  const markAlertRead = useCallback((id: string) => {
+    dispatch({ type: "markAlertRead", id });
+  }, []);
+  const markAllAlertsRead = useCallback((trackingId?: string) => {
+    dispatch({ type: "markAllAlertsRead", trackingId });
+  }, []);
 
   const simulateWebhookEvent = useCallback(
     (scenario: SimulationScenario): SimulationResult => {
-      if (dataSource === "db") {
-        return {
-          ok: false,
-          error: "A simulação de webhooks só existe no modo de demonstração.",
-        };
-      }
       const current = state;
 
       if (scenario === "duplicate_delivery") {
@@ -612,22 +490,17 @@ export function DemoStoreProvider({
 
       return { ok: true, eventId: event.id, duplicate: false };
     },
-    [dataSource, state, lawsuits],
+    [state, lawsuits],
   );
 
   const reset = useCallback(() => {
-    if (dataSource === "db") return;
     dispatch({ type: "reset", state: initialState });
     setAddedParties([]);
-  }, [dataSource, initialState]);
+  }, [initialState]);
 
   const value = useMemo<DemoStore>(
     () => ({
       ...state,
-      trackings,
-      alerts,
-      webhookEvents,
-      dataSource,
       parties: allParties,
       lawsuits,
       queries,
@@ -642,10 +515,6 @@ export function DemoStoreProvider({
     }),
     [
       state,
-      trackings,
-      alerts,
-      webhookEvents,
-      dataSource,
       allParties,
       lawsuits,
       queries,

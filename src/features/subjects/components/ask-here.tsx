@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { SearchType, TrackingSearchType } from "@/db/models";
+import type { SearchType, TrackingSearchType } from "@/lib/models";
 import { runConsultAction } from "@/features/consult/actions";
 import type { ConsultFeature } from "@/features/consult/catalog";
 import {
@@ -20,15 +20,13 @@ import {
   QuestionOption,
 } from "@/features/consult/components/question-parts";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
-import { lowerFirst } from "@/lib/format";
+import { SERVER_UNREACHABLE } from "@/lib/demo-store";
 
 // "O que ainda não se sabe" (círculo 5): consultar e monitorar na própria
 // ficha, em dois cliques (a pergunta e "Consultar"), sem voltar à página
-// Consultar. A consulta é a mesma Server Action de Consultar; ela grava na
-// base própria antes de responder, então basta reler a página no servidor
-// (router.refresh) para o dado aparecer na seção dele e a pergunta sair
-// daqui. Na demonstração, nada é gravado: o aviso diz isso.
+// Consultar. A consulta é a mesma Server Action de Consultar. No app real,
+// ela grava a resposta e a ficha a mostra; no protótipo, nada é gravado, e o
+// aviso leva à página Consultar, onde a resposta fictícia aparece.
 export function AskHere({
   searchType,
   searchKey,
@@ -41,7 +39,6 @@ export function AskHere({
   consultHref: string;
 }) {
   const router = useRouter();
-  const { dataSource } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [featureId, setFeatureId] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState(false);
@@ -49,7 +46,7 @@ export function AskHere({
   const [running, startRun] = useTransition();
 
   const feature = features.find((f) => f.id === featureId) ?? null;
-  const unavailable = demoUnavailable(dataSource, searchType);
+  const unavailable = demoUnavailable(searchType);
 
   function run() {
     if (!feature) return;
@@ -66,30 +63,14 @@ export function AskHere({
           setError(result.message);
           return;
         }
-        if (result.demo) {
-          toast.info("Resposta fictícia recebida", {
-            description:
-              "Na demonstração, a ficha não guarda resultados. A resposta aparece na página Consultar.",
-            action: {
-              label: "Abrir em Consultar",
-              onClick: () => router.push(consultHref),
-            },
-          });
-          return;
-        }
-        toast.success(
-          result.payload.kind === "async"
-            ? "Consulta enviada"
-            : "Resposta recebida",
-          {
-            description:
-              result.payload.kind === "async"
-                ? "A resposta chega depois: acompanhe em “Consultas feitas”."
-                : "O dado novo já está na ficha.",
+        toast.info("Resposta fictícia recebida", {
+          description:
+            "Na demonstração, a ficha não guarda resultados. A resposta aparece na página Consultar.",
+          action: {
+            label: "Abrir em Consultar",
+            onClick: () => router.push(consultHref),
           },
-        );
-        setFeatureId(null);
-        router.refresh();
+        });
       } catch {
         setError(SERVER_UNREACHABLE);
       }
@@ -102,7 +83,6 @@ export function AskHere({
       searchType: searchType as TrackingSearchType,
       searchKey,
       locked: true,
-      alsoConsult: { question: lowerFirst(feature.question), run },
     });
   }
 

@@ -45,7 +45,6 @@ import {
 } from "@/features/consult/identify";
 import { isDocumentType } from "@/features/parties/documents";
 import { normalizeCnj } from "@/features/processes/cnj";
-import { TRACKING_MODES, trackingModeFor } from "@/features/queries/modes";
 import {
   formatRecurrence,
   recurrenceOptions,
@@ -61,10 +60,6 @@ type Defaults = {
   // Vindo da página Consultar: o identificador já foi digitado e
   // reconhecido; o diálogo só o mostra, sem pedir de novo.
   locked?: boolean;
-  // "Receber também os dados de agora" (decisão D4): a consulta escolhida
-  // na página Consultar, feita depois de criar o monitoramento. São duas
-  // cobranças, e o diálogo diz isso.
-  alsoConsult?: { question: string; run: () => void };
 };
 
 type ContextValue = { openNewTracking: (defaults?: Defaults) => void };
@@ -182,7 +177,7 @@ function NewTrackingForm({
   onDone: () => void;
 }) {
   const router = useRouter();
-  const { addTracking, parties, lawsuits, dataSource } = useDemoStore();
+  const { addTracking, parties, lawsuits } = useDemoStore();
   const [saving, setSaving] = useState(false);
   const [searchType, setSearchType] = useState<TrackingSearchType>(
     defaults.searchType ?? "cnpj",
@@ -198,12 +193,11 @@ function NewTrackingForm({
         ]),
       ) as Record<TrackingSearchType, string>,
   );
-  // Padrão de 30 dias: no modo "db", cada execução na JUDIT pode ser cobrada.
+  // Padrão de 30 dias: no app real, cada execução na JUDIT pode ser cobrada.
   const [recurrence, setRecurrence] = useState("30");
   // Só CNJ: termos separados por vírgula ("sentença, intimação").
   const [terms, setTerms] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [alsoConsult, setAlsoConsult] = useState(false);
 
   const value = values[searchType];
   const field = searchTypeFields[searchType];
@@ -249,25 +243,10 @@ function NewTrackingForm({
     }
 
     onDone();
-    // A consulta de agora só depois do monitoramento aceito: sem ele, a
-    // pessoa não pediu os dados sozinhos.
-    if (alsoConsult) defaults.alsoConsult?.run();
     const action = {
       label: "Abrir ficha",
       onClick: () => router.push(subjectHref(searchType, searchKey)),
     };
-    if (result.notice) {
-      // Modo "db": a reserva foi gravada; o envio à JUDIT pode ter dado certo
-      // ou não, e a mensagem diz o que aconteceu.
-      const show = result.notice.sent ? toast.success : toast.warning;
-      show(
-        result.notice.sent
-          ? "Monitoramento criado na JUDIT"
-          : "Monitoramento reservado, mas não criado na JUDIT",
-        { description: result.notice.message, action },
-      );
-      return;
-    }
     toast.success("Monitoramento adicionado em modo de demonstração", {
       description:
         "Nenhum monitoramento foi criado na JUDIT. O item existe apenas nesta sessão do navegador.",
@@ -281,7 +260,7 @@ function NewTrackingForm({
         ? `Processo no ${matchedLawsuit.tribunal}${lawsuitParty?.name ? ` · ${lawsuitParty.name}` : ""}`
         : null
       : matchedParty
-        ? `${dataSource === "db" ? "Já na lista" : "Encontrado nos dados de demonstração"}: ${matchedParty.name ?? "nome não consultado"}.`
+        ? `Encontrado nos dados de demonstração: ${matchedParty.name ?? "nome não consultado"}.`
         : null;
 
   return (
@@ -412,33 +391,13 @@ function NewTrackingForm({
             Intervalo, em dias, entre as execuções na JUDIT.
           </FieldDescription>
         </Field>
-        {defaults.alsoConsult && dataSource === "db" && (
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={alsoConsult}
-              onChange={(e) => setAlsoConsult(e.target.checked)}
-              className="mt-0.5 size-4 accent-primary"
-            />
-            <span>
-              Receber também os dados de agora ({defaults.alsoConsult.question}
-              ).{" "}
-              <span className="text-muted-foreground">
-                O monitoramento só avisa o que surgir depois de criado. Marcado,
-                são duas cobranças: a consulta agora e o monitoramento a cada
-                execução.
-              </span>
-            </span>
-          </label>
-        )}
       </FieldGroup>
 
       <Alert>
         <InfoIcon />
         <AlertDescription>
-          {dataSource === "db"
-            ? `${TRACKING_MODES[trackingModeFor(searchType)].label}: cria um monitoramento real na JUDIT (POST /tracking), que roda a cada N dias e gera cobrança recorrente até ser pausado ou excluído. A primeira execução acontece em até 24 horas. Com o webhook configurado, os resultados chegam sozinhos; sem ele, aparecem em “Ver resultados”.`
-            : "Modo de demonstração: o item é adicionado apenas à lista local. Nenhuma requisição é enviada à JUDIT."}
+          Modo de demonstração: o item é adicionado apenas à lista local.
+          Nenhuma requisição é enviada à JUDIT.
         </AlertDescription>
       </Alert>
 
@@ -448,7 +407,7 @@ function NewTrackingForm({
         </Button>
         <Button type="submit" disabled={saving}>
           {saving && <Spinner data-icon="inline-start" />}
-          {dataSource === "db" ? "Criar na JUDIT" : "Adicionar monitoramento"}
+          Adicionar monitoramento
         </Button>
       </DialogFooter>
     </form>

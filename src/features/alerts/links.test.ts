@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Tracking } from "@/db/models";
+import type { Tracking } from "@/lib/models";
 
 import { alertHref, unreadAlertsByCnj } from "./links";
 

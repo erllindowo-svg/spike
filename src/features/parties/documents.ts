@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import type { DocumentType } from "@/db/models";
+import type { DocumentType } from "@/lib/models";
 
-import { cnpjSchema, formatCnpj, isValidCnpj, normalizeCnpj } from "./cnpj";
-import { cpfSchema, formatCpf, isValidCpf, maskCpf, normalizeCpf } from "./cpf";
+import { cnpjSchema, formatCnpj, normalizeCnpj } from "./cnpj";
+import { cpfSchema, formatCpf, maskCpf, normalizeCpf } from "./cpf";
 
 // O que muda entre empresa (CNPJ) e pessoa física (CPF), num lugar só. As
 // telas e as actions perguntam aqui, em vez de conhecerem cada documento.
@@ -37,10 +37,6 @@ export const DOCUMENTS: Record<DocumentType, DocumentInfo> = {
 
 export function normalizeDocument(type: DocumentType, value: string): string {
   return type === "cnpj" ? normalizeCnpj(value) : normalizeCpf(value);
-}
-
-export function isValidDocument(type: DocumentType, value: string): boolean {
-  return type === "cnpj" ? isValidCnpj(value) : isValidCpf(value);
 }
 
 export function formatDocument(type: DocumentType, value: string): string {

@@ -28,7 +28,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { TrackingSearchType } from "@/db/models";
+import type { TrackingSearchType } from "@/lib/models";
 import { AddPartyDialog } from "@/features/parties/components/add-party-dialog";
 import { isDocumentType, partyHref } from "@/features/parties/documents";
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
@@ -84,7 +84,7 @@ const TYPE_HINT =
 
 export function ConsultPage() {
   const searchParams = useSearchParams();
-  const { parties, dataSource } = useDemoStore();
+  const { parties } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [value, setValue] = useState(searchParams.get("valor") ?? "");
   // Escolha feita em "não é isso?" (ou na URL, ?tipo=). Vale só enquanto o
@@ -118,8 +118,7 @@ export function ConsultPage() {
   const tracking =
     target && feature ? trackingFor(feature.id, target.type) : null;
   // Os dados fictícios só têm empresas, pessoas e processos (D7).
-  const demoUnavailable =
-    !!target && isDemoUnavailable(dataSource, target.type);
+  const demoUnavailable = !!target && isDemoUnavailable(target.type);
   const party =
     target && isDocumentType(target.type)
       ? parties.find(
@@ -196,15 +195,12 @@ export function ConsultPage() {
     });
   }
 
-  function monitor(alsoConsult: boolean) {
+  function monitor() {
     if (!target || !feature) return;
     openNewTracking({
       searchType: target.type as TrackingSearchType,
       searchKey: target.key,
       locked: true,
-      alsoConsult: alsoConsult
-        ? { question: lowerFirst(feature.question), run }
-        : undefined,
     });
   }
 
@@ -311,7 +307,7 @@ export function ConsultPage() {
               running={running}
               unavailable={demoUnavailable}
               onRun={run}
-              onMonitor={() => monitor(true)}
+              onMonitor={monitor}
             />
           </CardContent>
         </Card>
@@ -360,11 +356,7 @@ export function ConsultPage() {
                     </Button>
                   ))}
                 {tracking && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => monitor(false)}
-                  >
+                  <Button variant="outline" size="sm" onClick={monitor}>
                     <RadarIcon data-icon="inline-start" />
                     Monitorar
                   </Button>
@@ -386,12 +378,10 @@ export function ConsultPage() {
         </Card>
       )}
 
-      {dataSource !== "db" && (
-        <p className="text-xs text-muted-foreground">
-          Demonstração: as respostas vêm dos dados fictícios, e as consultas
-          assíncronas e por OAB, nome ou RJI não existem.
-        </p>
-      )}
+      <p className="text-xs text-muted-foreground">
+        Demonstração: as respostas vêm dos dados fictícios, e as consultas
+        assíncronas e por OAB, nome ou RJI não existem.
+      </p>
 
       {target && known?.known && (
         <CapturedCard

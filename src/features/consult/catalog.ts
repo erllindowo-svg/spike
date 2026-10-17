@@ -1,4 +1,4 @@
-import type { QueryMode, SearchType, TrackingMode } from "@/db/models";
+import type { QueryMode, SearchType, TrackingMode } from "@/lib/models";
 import { QUERY_MODES, TRACKING_MODES } from "@/features/queries/modes";
 
 // Catálogo das consultas da página Consultar (círculo 3, fatia 2; mapa

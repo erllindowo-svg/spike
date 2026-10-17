@@ -1,4 +1,4 @@
-import type { SearchEntry, SearchType, Tracking } from "@/db/models";
+import type { SearchEntry, SearchType, Tracking } from "@/lib/models";
 import { identify, SEARCH_TYPES } from "@/features/consult/identify";
 import type { QueryView } from "@/features/queries/types";
 import type { Lawsuit } from "@/features/processes/types";

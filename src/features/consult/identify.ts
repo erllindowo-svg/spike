@@ -1,4 +1,4 @@
-import type { SearchType } from "@/db/models";
+import type { SearchType } from "@/lib/models";
 import { formatCnpj, isValidCnpj } from "@/features/parties/cnpj";
 import { formatCpf, isValidCpf, maskCpf } from "@/features/parties/cpf";
 import { formatCnj, isValidCnj } from "@/features/processes/cnj";

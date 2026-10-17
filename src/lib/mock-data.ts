@@ -912,8 +912,8 @@ export const activity: ActivityItem[] = [
   ),
 ];
 
-// Consultas (página Consultas). Na demonstração nada é consultado de fato:
-// são linhas fictícias no mesmo formato das gravadas no modo "db".
+// Consultas feitas. Nada é consultado de fato: são linhas fictícias no
+// mesmo formato das que o app real grava.
 
 const companyCnpj = (key: CompanyKey) =>
   companyParties[companyRows.findIndex(([k]) => k === key)].document;

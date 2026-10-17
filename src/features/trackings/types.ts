@@ -1,4 +1,4 @@
-import type { Tracking, TrackingSearchType } from "@/db/models";
+import type { Tracking, TrackingSearchType } from "@/lib/models";
 
 export type { Tracking, TrackingSearchType };
 

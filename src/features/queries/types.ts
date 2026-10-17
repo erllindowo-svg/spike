@@ -5,7 +5,7 @@ import type {
   ResultDelivery,
   SyncQuery,
   SyncQueryOutcome,
-} from "@/db/models";
+} from "@/lib/models";
 
 // Uma linha da página Consultas. Junta as duas origens no mesmo formato:
 // consultas síncronas (coleção sync_queries) e assíncronas (judit_requests).

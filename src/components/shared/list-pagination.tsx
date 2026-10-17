@@ -1,13 +1,12 @@
 "use client";
 
-import { ChevronLeftIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
 
-// Paginação no navegador das listas que a página já tem inteiras (o limite
-// do que é lido do banco fica em src/lib/list-limits.ts).
+// Paginação no navegador das listas que a página já tem inteiras.
 
 const PAGE_SIZE = 25;
 
@@ -96,25 +95,5 @@ export function ListPagination<T>({ paged }: { paged: Paged<T> }) {
         </Button>
       </div>
     </nav>
-  );
-}
-
-// Aviso de que a lista chegou ao limite lido do banco.
-export function LimitNotice({
-  reached,
-  limit,
-  what,
-}: {
-  reached: boolean;
-  limit: number;
-  what: string;
-}) {
-  if (!reached) return null;
-  return (
-    <p className="flex items-center gap-2 border-t px-4 py-3 text-xs text-muted-foreground">
-      <InfoIcon className="size-3.5 shrink-0" aria-hidden />
-      Mostrando {what} mais recentes (até {formatNumber(limit)}). Registros mais
-      antigos continuam no banco, mas não aparecem aqui.
-    </p>
   );
 }

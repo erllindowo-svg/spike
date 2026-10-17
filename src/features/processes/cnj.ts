@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 // Numeração única do CNJ (Resolução 65/2008): NNNNNNN-DD.AAAA.J.TR.OOOO.
 const CNJ_DIGITS = 20;
 
@@ -34,8 +32,3 @@ export function isValidCnj(value: string): boolean {
     computeCnjCheckDigits(digits.slice(0, 7), digits.slice(9))
   );
 }
-
-export const cnjSchema = z
-  .string()
-  .transform(normalizeCnj)
-  .refine(isValidCnj, { message: "Número de processo (CNJ) inválido" });

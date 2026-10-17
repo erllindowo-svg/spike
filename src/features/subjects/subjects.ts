@@ -1,4 +1,4 @@
-import type { Party, SearchType, Tracking } from "@/db/models";
+import type { Party, SearchType, Tracking } from "@/lib/models";
 import type { AlertView } from "@/features/alerts/types";
 import { SEARCH_TYPES } from "@/features/consult/identify";
 import type { QueryView } from "@/features/queries/types";

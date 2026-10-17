@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { SearchType } from "@/db/models";
+import type { SearchType } from "@/lib/models";
 import { SEARCH_TYPES } from "@/features/consult/identify";
 import { isQueryOpen, type QueryView } from "@/features/queries/types";
 import type { SearchHit } from "@/features/search/hits";

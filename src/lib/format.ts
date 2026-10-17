@@ -35,12 +35,6 @@ const shortFormatter = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 
-const timeFormatter = new Intl.DateTimeFormat("pt-BR", {
-  timeZone: TIME_ZONE,
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 const numberFormatter = new Intl.NumberFormat("pt-BR");
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -64,10 +58,6 @@ export function formatPreciseDateTime(date: Date | null): string {
 
 export function formatShortDateTime(date: Date): string {
   return shortFormatter.format(date).replace(".", "");
-}
-
-export function formatTime(date: Date): string {
-  return timeFormatter.format(date);
 }
 
 export function formatNumber(value: number): string {

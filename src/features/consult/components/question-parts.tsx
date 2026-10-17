@@ -5,7 +5,7 @@ import { ExternalLinkIcon, RadarIcon, SearchIcon } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import type { SearchType } from "@/db/models";
+import type { SearchType } from "@/lib/models";
 import { isDocumentType } from "@/features/parties/documents";
 import { lowerFirst } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -23,11 +23,8 @@ import {
 // o custo. Mesmas regras nas duas páginas.
 
 // Os dados fictícios só têm empresas, pessoas e processos (D7).
-export function demoUnavailable(
-  dataSource: "demo" | "db",
-  type: SearchType,
-): boolean {
-  return dataSource !== "db" && type !== "cnj" && !isDocumentType(type);
+export function demoUnavailable(type: SearchType): boolean {
+  return type !== "cnj" && !isDocumentType(type);
 }
 
 // Uma pergunta, como opção de um grupo (role="radio"). Entra deslizando,

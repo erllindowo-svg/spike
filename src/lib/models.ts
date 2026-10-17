@@ -1,7 +1,8 @@
-// Formato dos dados como a aplicação os usa. No MongoDB, cada documento guarda
-// o identificador em `_id`; as funções de persistência o convertem para `id`
-// (ver toModel em collections.ts). Campos que a JUDIT pode não fornecer são
-// `null`, nunca omitidos, para que a interface trate a ausência explicitamente.
+// Formato dos dados como a aplicação os usa. São os mesmos tipos do app real
+// (no main, src/db/models.ts, gravados no MongoDB); no protótipo, os dados
+// fictícios de mock-data.ts seguem este formato. Campos que a JUDIT pode não
+// fornecer são `null`, nunca omitidos, para que a interface trate a ausência
+// explicitamente.
 
 // Documentos que identificam uma parte (empresa ou pessoa física). OAB e
 // nome ficam para depois (escolha R1 em docs/etapa-7-escopo.md).
@@ -303,19 +304,6 @@ export type StoredRegistration = StoredRecord & {
   specialStatus: string | null;
 };
 
-export type StoredWarrant = StoredRecord & {
-  // `code` do mandado, ou o `number` quando não houver código.
-  key: string;
-  code: string | null;
-  number: string | null;
-  warrantType: string | null;
-  arrestType: string | null;
-  status: string | null;
-  issueDate: string | null;
-  expirationDate: string | null;
-  judgementSummary: string | null;
-};
-
 // Contagem e resumo agrupado: números sobre um identificador, não itens.
 export type LawsuitStats = StoredRecord & {
   searchType: SearchType;
@@ -323,25 +311,6 @@ export type LawsuitStats = StoredRecord & {
   mode: "datalake_count" | "datalake_synthetic";
   total: number | null;
   groups: { title: string; data: { label: string; value: number }[] }[];
-};
-
-export type FindingKind = "lawsuit" | "registration" | "warrant";
-
-// "Encontrado ao pesquisar tal identificador": liga um assunto (o que foi
-// pesquisado) aos itens da base. O mesmo processo pode ser encontrado por
-// vários assuntos (o CNPJ da empresa e a OAB do advogado, por exemplo).
-export type Finding = {
-  id: string;
-  searchType: SearchType;
-  searchKey: string;
-  kind: FindingKind;
-  // Chave do item: "cnj:instância", "cpf:documento" ou a chave do mandado.
-  itemKey: string;
-  // Lado do documento pesquisado no processo, quando a JUDIT diz.
-  role: "active" | "passive" | "interested" | null;
-  source: RecordSource;
-  firstFoundAt: Date;
-  lastFoundAt: Date;
 };
 
 // --- Busca (círculo 3B, opção B) --------------------------------------------
