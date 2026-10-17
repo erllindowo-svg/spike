@@ -1,23 +1,23 @@
 # Relatório de progresso: Raio-X Jurídico
 
-Última atualização: 2026-10-17 (etapa 7: círculos 1, 2 e 3 implementados na `feat/product-review`). Registros detalhados:
+Última atualização: 2026-10-17 (etapa 7: círculos 1, 2, 3 e 3B implementados na `feat/product-review`). Registros detalhados:
 [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md) e
 [`docs/logs/2026-10-14-sessao.md`](logs/2026-10-14-sessao.md).
 
 ## Onde estamos
 
-| Etapa (AGENTS.md, seção 6)                  | Estado                                                                    |
-| ------------------------------------------- | ------------------------------------------------------------------------- |
-| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                       |
-| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                             |
-| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                     |
-| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                 |
-| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.  |
-| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                           |
-| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real. |
-| 7. Produto: revisão visual e dois produtos  | Em andamento: círculos 1, 2 e 3 implementados (`docs/etapa-7-escopo.md`). |
-| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                 |
-| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").               |
+| Etapa (AGENTS.md, seção 6)                  | Estado                                                                        |
+| ------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                           |
+| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                                 |
+| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                         |
+| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                     |
+| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.      |
+| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                               |
+| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real.     |
+| 7. Produto: revisão visual e dois produtos  | Em andamento: círculos 1, 2, 3 e 3B implementados (`docs/etapa-7-escopo.md`). |
+| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                     |
+| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").                   |
 
 ### Estado do Git
 
@@ -40,6 +40,10 @@
 - Círculo 3 implementado em 2026-10-17: nove fatias, uma por commit, de
   `ab68820` (reconhecimento) a `86c1f90` (limpeza e demonstração), mais
   `79447d0` (quebra de linha de uma nota). **Não enviado** ao GitHub.
+- Círculo 3B em 2026-10-17: `832d0de` (Acervo, ícones, selos, sem avisos
+  de base legal), `5601d6b` (coleção `search_entries`), `315b9d0` (barra
+  única e filtro do Acervo), `42a0ec8` (Consultar personalizada) e
+  `dae5636` (documentação). **Não enviado** ao GitHub; sem PR.
 
 ## Etapa 3: o que existe
 
@@ -369,21 +373,26 @@ Consultar ("/"): campo único → identify() reconhece CPF, CNPJ, CNJ, OAB, nome
 Resposta da JUDIT → tela  +  base própria (lawsuits, registrations, warrants,
   lawsuit_stats, findings; o mais novo substitui)  +  histórico (sync_queries,
   judit_requests)
-Minhas informações (/informacoes): números, "O que chegou", assuntos
-  → ficha /informacoes/[tipo]/[chave]: alertas, monitoramento, dados guardados,
+Acervo (/acervo): números, "O que chegou", assuntos (filtro = busca do acervo)
+  → ficha /acervo/[tipo]/[chave]: alertas, monitoramento, dados guardados,
     consultas feitas, o que ainda não se sabe, apagar
-Barra do topo: assuntos e consultas do banco; "Consultar" por último
+Barra do topo (3B): search_entries (palavras que começam com o texto) →
+  melhor resultado, "Fazer nova consulta", outros; "Dado não encontrado"
+Consultar com identificador conhecido (3B): nome em cima, "Já capturado" embaixo
 Monitoramento: callback_url na criação quando há JUDIT_WEBHOOK_PUBLIC_ORIGIN
 ```
 
-- Verificado: 356 testes (saíram os de código removido), lint, typecheck,
+- Verificado no 3B: 369 testes, lint, typecheck, format e build; barra,
+  campo da página e filtro do Acervo conduzidos por script no navegador
+  (build de demonstração), com capturas.
+- Verificado no círculo 3: 356 testes (saíram os de código removido), lint, typecheck,
   format e build; páginas em modo banco (servidor do usuário) e em modo
   demonstração (build separado); capturas de tela.
 - **Não verificado:** nenhum teste ao vivo com a JUDIT (OAB, nome, RJI,
   gravação na base com dados reais, monitoramento com `callback_url`);
   digitar na barra e clicar nos botões num navegador interativo.
 - **Reinicie o `pnpm dev`** antes de testar: os índices das coleções novas
-  só são criados na conexão.
+  e a montagem da busca (`search_entries`) só rodam na conexão.
 
 ## Próxima sessão, em ordem
 
@@ -392,8 +401,11 @@ Monitoramento: callback_url na criação quando há JUDIT_WEBHOOK_PUBLIC_ORIGIN
    na ficha que a base gravou ("consultado em"); um monitoramento com o
    túnel ligado, para ver a entrega chegar por webhook (IK11). Os
    resultados vão para o diário, sem os números dos documentos.
-2. **Círculo 4, se o usuário quiser** (suporte, Configurações, login), ou os
-   pormenores que os testes do círculo 3 trouxerem.
+2. **Círculo 4:** Atlas Search na barra, ligado por variável
+   (`SEARCH_ENGINE=atlas`), com a opção B como base; tabela de siglas dos
+   tribunais para os nomes dos estados; suporte, Configurações e login, se
+   o usuário quiser. Antes: push da branch e PR do círculo 3/3B (o merge é
+   do usuário).
 3. **Fechamento da etapa 7:** dois produtos separados. O protótipo fica só
    com dados fictícios; o `main` vira o app real, só com banco e chave, sem
    código de demonstração. Depois, README e teste do clone limpo. Aí o
