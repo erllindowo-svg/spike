@@ -1421,3 +1421,288 @@ Observações do usuário, de cima para baixo, depois do círculo 3
   texto de verdade (`fieldDisplay`), e cada tecla tira os separadores
   inseridos pelo app antes de guardar (`stripFieldMask`). Os separadores
   não têm mais tom diferente: são caracteres comuns.
+
+## Numeração dos círculos (2026-10-17)
+
+_Decisão do usuário:_ letras dentro de um círculo (3A, 3B, 3C) contrariam a
+ideia dos círculos, em que cada volta é inteira e a seguinte detalha a
+anterior. A conta certa é: o círculo 3 é o 3; o que se chamou **3B é o
+círculo 4**; o que seria o 3C é o **círculo 5**. O que estava reservado para
+o "círculo 4" (Atlas Search, siglas dos tribunais, suporte, Configurações,
+login) passa para o círculo 5. Os títulos acima ("Círculo 3B") e as
+mensagens dos commits ficam como foram escritos.
+
+## Círculo 5: proposta (2026-10-17)
+
+### A. O que foi dito
+
+Ditado nesta data:
+
+1. **Interruptor da proteção de custo.** Um controle na tela que liga e
+   desliga a proteção de custo.
+2. **Saldo de créditos visível.** Um ícone de carteira perto de
+   Configurações; o clique lê o saldo e mostra. Depois de cada alteração ou
+   monitoramento, ler de novo, para o número estar sempre atualizado ("não
+   deve ser uma coisa muito demandante").
+3. **Tirar o ícone de informação** do cabeçalho: com o fluxo mais claro, ele
+   não acrescenta nada.
+4. **Textos da página Consultar.** Título "Qual documento você quer
+   consultar?", depois a caixa, e embaixo a lista do que se pode consultar
+   (a de hoje). Sai "O tipo é reconhecido enquanto você digita".
+5. **Campo no meio da tela**, como nos sites de chatbot; depois de digitar, a
+   página se transforma como hoje, com uma transição do meio para cima.
+6. **Busca pelo meio de um número.** "Mel" acha "Melo" porque o nome tem
+   palavras; o pedaço do meio de um CPF ("982" em 529.982.247-25), não.
+   Pontos, traços e barras deveriam contar como espaço, para cada grupo do
+   número poder ser buscado pelo começo.
+
+Herdado do antigo "círculo 4":
+
+7. **Atlas Search** na barra, ligado por variável (`SEARCH_ENGINE=atlas`),
+   com a opção B como base.
+8. **Siglas dos tribunais e estados:** "São Paulo" achar os processos do
+   TJSP.
+9. **Suporte e Configurações:** o que vai em Configurações, o que é
+   "integração com a conta" e se a vista de suporte continua (se não ganhar
+   funções próprias, pode sair, deixando o diagnóstico de webhooks).
+10. **Login "tomada" e outras tomadas** (seção "Para os círculos 3 ou 4"):
+    login de mentira declarado como tal, coleção e autenticação no back-end
+    sem uso; candidatos a notificação, exportação, perfis e limite por
+    usuário.
+
+### B. Crítica e recomendação, item a item
+
+1. **Interruptor da proteção de custo.** Hoje o modo restrito (allowlist) só
+   se desliga pela variável `JUDIT_ALLOWLIST=disabled`, de propósito: um ato
+   deliberado no servidor. Um interruptor na tela muda o lugar da decisão:
+   o estado passa a morar no banco, e o `guard.ts` o lê a cada chamada. Sem
+   login, quem abrir o app pode desligar a proteção, o que pesa numa demo
+   pública. _Recomendação:_ o interruptor controla só o modo restrito; o
+   teto diário e o ritmo continuam sempre ligados (são eles que tornam
+   seguro desligar a allowlist, escolhas S1 a S4); desligar pede
+   confirmação; e a variável vira trava: `JUDIT_ALLOWLIST=locked` mantém o
+   modo restrito ligado e esconde o interruptor, para publicar o app.
+2. **Carteira.** Como o saldo é lido hoje: `src/lib/judit/account.ts` tem
+   duas leituras, `GET /credits/balance` (pré-pago) e `GET
+/billing/consumption` (consumo do ciclo, com `remaining`); a Server Action
+   `readJuditAccountAction` roda as duas no cartão "Conta na JUDIT" das
+   Configurações, só por clique. A conta usada é pós-paga: o saldo responde
+   422 (catálogo K1), e o número que importa é o `remaining` do consumo,
+   que exige chave administrativa. As duas páginas da JUDIT
+   ([créditos](https://docs.judit.io/resource/consumption/credits),
+   [consumo](https://docs.judit.io/resource/consumption/current)) não têm o
+   selo de cobrança nem o de grátis: não se sabe se a leitura é cobrada.
+   Carga não é o problema (uma chamada a mais, longe dos 180 por minuto); o
+   custo desconhecido e o atraso do número, sim: também não está dito em
+   quanto tempo uma chamada aparece no consumo. _Recomendação:_ carteira no
+   topo, ao lado de Configurações, com "restam X de Y no ciclo" e a hora da
+   leitura; lê ao abrir; depois de cada ação cobrada, lê de novo em segundo
+   plano, sem atrasar a ação; pré-pago e pós-pago no mesmo ícone (tenta o
+   saldo e, com 422, usa o consumo). Abrir uma pergunta IK: a leitura é
+   cobrada, e em quanto tempo o consumo reflete uma chamada?
+3. **Ícone de informação.** De acordo. Ele só abre o texto de ajuda do
+   título da página. _Recomendação:_ tirar; se algum texto fizer falta,
+   ele vai para a própria página.
+4. **Textos de Consultar.** De acordo com o enxugamento. Ressalva: a lista
+   inclui nome e OAB, que não são documentos; "Qual documento" pode fazer
+   alguém achar que nome não vale. _Recomendação:_ o título que o usuário
+   escolher (a sugestão do agente é "Qual documento ou nome você quer
+   consultar?"); embaixo da caixa, uma linha só, que mostra a lista de
+   tipos com a caixa vazia e vira a mensagem ("Continue digitando…",
+   "inválido") durante a digitação, para nada pular na tela.
+5. **Campo no meio.** De acordo. O risco é a página pular durante a
+   digitação: um CPF reconhecido no 11º dígito deixa de ser reconhecido no
+   12º, a caminho de um CNPJ; se a página voltar ao meio a cada perda de
+   reconhecimento, ela fica subindo e descendo. _Recomendação:_ o campo sobe
+   no primeiro reconhecimento e só volta ao meio com a caixa vazia; a
+   transição é de CSS, curta, desligada para quem pede menos movimento
+   (`prefers-reduced-motion`).
+6. **Busca pelo meio do número.** Causa confirmada: a chave entra na busca
+   como um termo só, sem máscara (`buildTerms`, em
+   `src/features/search/terms.ts`). _Recomendação:_ guardar também os grupos
+   do número formatado ("529", "982", "247", "25"), mantendo o número
+   inteiro. Efeitos: grupos comuns casam com muita coisa ("0001" está em
+   quase todo CNPJ de matriz, "2026" em todo processo do ano); num acervo
+   pessoal isso é aceitável, e o número inteiro continua no topo dos
+   resultados. Com o CPF mascarado nas listas (***.982.247-**), buscar pelo
+   que está à mostra passa a funcionar.
+7. **Atlas Search.** O que ele traria a mais, com o item 6 feito: erro de
+   digitação e meio de palavra. O custo: um segundo caminho de busca, que
+   não roda no MongoDB dos testes nem num MongoDB local, e um índice criado
+   no Atlas. _Recomendação:_ deixar para a etapa 8 (opcional); o fechamento
+   da etapa 7 vai reduzir código, e este item aumenta.
+8. **Siglas e estados.** O próprio número CNJ diz o tribunal (segmento
+   J.TR: 8.26 é a Justiça Estadual de São Paulo), o que é mais confiável do
+   que a sigla em texto. Os tribunais regionais cobrem mais de um estado
+   (TRF3: SP e MS) e os superiores, o país. _Recomendação:_ uma tabela
+   J.TR → UF e nome do estado, gerando termos de busca ("sao paulo", "sp")
+   para os processos guardados.
+9. **Suporte e Configurações.** Fato: a vista de suporte mostra
+   identificadores técnicos, o Diagnóstico e textos a mais, e é lida em
+   alguns arquivos de `src`. A carteira (item 2) e o interruptor (item 1)
+   respondem boa parte de "integração com a conta". _Recomendação:_
+   Configurações com as integrações, a proteção de custo com o interruptor,
+   a conta JUDIT e o diagnóstico de webhooks; a vista de suporte sai, e os
+   identificadores técnicos ficam num "Detalhes técnicos" fechado onde hoje
+   aparecem. Decisão do usuário.
+10. **Login "tomada".** Conflita com o fechamento da etapa 7, que deixa o
+    `main` sem código de demonstração: um login que não protege nada é
+    código de demonstração. E, com o interruptor do item 1, um login de
+    mentira poderia passar a impressão de que a proteção está guardada.
+    _Recomendação:_ fora do círculo 5; volta na etapa 8, se for o caso.
+
+### C. Decisões antes do código
+
+| #   | Decisão                   | Recomendação do agente                                                                 |
+| --- | ------------------------- | -------------------------------------------------------------------------------------- |
+| E1  | Interruptor de custo      | Só o modo restrito; teto e ritmo fixos; confirmação; `JUDIT_ALLOWLIST=locked` trava    |
+| E2  | Carteira                  | Topo; lê ao abrir e, em segundo plano, depois de cada ação cobrada; pergunta IK aberta |
+| E3  | Título de Consultar       | "Qual documento ou nome você quer consultar?", ou o texto do usuário                   |
+| E4  | Quando o campo sobe       | No primeiro reconhecimento; volta ao meio só com a caixa vazia                         |
+| E5  | Grupos do número na busca | Sim, mantendo o número inteiro                                                         |
+| E6  | Atlas Search              | Etapa 8                                                                                |
+| E7  | Estados dos tribunais     | Pelo segmento J.TR do CNJ                                                              |
+| E8  | Vista de suporte          | Sai; "Detalhes técnicos" fechado; diagnóstico em Configurações                         |
+| E9  | Login "tomada"            | Etapa 8                                                                                |
+
+Sem decisão: nada é implementado. Itens 3 e 6 são pequenos e não dependem
+de outro.
+
+### Item 11: consultar e monitorar pela ficha do Acervo (2026-10-17)
+
+_Ditado do usuário (resumido):_ na ficha de um assunto, as perguntas de "O
+que ainda não se sabe" levam à página Consultar com tudo preenchido. Deveria
+dar para consultar ali mesmo, em dois cliques: a pergunta e "Fazer
+consulta", e também deixar um monitoramento. Antes, consultar ou monitorar
+em qualquer aba confundia, porque as ações ficavam espalhadas; na ficha o
+identificador já está determinado, então consultar ali não cria confusão.
+
+_Fato no código:_ os botões de "O que ainda não se sabe"
+(`subject-page.tsx`) são links para `/?valor=…&tipo=…` e nem levam a
+pergunta clicada: em Consultar, a pessoa escolhe de novo. O cartão de
+monitoramento também manda para Consultar ("Ir para Consultar"). O diálogo
+de novo monitoramento (`useNewTrackingDialog`) já abre de qualquer página.
+
+_Crítica:_ de acordo; a regra do círculo 3 ("as ações ficam em Consultar")
+existia para evitar a escolha de tipo em vários lugares, e na ficha não há
+escolha a fazer. O risco é duplicar o fluxo de Consultar: o tempo e o custo
+de cada pergunta, o resumo por IA da consulta processual, os erros da
+proteção de custo e o modo de demonstração. E o resultado não precisa ser
+desenhado duas vezes: a base própria grava o que chega, e a ficha já mostra
+cada tipo de dado. Ponto a verificar: se o modo de demonstração atualiza a
+ficha depois de uma consulta fictícia.
+
+_Recomendação:_ clicar numa pergunta abre, ali mesmo, um painel curto com o
+tempo, o custo e o botão "Fazer consulta" (e "Também monitorar", quando a
+pergunta for monitorável, abrindo o diálogo de monitoramento já preenchido).
+O botão roda a mesma Server Action de Consultar (`runConsultAction`); depois,
+a ficha relê o banco e o dado novo aparece na seção dele, e a pergunta sai
+da lista. As consultas "Depois" aparecem em "Consultas feitas", na fila. O
+pedaço comum (a pergunta, o tempo e o custo, o botão) vira um componente
+usado pelas duas páginas, para as regras não divergirem. O cartão de
+monitoramento troca "Ir para Consultar" por "Monitorar", com o mesmo
+diálogo.
+
+| #   | Decisão           | Recomendação do agente                                                        |
+| --- | ----------------- | ----------------------------------------------------------------------------- |
+| E10 | Consulta na ficha | Painel na própria ficha; mesma Server Action; resultado pelas seções da ficha |
+
+### Respostas do usuário à proposta do círculo 5 (2026-10-17)
+
+- **E1, proteção de custo.** A allowlist continua dentro de "Proteção de
+  custo". O interruptor só aparece com o modo desenvolvedor (a vista de
+  suporte) ligado: o texto "Proteção de custo ativada" vira um interruptor
+  que desliga. Ideia de produto, para depois: cada conta gera um PIN, que a
+  pessoa guarda ou entrega ao suporte técnico, e só com ele se desliga a
+  proteção (uso controlado, de diagnóstico). _Crítica do agente:_ o modo
+  desenvolvedor é uma preferência guardada no navegador, que qualquer pessoa
+  liga; ele esconde o interruptor, mas não decide quem o usa. Quem decide é
+  o PIN (que depende de contas, etapa 8) ou o servidor
+  (`JUDIT_ALLOWLIST=locked` trava a proteção ligada e some com o
+  interruptor, para publicar o app).
+- **E8, revista.** A vista de suporte fica: ganhou uma função própria (o
+  interruptor), que era a condição dita no círculo 3.
+- **E2, carteira.** Abrir a carteira sempre lê de novo. Não ler depois de
+  cada ação, porque acumula carga. O usuário sugeriu leitura em segundo
+  plano a cada 5 ou 10 minutos, com aviso se o gasto subir muito, ou um
+  contador no próprio app que, depois de um número de consultas, mostra
+  quanto se gastou. _Recomendação do agente:_ o contador, porque não chama a
+  JUDIT (o app já conta as chamadas cobradas no próprio histórico, para o
+  teto diário) e não depende da unidade do consumo, que a documentação não
+  explica; a leitura periódica fica para quando a pergunta IK disser que
+  ler o consumo é grátis.
+- **E3, textos.** Título "Qual documento você quer consultar?". Embaixo da
+  caixa, a linha com os tipos aceitos, com o nome no fim; durante a
+  digitação, ela vira a mensagem ("Continue digitando…").
+- **E4, campo no meio.** O usuário não sabe como seria implementado e se
+  incomoda com o espaço vazio. _Agente:_ o bloco do campo ocupa a altura da
+  tela, com o campo centralizado; no primeiro reconhecimento, essa altura
+  encolhe com uma transição de CSS, o campo sobe e as perguntas aparecem
+  embaixo. Sem biblioteca nova; se não ficar bom na tela, sai num commit.
+- **E7, siglas.** O usuário não lembrava de ter pedido. Origem: no círculo 4
+  (antigo 3B), ele deu o exemplo de buscar "Roraima" e achar os processos de
+  Roraima, como argumento a favor do Atlas Search; a tabela de siglas foi a
+  proposta do agente para o exemplo funcionar sem o Atlas.
+
+## Círculo 5: plano de implementação (2026-10-17)
+
+Lista final, depois das respostas do usuário. Um commit por fatia.
+
+1. **Cabeçalho sem o ícone de informação.** Sai o ⓘ ao lado do título da
+   página.
+2. **Página Consultar.**
+   - Título "Qual documento você quer consultar?"; embaixo da caixa, uma
+     linha só: com a caixa vazia, os tipos aceitos, com o nome no fim;
+     durante a digitação, a mensagem ("Continue digitando…", "inválido").
+   - Com a caixa vazia, o bloco ocupa a altura da tela e o campo fica no
+     meio.
+   - No primeiro reconhecimento, o deslize: o bloco encolhe, o campo sobe
+     suavemente, e as perguntas entram deslizando de baixo, uma depois da
+     outra. O campo só volta ao meio com a caixa vazia. Só CSS; quem pede
+     menos movimento no sistema vê a troca sem animação.
+3. **Busca pelos grupos do número.** CPF, CNPJ e CNJ também entram na busca
+   pelos grupos do número formatado ("529", "982", "247"), além do número
+   inteiro. As entradas que já existem são remontadas sozinhas.
+4. **Estados dos tribunais.** Tabela do segmento J.TR do número CNJ para a
+   UF e o nome do estado; cada processo guardado ganha os termos ("roraima",
+   "rr"), e buscar "Roraima" acha os processos de lá.
+5. **Carteira.**
+   - Ícone de carteira no topo, ao lado de Configurações. Abrir lê de novo:
+     o saldo de créditos (pré-pago) e, se ele não se aplicar à conta (422),
+     o consumo do ciclo; mostra "restam X de Y no ciclo" e a hora da
+     leitura. Sem chave administrativa, a mensagem diz isso.
+   - Contador: a cada 10 consultas cobradas (contadas no histórico do app,
+     sem chamar a JUDIT), um aviso com o gasto desde o último aviso e o
+     atalho para abrir a carteira.
+   - Na demonstração, uma carteira fictícia, marcada como tal.
+   - Pergunta IK: ler o saldo ou o consumo é cobrado? Em quanto tempo uma
+     chamada aparece no consumo?
+6. **Interruptor da proteção de custo.**
+   - Em Configurações, no cartão "Proteção de custo", com o modo
+     desenvolvedor ligado, "Proteção de custo ativada" vira um interruptor
+     que liga e desliga o modo restrito (allowlist). Desligar pede
+     confirmação.
+   - O estado fica no banco e o `guard.ts` o lê a cada chamada. O teto
+     diário e o ritmo continuam sempre ligados.
+   - `JUDIT_ALLOWLIST=locked` trava a proteção ligada e esconde o
+     interruptor (para publicar o app). `.env.example`, `check-env` e README
+     atualizados.
+7. **Consultar e monitorar pela ficha do Acervo.**
+   - Clicar numa pergunta de "O que ainda não se sabe" abre, na própria
+     ficha e com o mesmo deslize, um painel com o tempo, o custo e "Fazer
+     consulta"; quando a pergunta é monitorável, também "Monitorar", que
+     abre o diálogo de monitoramento já preenchido.
+   - A consulta usa a mesma Server Action de Consultar; depois, a ficha
+     relê o banco, o dado aparece na seção dele e a pergunta sai da lista.
+     As consultas "Depois" aparecem em "Consultas feitas".
+   - A pergunta, o tempo, o custo e o botão viram um componente comum às
+     duas páginas.
+   - O cartão de monitoramento troca "Ir para Consultar" por "Monitorar".
+8. **Fechamento.** Testes das regras novas; lint, typecheck, format e
+   build; conferência no Firefox (o navegador do usuário) e nos dois modos
+   (banco e demonstração), com capturas; escopo, diário e relatório de
+   progresso.
+
+Fora do círculo 5 (etapa 8): Atlas Search; login e outras tomadas; PIN por
+conta para o suporte desligar a proteção; leitura periódica do saldo (se a
+pergunta IK disser que é grátis).

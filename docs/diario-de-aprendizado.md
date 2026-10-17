@@ -1665,6 +1665,38 @@ No Firefox do usuário, a camada desenhada por cima mostrava os dois números so
 
 O usuário descreveu o que queria: os separadores "falsos" dentro da caixa, como nos formulários de CPF, mas só depois de reconhecer o documento, porque o campo aceita qualquer tipo. O cuidado foi não gravar a máscara no estado: o reconhecimento usa a máscara digitada para decidir o tipo, e um CPF formatado seguido de mais um dígito viraria "CPF inválido" para quem digita um CNPJ. Limitação aceita: os caracteres da caixa não podem ter outra cor, e editar no meio do número leva o cursor para o fim.
 
+### 2026-10-17 / Círculos renumerados e proposta do círculo 5
+
+**Resumo técnico**
+
+O 3B passa a ser o círculo 4, e o próximo é o 5. Proposta do círculo 5 no escopo: interruptor da proteção de custo, carteira com o saldo, sem o ícone de informação, Consultar com o campo no meio, busca pelos grupos do número, estados dos tribunais, suporte e Configurações. Atlas Search e login ficam para a etapa 8.
+
+**Como pensamos (resumo do agente)**
+
+O usuário notou que as letras (3A, 3B, 3C) contrariavam o método: cada círculo é uma volta inteira, e a seguinte detalha a anterior; um "3C" seria um círculo próprio com outro nome. Para a carteira, o agente leu o código e a documentação antes de propor: a conta é pós-paga, o número útil é o `remaining` do consumo, e a JUDIT não diz se a leitura é cobrada. A crítica principal do círculo é de segurança: um interruptor de custo sem login põe a decisão na mão de quem abrir o app.
+
+### 2026-10-17 / Círculo 5, item 11: consultar pela ficha
+
+**Resumo técnico**
+
+Proposto consultar e monitorar dentro da ficha do Acervo, em dois cliques, em vez de ir a Consultar. Hoje os botões de "O que ainda não se sabe" só levam a Consultar, sem a pergunta. Recomendação: a mesma Server Action e um componente comum; o resultado aparece nas seções da ficha, que relê o banco.
+
+### 2026-10-17 / Círculo 5: respostas do usuário
+
+**Resumo técnico**
+
+O interruptor da proteção de custo só aparece no modo desenvolvedor, e a vista de suporte fica por isso; o PIN por conta fica para a etapa 8. A carteira lê ao abrir, nunca depois de cada ação. Título de Consultar definido. O campo no meio será testado na tela.
+
+**Como pensamos (resumo do agente)**
+
+O usuário ligou duas pontas soltas: a vista de suporte, que só ficaria se ganhasse função, ganhou o interruptor. O agente apontou que esconder não é controlar: o modo desenvolvedor mora no navegador, e o controle de verdade é do servidor (trava por variável) ou de um PIN por conta.
+
+### 2026-10-17 / Círculo 5: plano de implementação
+
+**Resumo técnico**
+
+Plano fechado em oito fatias: cabeçalho sem ⓘ, Consultar com campo no meio e deslize, busca pelos grupos do número, estados dos tribunais, carteira com contador, interruptor de custo no modo desenvolvedor, consulta pela ficha do Acervo e fechamento. Atlas Search, login e PIN ficam para a etapa 8.
+
 ---
 
 ## Perguntas e respostas
