@@ -4,6 +4,7 @@ import type { Party } from "@/db/models";
 import type { JuditRequest } from "@/db/models";
 import { getPartyByDocument } from "@/features/parties/db";
 import { listEventPayloadsForReference } from "@/features/webhooks/db";
+import { saveResponsesToBase } from "@/features/base/ingest";
 import { processEventsForReference } from "@/features/webhooks/process";
 import {
   applicationErrorItem,
@@ -33,6 +34,11 @@ vi.mock("./db", () => ({
   updateJuditRequestStatus: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
+// The base itself is covered in src/features/base/db.test.ts.
+vi.mock("@/features/base/ingest", () => ({ saveResponsesToBase: vi.fn() }));
+vi.mock("@/features/base/db", () => ({
+  saveQuietly: async (_label: string, save: () => Promise<unknown>) => save(),
+}));
 // The processing rules are tested in src/features/webhooks/process.test.ts.
 vi.mock("@/features/webhooks/process", () => ({
   processEventsForReference: vi.fn(),
@@ -497,6 +503,12 @@ describe("checkAsyncQueryAction", () => {
         lawsuits: [{ cnj: "99999999999999999999", partyId: company.id }],
       },
     });
+    // Own database (circle 3, D1): every listed response is offered to it.
+    expect(saveResponsesToBase).toHaveBeenCalledWith(
+      { searchType: "cnpj", searchKey: TEST_CNPJ },
+      { origin: "async", mode: "historical_async", reference: REQUEST_ID },
+      expect.any(Array),
+    );
   });
 
   it("compares webhook deliveries with the listed responses", async () => {

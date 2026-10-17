@@ -10,6 +10,8 @@ import {
 import { logSyncQuery, syncFailureFor } from "@/features/queries/sync-log";
 import { getDataSource } from "@/lib/data";
 import { searchLawsuits } from "@/lib/judit/lawsuits";
+import { saveBatch, saveQuietly } from "@/features/base/db";
+import { lawsuitRecord } from "@/features/base/records";
 
 import type { Party } from "@/db/models";
 
@@ -106,6 +108,30 @@ export async function searchPartyLawsuitsAction(
       resultCount: result.lawsuits.length,
       errorKind: null,
     });
+
+    // Base própria (D1): todos os processos, no nosso formato.
+    const subject = {
+      searchType: party.documentType,
+      searchKey: party.document,
+    };
+    await saveQuietly(
+      `datalake_sync, request_id ${result.request_id ?? "-"}`,
+      () =>
+        saveBatch(
+          subject,
+          {
+            origin: "sync",
+            mode: "datalake_sync",
+            reference: result.request_id ?? null,
+          },
+          {
+            records: result.lawsuits.map((item) =>
+              lawsuitRecord(item, "lawsuit", subject),
+            ),
+            aiSummary: null,
+          },
+        ),
+    );
 
     return {
       ok: true,

@@ -86,6 +86,11 @@ pending ──claim (atômico)──▶ processing ──▶ processed   regra a
   `response_id`.
 - **`application_info` e `application_error`:** gravados inteiros (não têm
   dados de processo).
+- **Base própria (círculo 3, fatia 5):** desde a decisão D1, o processo
+  inteiro de uma entrega também vai para a coleção `lawsuits` (ou
+  `warrants`), no nosso formato, ligado ao assunto da consulta ou do
+  monitoramento (`src/features/base/ingest.ts`). O resumo acima continua
+  valendo para `webhook_events`, que é o registro técnico da entrega.
 - **Modo manutenção** (`JUDIT_WEBHOOK_FULL_PAYLOAD=enabled`): grava tudo, para
   diagnóstico. Desligue depois: são dados processuais de terceiros.
 - **Nunca:** o token. A JUDIT devolve a `callback_url` em

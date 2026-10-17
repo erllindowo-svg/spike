@@ -10,6 +10,8 @@ import {
 } from "@/features/queries/failure";
 import { logSyncQuery, syncFailureFor } from "@/features/queries/sync-log";
 import { getDataSource } from "@/lib/data";
+import { saveBatch, saveQuietly } from "@/features/base/db";
+import { registrationRecords } from "@/features/base/records";
 import { getEntity } from "@/lib/judit/lawsuits";
 
 import { ensureParty, getPartyByDocument, updatePartyRegistration } from "./db";
@@ -172,6 +174,23 @@ async function lookupRegistration(
     resultCount: response.response_data.length,
     errorKind: null,
   });
+  // Base própria (D1): o cadastro inteiro, com endereços, contatos e sócios.
+  await saveQuietly(
+    `registration_data, request_id ${response.request_id ?? "-"}`,
+    () =>
+      saveBatch(
+        { searchType: ref.documentType, searchKey: ref.document },
+        {
+          origin: "sync",
+          mode: "registration_data",
+          reference: response.request_id ?? null,
+        },
+        {
+          records: registrationRecords(response.response_data),
+          aiSummary: null,
+        },
+      ),
+  );
   return fromJuditEntities(response, ref.document);
 }
 

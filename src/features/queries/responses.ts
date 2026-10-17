@@ -109,7 +109,7 @@ function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
-function toWarrant(data: unknown): WarrantView | null {
+export function toWarrant(data: unknown): WarrantView | null {
   if (typeof data !== "object" || data === null) return null;
   const d = data as Record<string, unknown>;
   return {

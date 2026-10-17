@@ -20,7 +20,7 @@ export type RegistrationData = {
   specialStatus: string | null;
 };
 
-type Entity = EntitiesResponse["response_data"][number];
+export type Entity = EntitiesResponse["response_data"][number];
 
 export function fromJuditEntities(
   response: EntitiesResponse,
@@ -36,6 +36,12 @@ export function fromJuditEntities(
       specialStatus: null,
     };
   }
+  return fromJuditEntity(entity);
+}
+
+// Um cadastro da lista, nos campos do app. Também usado pela base própria
+// (src/features/base/records.ts), que grava todos os cadastros da lista.
+export function fromJuditEntity(entity: Entity): RegistrationData {
   return {
     found: true,
     name: text(entity.name),

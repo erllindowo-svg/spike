@@ -43,6 +43,14 @@ import {
   CONSULT_FEATURE_IDS,
   type ConsultFeatureId,
 } from "./catalog";
+import { saveBatch, saveQuietly, saveStats } from "@/features/base/db";
+import {
+  lawsuitRecord,
+  registrationRecords,
+  type BaseBatch,
+  type StatsRecord,
+} from "@/features/base/records";
+
 import { parseSearchKey } from "./identify";
 import { syntheticGroups, type ConsultPayload } from "./results";
 
@@ -158,6 +166,24 @@ export async function runConsultAction(
       resultCount: outcome.resultCount,
       errorKind: null,
     });
+    // Base própria (D1): tudo o que veio, no nosso formato. Uma falha aqui
+    // não esconde o resultado, que já foi cobrado.
+    const subject = {
+      searchType: query.searchType,
+      searchKey: query.searchKey,
+    };
+    const source = {
+      origin: "sync" as const,
+      mode,
+      reference: outcome.requestId,
+    };
+    await saveQuietly(
+      `${mode}, request_id ${outcome.requestId ?? "-"}`,
+      async () => {
+        if (outcome.batch) await saveBatch(subject, source, outcome.batch);
+        if (outcome.stats) await saveStats(subject, source, outcome.stats);
+      },
+    );
     return { ok: true, demo: false, payload: outcome.payload };
   } catch (error) {
     return juditActionFailure(error, "consult");
@@ -197,7 +223,16 @@ async function callJudit(
   payload: ConsultPayload;
   requestId: string | null;
   resultCount: number | null;
+  // O que vai para a base própria.
+  batch?: BaseBatch;
+  stats?: StatsRecord;
 }> {
+  const subject = { searchType: query.searchType, searchKey: query.searchKey };
+  const lawsuitsBatch = (items: Parameters<typeof lawsuitRecord>[0][]) => ({
+    records: items.map((item) => lawsuitRecord(item, "lawsuit", subject)),
+    aiSummary: null,
+  });
+
   switch (query.feature) {
     case "count": {
       const result = await countLawsuits(documentSearch(query));
@@ -205,18 +240,31 @@ async function callJudit(
         payload: { kind: "count", total: result.total },
         requestId: null,
         resultCount: result.total,
+        stats: {
+          mode: "datalake_count",
+          total: result.total,
+          groups: [],
+          juditData: result,
+        },
       };
     }
     case "synthetic": {
       const result = await getLawsuitsSynthetic(documentSearch(query));
+      const groups = syntheticGroups(result);
       return {
         payload: {
           kind: "synthetic",
           total: result.lawsuits_count ?? null,
-          groups: syntheticGroups(result),
+          groups,
         },
         requestId: result.request_id ?? null,
         resultCount: result.lawsuits_count ?? null,
+        stats: {
+          mode: "datalake_synthetic",
+          total: result.lawsuits_count ?? null,
+          groups,
+          juditData: result,
+        },
       };
     }
     case "lawsuits": {
@@ -231,6 +279,8 @@ async function callJudit(
         },
         requestId: result.request_id ?? null,
         resultCount: result.lawsuits.length,
+        // Todos os processos, inclusive os que passam do limite da tela.
+        batch: lawsuitsBatch(result.lawsuits),
       };
     }
     case "registration":
@@ -257,6 +307,12 @@ async function callJudit(
         payload: { kind: "registration", registration },
         requestId: result.request_id ?? null,
         resultCount: result.response_data.length,
+        // Todos os cadastros da lista, com endereços, contatos e sócios no
+        // `juditData` (D1: gravar tudo).
+        batch: {
+          records: registrationRecords(result.response_data),
+          aiSummary: null,
+        },
       };
     }
     case "lawsuit_datalake": {
@@ -273,6 +329,7 @@ async function callJudit(
           },
           requestId: null,
           resultCount: 1,
+          batch: lawsuitsBatch([item]),
         };
       } catch (error) {
         if (error instanceof JuditHttpError && error.status === 404) {
@@ -298,6 +355,7 @@ async function callJudit(
         },
         requestId: result.request_id ?? null,
         resultCount: result.lawsuits.length,
+        batch: lawsuitsBatch(result.lawsuits),
       };
     }
     case "history_async":

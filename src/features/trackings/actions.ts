@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import type { Tracking } from "@/db/models";
 import { getPartyByDocument } from "@/features/parties/db";
+import { saveQuietly } from "@/features/base/db";
+import { saveResponsesToBase } from "@/features/base/ingest";
 import { isDocumentType } from "@/features/parties/documents";
 import { assertDailyBudget } from "@/features/queries/budget";
 import {
@@ -479,6 +481,17 @@ export async function trackingResultsAction(
     const party = isDocumentType(tracking.searchType)
       ? await getPartyByDocument(tracking.searchType, tracking.searchKey)
       : null;
+    await saveQuietly(`monitoramento ${tracking.juditTrackingId}`, () =>
+      saveResponsesToBase(
+        { searchType: tracking.searchType, searchKey: tracking.searchKey },
+        {
+          origin: "tracking",
+          mode: tracking.mode,
+          reference: tracking.juditTrackingId,
+        },
+        list.page_data,
+      ),
+    );
     return {
       ok: true,
       tracking,

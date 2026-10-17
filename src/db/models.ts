@@ -236,3 +236,110 @@ export type SyncQuery = {
   errorKind: string | null;
   createdAt: Date;
 };
+
+// --- Base própria (círculo 3, fatia 5; decisão D1) -------------------------
+//
+// O que a JUDIT devolve passa a ser gravado no nosso formato, uma coleção por
+// coisa: processos (e execuções penais, que têm o formato de processo),
+// cadastros, mandados e contagens. Cada registro guarda os campos que o app
+// usa, já normalizados, e o item inteiro como a JUDIT mandou (`juditData`),
+// para nada se perder. Regra de atualização: o dado mais novo substitui o
+// anterior (`fetchedAt`), guardando a origem. A ligação "encontrado ao
+// pesquisar tal identificador" fica em `findings`.
+
+// De onde veio um registro da base própria.
+export type RecordOrigin = "sync" | "async" | "webhook" | "tracking";
+
+export type RecordSource = {
+  origin: RecordOrigin;
+  mode: QueryMode | TrackingMode;
+  // request_id (consulta) ou tracking_id (monitoramento) da JUDIT, quando
+  // houver; leva ao suporte da JUDIT.
+  reference: string | null;
+};
+
+type StoredRecord = {
+  id: string;
+  // Item como a JUDIT mandou (um processo, um cadastro, um mandado), sem o
+  // envelope da resposta.
+  juditData: unknown;
+  source: RecordSource;
+  // Quando a JUDIT produziu ou nos entregou este conteúdo. Decide a
+  // atualização: um conteúdo mais velho não substitui um mais novo.
+  fetchedAt: Date;
+  firstSeenAt: Date;
+};
+
+export type StoredLawsuit = StoredRecord & {
+  // 20 dígitos. A chave é o CNJ com a instância: o mesmo número existe em
+  // primeira e segunda instância.
+  cnj: string;
+  instance: number;
+  kind: "lawsuit" | "execution";
+  tribunal: string | null;
+  area: string | null;
+  className: string | null;
+  subject: string | null;
+  judgingBody: string | null;
+  status: "active" | "archived" | "suspended" | null;
+  distributedAt: Date | null;
+  lastMovementAt: Date | null;
+  amount: number | null;
+  // `secrecy_level` da JUDIT; > 0 é segredo de justiça (a JUDIT já devolve
+  // quase tudo vazio). Gravado como veio, para a tela avisar.
+  secrecyLevel: number | null;
+  // Resumo escrito pela IA da JUDIT, quando pedido (consulta processual
+  // completa). Só é trocado por outro resumo, nunca apagado por uma
+  // resposta sem resumo.
+  aiSummary: string | null;
+};
+
+export type StoredRegistration = StoredRecord & {
+  documentType: DocumentType;
+  document: string;
+  name: string | null;
+  tradeName: string | null;
+  registrationStatus: string | null;
+  specialStatus: string | null;
+};
+
+export type StoredWarrant = StoredRecord & {
+  // `code` do mandado, ou o `number` quando não houver código.
+  key: string;
+  code: string | null;
+  number: string | null;
+  warrantType: string | null;
+  arrestType: string | null;
+  status: string | null;
+  issueDate: string | null;
+  expirationDate: string | null;
+  judgementSummary: string | null;
+};
+
+// Contagem e resumo agrupado: números sobre um identificador, não itens.
+export type LawsuitStats = StoredRecord & {
+  searchType: SearchType;
+  searchKey: string;
+  mode: "datalake_count" | "datalake_synthetic";
+  total: number | null;
+  groups: { title: string; data: { label: string; value: number }[] }[];
+};
+
+export type FindingKind = "lawsuit" | "registration" | "warrant";
+
+// "Encontrado ao pesquisar tal identificador": liga um assunto (o que foi
+// pesquisado) aos itens da base. O mesmo processo pode ser encontrado por
+// vários assuntos (o CNPJ da empresa e a OAB do advogado, por exemplo).
+export type Finding = {
+  id: string;
+  searchType: SearchType;
+  searchKey: string;
+  kind: FindingKind;
+  // Chave do item: "cnj:instância", "cpf:documento" ou a chave do mandado.
+  itemKey: string;
+  // Lado do documento pesquisado no processo, quando a JUDIT diz.
+  role: "active" | "passive" | "interested" | null;
+  source: RecordSource;
+  firstFoundAt: Date;
+  lastFoundAt: Date;
+};

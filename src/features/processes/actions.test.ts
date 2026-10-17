@@ -16,6 +16,11 @@ vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
 vi.mock("@/features/parties/db", () => ({ getPartyByDocument: vi.fn() }));
 // The history record (page Consultas) is only observed.
 vi.mock("@/features/queries/db", () => ({ saveSyncQuery: vi.fn() }));
+// The own database is covered in src/features/base/db.test.ts.
+vi.mock("@/features/base/db", () => ({
+  saveBatch: vi.fn(),
+  saveQuietly: async (_label: string, save: () => Promise<unknown>) => save(),
+}));
 
 const TEST_CNPJ = "A1B2C3D4E5F668";
 const company: Party = {

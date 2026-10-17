@@ -23,6 +23,9 @@ vi.mock("next/server", () => ({
 }));
 const processWebhookEvent = vi.hoisted(() => vi.fn());
 vi.mock("@/features/webhooks/process", () => ({ processWebhookEvent }));
+// The own database (circle 3, slice 5) is tested in src/features/base.
+const saveDeliveryToBase = vi.hoisted(() => vi.fn());
+vi.mock("@/features/base/ingest", () => ({ saveDeliveryToBase }));
 
 const logs = {
   info: vi.spyOn(console, "info").mockImplementation(() => {}),
@@ -61,6 +64,7 @@ beforeEach(() => {
   scheduled.length = 0;
   processWebhookEvent.mockReset();
   processWebhookEvent.mockResolvedValue({ status: "processed", note: "ok" });
+  saveDeliveryToBase.mockReset();
   Object.values(logs).forEach((spy) => spy.mockClear());
 });
 
@@ -99,6 +103,8 @@ describe("POST /api/webhooks/judit", () => {
     expect(scheduled).toHaveLength(1);
     await scheduled[0]();
     expect(processWebhookEvent).toHaveBeenCalledWith("event-1");
+    // The whole body (not the stored summary) goes to the own database.
+    expect(saveDeliveryToBase).toHaveBeenCalledWith(requestCompletedDelivery);
   });
 
   it("does not schedule processing for a redelivery", async () => {

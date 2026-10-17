@@ -18,6 +18,12 @@ vi.mock("./db", () => ({
   updatePartyRegistration: vi.fn(),
 }));
 vi.mock("@/features/queries/db", () => ({ saveSyncQuery: vi.fn() }));
+// The own database is covered in src/features/base/db.test.ts.
+vi.mock("@/features/base/db", () => ({
+  saveBatch: vi.fn(),
+  saveQuietly: async (_label: string, save: () => Promise<unknown>) => save(),
+}));
+
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 
 const TEST_CNPJ = "A1B2C3D4E5F668";

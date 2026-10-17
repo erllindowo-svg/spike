@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Party } from "@/db/models";
 import { ensureParty, updatePartyRegistration } from "@/features/parties/db";
 import { startAsyncQueryAction } from "@/features/queries/actions";
+import { saveBatch, saveStats } from "@/features/base/db";
 import { saveSyncQuery } from "@/features/queries/db";
 import { getDataSource, getPartyByDocument, listLawsuits } from "@/lib/data";
 import {
@@ -26,6 +27,12 @@ vi.mock("@/features/parties/db", () => ({
   updatePartyRegistration: vi.fn(),
 }));
 vi.mock("@/features/queries/db", () => ({ saveSyncQuery: vi.fn() }));
+// The base itself is covered in src/features/base/db.test.ts.
+vi.mock("@/features/base/db", () => ({
+  saveBatch: vi.fn(),
+  saveStats: vi.fn(),
+  saveQuietly: async (_label: string, save: () => Promise<unknown>) => save(),
+}));
 vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
 vi.mock("@/features/queries/actions", () => ({
   startAsyncQueryAction: vi.fn(),
@@ -60,6 +67,8 @@ beforeEach(() => {
   vi.mocked(getDataSource).mockReturnValue("db");
   vi.mocked(getPartyByDocument).mockReset().mockResolvedValue(party);
   vi.mocked(saveSyncQuery).mockReset();
+  vi.mocked(saveBatch).mockReset();
+  vi.mocked(saveStats).mockReset();
   vi.mocked(updatePartyRegistration).mockReset();
   vi.mocked(ensureParty).mockReset().mockResolvedValue(party);
   vi.mocked(startAsyncQueryAction).mockReset();
@@ -100,6 +109,12 @@ describe("runConsultAction", () => {
         outcome: "ok",
         resultCount: 12,
       }),
+    );
+    // Own database (circle 3, D1): the count is kept per identifier.
+    expect(saveStats).toHaveBeenCalledWith(
+      { searchType: "cnpj", searchKey: TEST_CNPJ },
+      { origin: "sync", mode: "datalake_count", reference: null },
+      expect.objectContaining({ mode: "datalake_count", total: 12 }),
     );
   });
 

@@ -1201,3 +1201,44 @@ implementação ficam marcadas como _decisão do agente_.
    monitoramento por OAB entrou (modelo, validação pela mesma regra de
    `identify`, sem parte, e no diálogo como quarta opção). Conferido com
    capturas de tela.
+5. **Base própria (D1)** (`src/features/base/`). Desenho, antes do código:
+   - **Coleções novas**, uma por coisa: `lawsuits` (chave CNJ + instância;
+     as execuções penais entram aqui com `kind: "execution"`, porque têm o
+     formato de processo), `registrations` (chave tipo + documento do
+     próprio cadastro), `warrants` (chave `code`, ou `number` sem código),
+     `lawsuit_stats` (contagem e resumo agrupado, por identificador) e
+     `findings` (a ligação "encontrado ao pesquisar tal identificador", com
+     o lado do documento no processo). Índices únicos em todas.
+   - **O que se grava:** os campos que o app usa, já normalizados, e o item
+     inteiro como a JUDIT mandou (`juditData`), sem o envelope da resposta.
+     "Tudo, normalizado" (decisão do usuário) virou isto: a estrutura é a
+     nossa, e nada do conteúdo se perde.
+   - **Regra de atualização:** o conteúdo mais novo (`fetchedAt`: a data da
+     resposta da JUDIT, ou a da gravação) substitui o anterior, com a origem
+     (`source`: síncrona, assíncrona, monitoramento ou webhook; modalidade;
+     `request_id` ou `tracking_id`). É atômica: o upsert só casa com um
+     registro mais velho, e o índice único recusa o resto. O resumo por IA
+     só é trocado por outro resumo.
+   - **Segredo de justiça:** gravado como a JUDIT devolve (ela já devolve
+     quase tudo vazio), com `secrecyLevel` para a tela avisar. **Contatos,
+     endereços e sócios** do cadastro: gravados no `juditData`, porque o
+     usuário decidiu guardar tudo; a tela não os mostra por padrão. Os dois
+     saem com "apagar este assunto" (`deleteSubjectRecords`), que remove o
+     que só aquele assunto encontrou e mantém o que outro assunto também
+     encontrou.
+   - **De onde vem:** consulta síncrona (página Consultar, card de
+     processos da parte, dados cadastrais ao adicionar uma parte),
+     resultado assíncrono ao abrir ("Ver resultado"), resultados de
+     monitoramento ("Ver resultados") e entregas de webhook (o corpo
+     inteiro, que só existe na requisição: `webhook_events` continua com o
+     resumo). Uma falha ao gravar na base vai para o log (`[base]`) e não
+     esconde o resultado, que já foi cobrado.
+   - Testes num MongoDB temporário (`src/features/base/db.test.ts`):
+     gravação, mais novo substitui, mais velho não, um processo para vários
+     assuntos, resumo por IA preservado, mandados e execuções, cadastros de
+     uma busca por nome, e "apagar assunto".
+   - _Decisões do agente:_ execução penal na coleção de processos; uma
+     entrega de webhook que chega antes de a consulta ser gravada não acha
+     o assunto e não grava (o resultado volta à base ao abrir a consulta);
+     os registros antigos do histórico (`sync_queries`) não foram
+     reprocessados.

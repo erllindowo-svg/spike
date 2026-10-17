@@ -14,6 +14,9 @@ import { listEventPayloadsForReference } from "@/features/webhooks/db";
 import { processEventsForReference } from "@/features/webhooks/process";
 import { getDataSource } from "@/lib/data";
 
+import { saveQuietly } from "@/features/base/db";
+import { saveResponsesToBase } from "@/features/base/ingest";
+
 import { assertDailyBudget } from "./budget";
 import { createRequest, getRequest, listResponses } from "@/lib/judit/requests";
 
@@ -319,6 +322,14 @@ export async function checkAsyncQueryAction(
 
     const list = await listResponses({ requestId: stored.requestId });
     const results = summarizeResponses(list, party);
+    // Base própria (D1). Uma falha aqui não esconde o resultado.
+    await saveQuietly(`consulta, request_id ${stored.requestId}`, () =>
+      saveResponsesToBase(
+        { searchType: stored.searchType, searchKey: stored.searchKey },
+        { origin: "async", mode: stored.mode, reference: stored.requestId },
+        list.page_data,
+      ),
+    );
     const deliveryCheck =
       stored.delivery === "webhook"
         ? await readDeliveryCheck(stored.requestId, results.totalResponses)

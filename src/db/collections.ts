@@ -2,8 +2,13 @@ import type { Db } from "mongodb";
 
 import type {
   Alert,
+  Finding,
+  LawsuitStats,
   Party,
   JuditRequest,
+  StoredLawsuit,
+  StoredRegistration,
+  StoredWarrant,
   SyncQuery,
   Tracking,
   TrackingCreation,
@@ -44,6 +49,11 @@ export type WebhookEventDoc = Doc<Omit<WebhookEvent, WebhookEventStage6Field>> &
 export type AlertDoc = Doc<Alert>;
 export type JuditRequestDoc = Doc<JuditRequest>;
 export type SyncQueryDoc = Doc<SyncQuery>;
+export type StoredLawsuitDoc = Doc<StoredLawsuit>;
+export type StoredRegistrationDoc = Doc<StoredRegistration>;
+export type StoredWarrantDoc = Doc<StoredWarrant>;
+export type LawsuitStatsDoc = Doc<LawsuitStats>;
+export type FindingDoc = Doc<Finding>;
 
 export function collections(db: Db) {
   return {
@@ -53,6 +63,12 @@ export function collections(db: Db) {
     alerts: db.collection<AlertDoc>("alerts"),
     juditRequests: db.collection<JuditRequestDoc>("judit_requests"),
     syncQueries: db.collection<SyncQueryDoc>("sync_queries"),
+    // Base própria (círculo 3, fatia 5).
+    lawsuits: db.collection<StoredLawsuitDoc>("lawsuits"),
+    registrations: db.collection<StoredRegistrationDoc>("registrations"),
+    warrants: db.collection<StoredWarrantDoc>("warrants"),
+    lawsuitStats: db.collection<LawsuitStatsDoc>("lawsuit_stats"),
+    findings: db.collection<FindingDoc>("findings"),
   };
 }
 
@@ -80,6 +96,11 @@ export const WEBHOOK_EVENTS_CALLBACK_ID_INDEX =
   "webhook_events_callback_id_unique";
 export const ALERTS_DEDUPE_KEY_INDEX = "alerts_dedupe_key_unique";
 export const PARTIES_DOCUMENT_INDEX = "parties_document_unique";
+export const LAWSUITS_KEY_INDEX = "lawsuits_cnj_instance_unique";
+export const REGISTRATIONS_KEY_INDEX = "registrations_document_unique";
+export const WARRANTS_KEY_INDEX = "warrants_key_unique";
+export const LAWSUIT_STATS_KEY_INDEX = "lawsuit_stats_search_mode_unique";
+export const FINDINGS_KEY_INDEX = "findings_subject_item_unique";
 
 // Índices e regras de unicidade. O MongoDB não tem migrations como o SQL:
 // createIndex é idempotente (não faz nada se o índice já existe igual), então
@@ -93,6 +114,11 @@ export async function ensureIndexes(db: Db): Promise<void> {
     alerts,
     juditRequests,
     syncQueries,
+    lawsuits,
+    registrations,
+    warrants,
+    lawsuitStats,
+    findings,
   } = collections(db);
 
   await Promise.all([
@@ -190,5 +216,31 @@ export async function ensureIndexes(db: Db): Promise<void> {
       { createdAt: -1 },
       { name: "sync_queries_created_at" },
     ),
+
+    // Base própria: um registro por coisa. Os índices únicos são a regra de
+    // "não duplicar" e também a da atualização: um upsert com conteúdo mais
+    // velho esbarra no registro existente (src/features/base/db.ts).
+    lawsuits.createIndex(
+      { cnj: 1, instance: 1 },
+      { name: LAWSUITS_KEY_INDEX, unique: true },
+    ),
+    registrations.createIndex(
+      { documentType: 1, document: 1 },
+      { name: REGISTRATIONS_KEY_INDEX, unique: true },
+    ),
+    warrants.createIndex(
+      { key: 1 },
+      { name: WARRANTS_KEY_INDEX, unique: true },
+    ),
+    lawsuitStats.createIndex(
+      { searchType: 1, searchKey: 1, mode: 1 },
+      { name: LAWSUIT_STATS_KEY_INDEX, unique: true },
+    ),
+    findings.createIndex(
+      { searchType: 1, searchKey: 1, kind: 1, itemKey: 1 },
+      { name: FINDINGS_KEY_INDEX, unique: true },
+    ),
+    // Quem encontrou este item (o processo visto de outro assunto).
+    findings.createIndex({ kind: 1, itemKey: 1 }, { name: "findings_item" }),
   ]);
 }
