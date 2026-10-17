@@ -12,6 +12,7 @@ import { connection } from "next/server";
 //   copiados (continuam na JUDIT) e a atividade não é persistida; aparecem
 //   vazios. Nada aqui chama a JUDIT.
 
+import { getDb } from "@/db";
 import type {
   Alert,
   DocumentType,
@@ -21,6 +22,17 @@ import type {
 import type { ActivityItem } from "@/features/activity/types";
 import * as alertsDb from "@/features/alerts/db";
 import * as baseDb from "@/features/base/db";
+import { identify } from "@/features/consult/identify";
+import { findSearchEntries, getSearchEntry } from "@/features/search/entries";
+import {
+  demoEntries,
+  exactFirst,
+  monitoredKeys,
+  SEARCH_LIMIT,
+  searchDemoEntries,
+  toHit,
+  type SearchHit,
+} from "@/features/search/hits";
 import {
   demoSubjectView,
   EMPTY_SUBJECT_VIEW,
@@ -115,6 +127,43 @@ export async function getLawsuitByCnj(cnj: string): Promise<Lawsuit | null> {
   if (await usingDatabase()) return null;
   const normalized = normalizeCnj(cnj);
   return mock.lawsuits.find((l) => l.cnj === normalized) ?? null;
+}
+
+// Busca da barra e do Acervo (círculo 3B): palavras que começam com o texto,
+// em `search_entries` (banco) ou nas entradas montadas com os dados
+// fictícios (demonstração). O identificador digitado vem primeiro.
+export async function searchKnown(
+  text: string,
+  limit: number = SEARCH_LIMIT,
+): Promise<SearchHit[]> {
+  if (await usingDatabase()) {
+    const db = await getDb();
+    const entries = await findSearchEntries(db, text, limit);
+    const result = identify(text);
+    if (result.status === "recognized") {
+      const { type, key } = result.candidates[0];
+      const exact = await getSearchEntry(db, {
+        searchType: type,
+        searchKey: key,
+      });
+      if (exact && !entries.some((e) => e.id === exact.id)) {
+        entries.unshift(exact);
+      }
+    }
+    const monitored = monitoredKeys(await trackingsDb.listTrackings());
+    return exactFirst(text, entries)
+      .slice(0, limit)
+      .map((entry) => toHit(entry, monitored));
+  }
+  const entries = demoEntries({
+    parties: mock.parties,
+    lawsuits: mock.lawsuits,
+    queries: mock.queries,
+    trackings: mock.trackings,
+  });
+  return exactFirst(text, searchDemoEntries(text, entries))
+    .slice(0, limit)
+    .map((entry) => toHit(entry, monitoredKeys(mock.trackings)));
 }
 
 // O que a base própria sabe de um assunto (círculo 3, fatias 5 e 6). Na

@@ -1,37 +1,33 @@
 "use client";
 
 import {
-  FileClockIcon,
-  FolderSearchIcon,
-  SearchIcon,
+  CircleOffIcon,
+  LibraryBigIcon,
+  NotebookPenIcon,
   type LucideIcon,
+  SearchIcon,
 } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
-import { buildSubjects } from "@/features/subjects/subjects";
-import { useDemoStore } from "@/lib/demo-store";
+import { useKnownSearch } from "@/features/search/use-known-search";
 import { cn } from "@/lib/utils";
 
 import { buildSuggestions, type SearchSuggestion } from "./search-suggestions";
 
 const kindIcons: Record<SearchSuggestion["kind"], LucideIcon> = {
-  subject: FolderSearchIcon,
-  query: FileClockIcon,
-  consult: SearchIcon,
+  hit: LibraryBigIcon,
+  consult: NotebookPenIcon,
+  notice: CircleOffIcon,
 };
 
-// Evento com o que foi digitado na barra quando a página aberta é a
-// Consultar: lá, a barra não abre sugestões, ela preenche o campo da página
-// (consult-page.tsx escuta). Dois campos para a mesma coisa confundiriam.
-export const CONSULT_FIELD_EVENT = "raio-x:consult-field";
-
-// Barra de pesquisa do cabeçalho, em todas as páginas (círculo 3, fatia 7):
-// sugere o que já está no banco (assuntos e consultas, com data) enquanto se
-// digita e, por último, "Consultar". Teclado: "/" foca, setas escolhem,
-// Enter abre, Esc fecha.
+// Barra de pesquisa do cabeçalho (círculo 3B): uma só, igual em todas as
+// páginas, como a do Google. Procura no acervo (search_entries, no servidor)
+// enquanto se digita; o melhor resultado vem primeiro, "Fazer nova
+// consulta" logo depois. Teclado: "/" foca, setas escolhem, Enter abre, Esc
+// fecha.
 export function GlobalSearch({
   onNavigate,
 }: {
@@ -39,17 +35,19 @@ export function GlobalSearch({
   onNavigate?: () => void;
 } = {}) {
   const router = useRouter();
-  const onConsultPage = usePathname() === "/";
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const { parties, trackings, alerts, queries } = useDemoStore();
-
-  const subjects = buildSubjects({ queries, trackings, parties, alerts });
-  const suggestions = buildSuggestions(query, { subjects, queries });
-  const showList = open && query.trim().length >= 2;
+  const found = useKnownSearch(query.trim());
+  const suggestions = buildSuggestions(query, found);
+  // Os avisos ("Dado não encontrado") aparecem, mas não são escolhidos.
+  const options = suggestions.filter(
+    (s): s is Extract<SearchSuggestion, { href: string }> =>
+      s.kind !== "notice",
+  );
+  const showList = open && suggestions.length > 0;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -66,7 +64,7 @@ export function GlobalSearch({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  function go(suggestion: SearchSuggestion) {
+  function go(suggestion: (typeof options)[number]) {
     setQuery("");
     setOpen(false);
     inputRef.current?.blur();
@@ -79,14 +77,14 @@ export function GlobalSearch({
       setOpen(false);
       return;
     }
-    if (!suggestions.length) return;
+    if (!options.length) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setOpen(true);
-      setActive((i) => (i + 1) % suggestions.length);
+      setActive((i) => (i + 1) % options.length);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActive((i) => (i - 1 + suggestions.length) % suggestions.length);
+      setActive((i) => (i - 1 + options.length) % options.length);
     }
   }
 
@@ -95,7 +93,7 @@ export function GlobalSearch({
       role="search"
       onSubmit={(event) => {
         event.preventDefault();
-        const chosen = suggestions[active] ?? suggestions[0];
+        const chosen = options[active] ?? options[0];
         if (chosen) go(chosen);
       }}
       className="relative w-full max-w-md"
@@ -108,15 +106,6 @@ export function GlobalSearch({
         ref={inputRef}
         value={query}
         onChange={(e) => {
-          if (onConsultPage) {
-            // Passa o texto ao campo da página, que recebe o foco.
-            window.dispatchEvent(
-              new CustomEvent(CONSULT_FIELD_EVENT, { detail: e.target.value }),
-            );
-            setQuery("");
-            onNavigate?.();
-            return;
-          }
           setQuery(e.target.value);
           setActive(0);
           setOpen(true);
@@ -125,18 +114,16 @@ export function GlobalSearch({
         // O atraso deixa o clique numa sugestão acontecer antes de fechar.
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={onKeyDown}
-        placeholder={
-          onConsultPage
-            ? "Digite aqui ou no campo da página"
-            : "Buscar no que você já consultou"
-        }
+        placeholder="Pesquisar no acervo ou fazer nova consulta"
         aria-label="Busca por nome, CPF, CNPJ, processo, OAB ou RJI"
         role="combobox"
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={
-          showList && suggestions[active] ? `${listId}-${active}` : undefined
+          showList && options[active]
+            ? `${listId}-${options[active].id}`
+            : undefined
         }
         className="bg-background pr-8 pl-8"
       />
@@ -150,49 +137,57 @@ export function GlobalSearch({
           aria-label="Sugestões"
           className="absolute top-full right-0 left-0 z-50 mt-1 max-h-96 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
         >
-          {suggestions.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-muted-foreground">
-              Nada no seu histórico com esse nome. Para consultar na JUDIT,
-              digite o identificador completo.
-            </li>
-          ) : (
-            suggestions.map((suggestion, index) => {
-              const Icon = kindIcons[suggestion.kind];
+          {suggestions.map((suggestion) => {
+            const Icon = kindIcons[suggestion.kind];
+            if (suggestion.kind === "notice") {
               return (
                 <li
                   key={suggestion.id}
-                  id={`${listId}-${index}`}
-                  role="option"
-                  aria-selected={index === active}
-                  // mousedown: acontece antes do blur do campo.
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    go(suggestion);
-                  }}
-                  onMouseEnter={() => setActive(index)}
-                  className={cn(
-                    "flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-sm",
-                    index === active && "bg-muted",
-                    suggestion.kind === "consult" &&
-                      "mt-1 border-t pt-2.5 opacity-70",
-                  )}
+                  role="presentation"
+                  className="flex items-start gap-2.5 px-2.5 py-2 text-sm text-muted-foreground"
                 >
-                  <Icon
-                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                    aria-hidden
-                  />
+                  <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
                   <span className="flex min-w-0 flex-col">
-                    <span className="truncate font-medium">
-                      {suggestion.label}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {suggestion.description}
-                    </span>
+                    <span className="font-medium">{suggestion.label}</span>
+                    <span className="text-xs">{suggestion.description}</span>
                   </span>
                 </li>
               );
-            })
-          )}
+            }
+            const index = options.indexOf(suggestion);
+            return (
+              <li
+                key={suggestion.id}
+                id={`${listId}-${suggestion.id}`}
+                role="option"
+                aria-selected={index === active}
+                // mousedown: acontece antes do blur do campo.
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  go(suggestion);
+                }}
+                onMouseEnter={() => setActive(index)}
+                className={cn(
+                  "flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-sm",
+                  index === active && "bg-muted",
+                  suggestion.kind === "consult" && "text-primary",
+                )}
+              >
+                <Icon
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium">
+                    {suggestion.label}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {suggestion.description}
+                  </span>
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </form>

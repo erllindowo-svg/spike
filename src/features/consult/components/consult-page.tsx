@@ -11,9 +11,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
-import { CONSULT_FIELD_EVENT } from "@/components/layout/global-search";
 import { DistributionChart } from "@/components/shared/distribution-chart";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -110,18 +109,19 @@ export function ConsultPage() {
         )
       : undefined;
 
-  // Na página Consultar, o que se digita na barra do topo vem para cá
-  // (global-search.tsx).
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    function onBarInput(event: Event) {
-      setValue((event as CustomEvent<string>).detail);
-      setResult(null);
-      inputRef.current?.focus();
-    }
-    window.addEventListener(CONSULT_FIELD_EVENT, onBarInput);
-    return () => window.removeEventListener(CONSULT_FIELD_EVENT, onBarInput);
-  }, []);
+  // "Fazer nova consulta" na barra do topo navega para /?valor=…, também
+  // quando a página já está aberta: o campo acompanha a URL nova (ajuste de
+  // estado durante a renderização, o padrão do React para "quando a prop
+  // muda").
+  const urlValue = searchParams.get("valor") ?? "";
+  const urlType = searchParams.get("tipo") as SearchType | null;
+  const [lastUrl, setLastUrl] = useState(`${urlType}:${urlValue}`);
+  if (lastUrl !== `${urlType}:${urlValue}`) {
+    setLastUrl(`${urlType}:${urlValue}`);
+    setValue(urlValue);
+    setChosenType(urlType);
+    setResult(null);
+  }
 
   function changeValue(next: string) {
     setValue(next);
@@ -171,7 +171,6 @@ export function ConsultPage() {
               aria-hidden
             />
             <Input
-              ref={inputRef}
               id="consult-value"
               autoFocus
               value={value}

@@ -1,123 +1,101 @@
-import type { SearchType } from "@/db/models";
 import {
-  formatSearchKey as formatKey,
+  formatSearchKey,
   identify,
   SEARCH_TYPES,
 } from "@/features/consult/identify";
-import { QUERY_MODES } from "@/features/queries/modes";
-import type { QueryView } from "@/features/queries/types";
-import {
-  subjectHref,
-  subjectKey,
-  type Subject,
-} from "@/features/subjects/subjects";
-import { formatSearchKey } from "@/features/trackings/format";
-import { formatDate } from "@/lib/format";
+import type { SearchHit } from "@/features/search/hits";
+import { MIN_QUERY_LENGTH } from "@/features/search/terms";
+import { subjectHref } from "@/features/subjects/subjects";
 
-// Sugestões da barra de pesquisa (círculo 3, fatia 7). A barra é o atalho
-// para as duas páginas: primeiro o que já está no banco (os assuntos e,
-// quando o que foi digitado é o próprio identificador, as consultas feitas
-// sobre ele, com a data); por último, discreto, "Consultar", que abre a
-// página Consultar já preenchida. Nada é consultado só por digitar.
+// O que a barra de pesquisa mostra (círculo 3B), como a barra do Google:
+//
+//   1. o melhor resultado do banco (o identificador digitado, se já foi
+//      pesquisado, leva à ficha dele)
+//   2. sempre "Fazer nova consulta", que abre a página Consultar preenchida
+//   3. os outros resultados
+//
+// Sem resultados: "Dado não encontrado" (não clicável) e a nova consulta.
+// Com o banco fora do ar: "Busca indisponível" e a nova consulta. A busca
+// em si é feita no servidor (src/features/search/actions.ts).
 
-export type SearchSuggestion = {
-  id: string;
-  kind: "subject" | "query" | "consult";
-  label: string;
-  description: string;
-  href: string;
-};
-
-const MAX_SUBJECTS = 5;
-const MAX_QUERIES = 3;
-
-export function buildSuggestions(
-  rawQuery: string,
-  data: { subjects: Subject[]; queries: QueryView[] },
-): SearchSuggestion[] {
-  const query = rawQuery.trim();
-  if (query.length < 2) return [];
-
-  const term = query.toLowerCase();
-  const compact = query.toUpperCase().replace(/[^0-9A-Z]/g, "");
-  const identification = identify(query);
-  const target =
-    identification.status === "recognized"
-      ? identification.candidates[0]
-      : null;
-
-  // Assuntos: pelo nome ou por parte da chave (3 caracteres ou mais).
-  const subjects = data.subjects.filter(
-    (s) =>
-      !!s.name?.toLowerCase().includes(term) ||
-      (compact.length >= 3 && s.searchKey.toUpperCase().includes(compact)),
-  );
-  // O assunto do identificador digitado vem antes dos parecidos.
-  if (target) {
-    const exact = subjectKey(target.type, target.key);
-    subjects.sort(
-      (a, b) =>
-        Number(subjectKey(b.searchType, b.searchKey) === exact) -
-        Number(subjectKey(a.searchType, a.searchKey) === exact),
-    );
-  }
-
-  const suggestions: SearchSuggestion[] = subjects
-    .slice(0, MAX_SUBJECTS)
-    .map((s) => ({
-      id: `subject:${subjectKey(s.searchType, s.searchKey)}`,
-      kind: "subject",
-      label: s.name ?? formatSearchKey(s.searchType, s.searchKey),
-      description: subjectDescription(s),
-      href: subjectHref(s.searchType, s.searchKey),
-    }));
-
-  // As consultas já feitas sobre o identificador digitado, para reabrir.
-  if (target) {
-    for (const q of data.queries
-      .filter((q) => q.searchType === target.type && q.searchKey === target.key)
-      .slice(0, MAX_QUERIES)) {
-      suggestions.push({
-        id: `query:${q.id}`,
-        kind: "query",
-        label: QUERY_MODES[q.mode].label,
-        description: `Consulta de ${formatDate(q.createdAt)}`,
-        href: subjectHref(q.searchType, q.searchKey),
-      });
+export type SearchSuggestion =
+  | {
+      id: string;
+      kind: "hit" | "consult";
+      label: string;
+      description: string;
+      href: string;
     }
+  | { id: string; kind: "notice"; label: string; description: string };
+
+// `found`: null enquanto a busca não respondeu; "error" se falhou.
+export function buildSuggestions(
+  rawText: string,
+  found: SearchHit[] | "error" | null,
+): SearchSuggestion[] {
+  const text = rawText.trim();
+  if (text.replace(/[^0-9A-Za-zÀ-ÿ]/g, "").length < MIN_QUERY_LENGTH) {
+    return [];
   }
-
-  const consult = consultSuggestion(target);
-  if (consult) suggestions.push(consult);
-  return suggestions;
+  const consult = consultSuggestion(text);
+  if (found === null) return [consult];
+  if (found === "error") {
+    return [
+      {
+        id: "notice",
+        kind: "notice",
+        label: "Busca indisponível agora",
+        description: "O banco não respondeu. Tente de novo em instantes.",
+      },
+      consult,
+    ];
+  }
+  if (found.length === 0) {
+    return [
+      {
+        id: "notice",
+        kind: "notice",
+        label: "Dado não encontrado",
+        description: "Nada no seu acervo começa com esse texto.",
+      },
+      consult,
+    ];
+  }
+  const [first, ...rest] = found.map(hitSuggestion);
+  return [first, consult, ...rest];
 }
 
-function subjectDescription(s: Subject): string {
-  return [
-    SEARCH_TYPES[s.searchType].label,
-    s.name && s.searchType !== "name"
-      ? formatSearchKey(s.searchType, s.searchKey)
-      : null,
-    s.monitored ? "monitorado" : null,
-    s.lastQueryAt ? `consultado em ${formatDate(s.lastQueryAt)}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function consultSuggestion(
-  target: { type: SearchType; key: string } | null,
-): SearchSuggestion | null {
-  if (!target) return null;
-  const what =
-    target.type === "name"
-      ? `“${target.key}”`
-      : `${SEARCH_TYPES[target.type].label} ${formatKey(target.type, target.key)}`;
+function hitSuggestion(hit: SearchHit): SearchSuggestion {
   return {
-    id: `consult:${target.type}:${target.key}`,
+    id: `hit:${hit.searchType}:${hit.searchKey}`,
+    kind: "hit",
+    label: hit.label,
+    description: hit.description,
+    href: subjectHref(hit.searchType, hit.searchKey),
+  };
+}
+
+function consultSuggestion(text: string): SearchSuggestion {
+  const result = identify(text);
+  if (result.status === "recognized") {
+    const { type, key } = result.candidates[0];
+    const what =
+      type === "name"
+        ? `“${key}”`
+        : `${SEARCH_TYPES[type].label} ${formatSearchKey(type, key)}`;
+    return {
+      id: `consult:${type}:${key}`,
+      kind: "consult",
+      label: `Fazer nova consulta: ${what}`,
+      description: "Abre a página Consultar. Cada consulta é cobrada.",
+      href: `/?valor=${encodeURIComponent(key)}&tipo=${type}`,
+    };
+  }
+  return {
+    id: "consult:text",
     kind: "consult",
-    label: `Consultar ${what}`,
-    description: "Abre a página Consultar. Cada consulta é cobrada.",
-    href: `/?valor=${encodeURIComponent(target.key)}&tipo=${target.type}`,
+    label: `Fazer nova consulta: “${text}”`,
+    description: "Abre a página Consultar com o texto digitado.",
+    href: `/?valor=${encodeURIComponent(text)}`,
   };
 }

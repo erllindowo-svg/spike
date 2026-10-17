@@ -29,6 +29,9 @@ import type { SearchType } from "@/db/models";
 import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
 import { SEARCH_TYPES } from "@/features/consult/identify";
 import { isQueryOpen, type QueryView } from "@/features/queries/types";
+import type { SearchHit } from "@/features/search/hits";
+import { parseQuery } from "@/features/search/terms";
+import { useKnownSearch } from "@/features/search/use-known-search";
 import { formatSearchKey } from "@/features/trackings/format";
 import { getTrackingDisplayState } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
@@ -50,6 +53,7 @@ import {
 // aqui consulta a JUDIT: fazer fica na página Consultar.
 
 const PAGE_SIZE = 30;
+const ACERVO_SEARCH_LIMIT = 50;
 
 export function InfoPage({ queries }: { queries: QueryView[] }) {
   const searchParams = useSearchParams();
@@ -65,7 +69,19 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
   const [shown, setShown] = useState(PAGE_SIZE);
 
   const subjects = buildSubjects({ queries, trackings, parties, alerts });
-  const filtered = filterSubjects(subjects, { type, monitoredOnly, text });
+  // Com texto, a lista vem da busca do acervo (search_entries, no servidor):
+  // acha também o que está dentro dos dados guardados, como o nome de uma
+  // parte de um processo. Sem texto, a lista de assuntos de sempre.
+  const searching = parseQuery(text) !== null;
+  const found = useKnownSearch(text.trim(), ACERVO_SEARCH_LIMIT);
+  const filtered = filterSubjects(subjects, { type, monitoredOnly, text: "" });
+  const hits = Array.isArray(found)
+    ? found.filter(
+        (h) =>
+          (type === "all" || h.searchType === type) &&
+          (!monitoredOnly || h.monitored),
+      )
+    : [];
   const presentTypes = SUBJECT_TYPES.filter((t) =>
     subjects.some((s) => s.searchType === t),
   );
@@ -201,7 +217,7 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
                 setText(e.target.value);
                 setShown(PAGE_SIZE);
               }}
-              placeholder="Filtrar por nome ou número"
+              placeholder="Pesquisar no acervo (3 letras ou mais)"
               aria-label="Filtrar assuntos"
               className="pl-8"
             />
@@ -236,7 +252,9 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
           </label>
         </div>
 
-        {filtered.length === 0 ? (
+        {searching ? (
+          <SearchResults text={text.trim()} found={found} hits={hits} />
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={FolderSearchIcon}
             title={
@@ -266,7 +284,7 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
             ))}
           </ul>
         )}
-        {filtered.length > shown && (
+        {!searching && filtered.length > shown && (
           <div className="border-t p-3 text-center">
             <Button
               variant="ghost"
@@ -279,6 +297,63 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
         )}
       </Card>
     </>
+  );
+}
+
+function SearchResults({
+  text,
+  found,
+  hits,
+}: {
+  text: string;
+  found: SearchHit[] | "error" | null;
+  hits: SearchHit[];
+}) {
+  if (found === null) {
+    return <p className="p-4 text-sm text-muted-foreground">Procurando…</p>;
+  }
+  if (found === "error") {
+    return (
+      <p className="p-4 text-sm text-destructive">
+        A busca não respondeu agora. Tente de novo em instantes.
+      </p>
+    );
+  }
+  if (hits.length === 0) {
+    return (
+      <EmptyState
+        icon={FolderSearchIcon}
+        title="Dado não encontrado"
+        description="Nada no seu acervo começa com esse texto, com esses filtros."
+        action={
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={`/?valor=${encodeURIComponent(text)}`} />}
+          >
+            Fazer nova consulta
+          </Button>
+        }
+        className="py-10"
+      />
+    );
+  }
+  return (
+    <ul className="flex flex-col divide-y">
+      {hits.map((hit) => (
+        <li key={`${hit.searchType}:${hit.searchKey}`}>
+          <Link
+            href={subjectHref(hit.searchType, hit.searchKey)}
+            className="flex flex-col gap-0.5 px-4 py-3 outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <span className="truncate text-sm font-medium">{hit.label}</span>
+            <span className="truncate text-xs text-muted-foreground">
+              {hit.description}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
