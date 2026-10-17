@@ -24,19 +24,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import type { SearchType } from "@/db/models";
+import type { SearchType, TrackingSearchType } from "@/db/models";
 import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
 import { featuresFor, trackingFor } from "@/features/consult/catalog";
 import { formatSearchKey, SEARCH_TYPES } from "@/features/consult/identify";
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
 import type { Lawsuit } from "@/features/processes/types";
 import type { QueryView } from "@/features/queries/types";
+import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingsTable } from "@/features/trackings/components/trackings-table";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
 import { formatNumber, formatShortDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { deleteSubjectAction } from "../actions";
+import { AskHere } from "./ask-here";
 import type { SubjectView } from "../view";
 import {
   Known,
@@ -50,9 +52,9 @@ import {
 
 // Ficha de um assunto (círculo 3, fatia 6): tudo o que o app sabe de um
 // identificador. Lê o banco (base própria, histórico, monitoramentos,
-// alertas); não consulta a JUDIT ao abrir. As ações que ficam aqui cuidam
-// do que já existe (monitoramento, alerta lido, apagar); pedir algo novo é
-// na página Consultar, por link.
+// alertas); não consulta a JUDIT ao abrir. Desde o círculo 5, as perguntas
+// que faltam se consultam aqui mesmo (ask-here.tsx), e o monitoramento se
+// cria aqui, com o diálogo de sempre.
 
 // Como os resultados do monitoramento chegam (círculo 3, fatia 8).
 function deliveryText(trackings: { delivery: "polling" | "webhook" }[]) {
@@ -81,6 +83,7 @@ export function SubjectPage({
     markAllAlertsRead,
     dataSource,
   } = useDemoStore();
+  const { openNewTracking } = useNewTrackingDialog();
   const [selected, setSelected] = useState<Lawsuit | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [deleting, startDelete] = useTransition();
@@ -274,7 +277,7 @@ export function SubjectPage({
             {ownTrackings.length > 0
               ? `Pausar, reativar, ver resultados ou excluir: no menu de cada linha. ${deliveryText(ownTrackings)}`
               : canTrack
-                ? "Não monitorado. Para monitorar, use a página Consultar."
+                ? "Não monitorado."
                 : "A JUDIT não monitora este tipo de identificador."}
           </CardDescription>
           {ownTrackings.length === 0 && canTrack && (
@@ -282,11 +285,16 @@ export function SubjectPage({
               <Button
                 variant="outline"
                 size="sm"
-                nativeButton={false}
-                render={<Link href={consultHref} />}
+                onClick={() =>
+                  openNewTracking({
+                    searchType: searchType as TrackingSearchType,
+                    searchKey,
+                    locked: true,
+                  })
+                }
               >
                 <RadarIcon data-icon="inline-start" />
-                Ir para Consultar
+                Monitorar
               </Button>
             </CardAction>
           )}
@@ -397,31 +405,12 @@ export function SubjectPage({
       </Card>
 
       {notAsked.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>O que ainda não se sabe</CardTitle>
-            <CardDescription>
-              Perguntas que a JUDIT responde para este identificador e que ainda
-              não foram feitas. Cada uma abre a página Consultar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="flex flex-wrap gap-2">
-              {notAsked.map((f) => (
-                <li key={f.id}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    nativeButton={false}
-                    render={<Link href={consultHref} />}
-                  >
-                    {f.question}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <AskHere
+          searchType={searchType}
+          searchKey={searchKey}
+          features={notAsked}
+          consultHref={consultHref}
+        />
       )}
 
       <LawsuitSheet

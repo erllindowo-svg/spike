@@ -3,12 +3,10 @@
 import {
   ChevronRightIcon,
   CircleCheckIcon,
-  ExternalLinkIcon,
   FlaskConicalIcon,
   LibraryBigIcon,
   PlusIcon,
   RadarIcon,
-  SearchIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -30,7 +28,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Spinner } from "@/components/ui/spinner";
 import type { TrackingSearchType } from "@/db/models";
 import { AddPartyDialog } from "@/features/parties/components/add-party-dialog";
 import { isDocumentType, partyHref } from "@/features/parties/documents";
@@ -58,12 +55,11 @@ import { cn } from "@/lib/utils";
 
 import { runConsultAction, type ConsultResult } from "../actions";
 import {
-  featureInfo,
-  featuresFor,
-  purposeFor,
-  trackingFor,
-  type ConsultFeatureId,
-} from "../catalog";
+  demoUnavailable as isDemoUnavailable,
+  QuestionActions,
+  QuestionOption,
+} from "./question-parts";
+import { featuresFor, trackingFor, type ConsultFeatureId } from "../catalog";
 import {
   fieldDisplay,
   formatSearchKey,
@@ -123,10 +119,7 @@ export function ConsultPage() {
     target && feature ? trackingFor(feature.id, target.type) : null;
   // Os dados fictícios só têm empresas, pessoas e processos (D7).
   const demoUnavailable =
-    dataSource !== "db" &&
-    !!target &&
-    target.type !== "cnj" &&
-    !isDocumentType(target.type);
+    !!target && isDemoUnavailable(dataSource, target.type);
   const party =
     target && isDocumentType(target.type)
       ? parties.find(
@@ -295,111 +288,31 @@ export function ConsultPage() {
               aria-label="O que você quer saber"
               className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
             >
-              {features.map((f, index) => {
-                const info = featureInfo(f.id);
-                const active = f.id === feature.id;
-                const monitorable = !!trackingFor(f.id, target.type);
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => {
-                      setFeatureId(f.id);
-                      setResult(null);
-                    }}
-                    // As perguntas entram deslizando, uma depois da outra.
-                    style={{ animationDelay: `${150 + index * 60}ms` }}
-                    className={cn(
-                      "flex animate-in flex-col items-start gap-1.5 rounded-lg border p-3 text-left text-sm transition fill-mode-backwards outline-none fade-in slide-in-from-bottom-3 hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:animate-none",
-                      active && "border-primary ring-1 ring-primary/40",
-                    )}
-                  >
-                    <span className="font-medium">{f.question}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {info.label}
-                    </span>
-                    <span className="flex flex-wrap items-center gap-1.5 pt-1">
-                      {/* Verde e azul: as duas existem; cinza pareceria
-                          desabilitado (círculo 3B). */}
-                      <StatusBadge
-                        tone={info.flow === "sync" ? "success" : "info"}
-                      >
-                        {info.flow === "sync" ? "Agora" : "Depois"}
-                      </StatusBadge>
-                      {monitorable && (
-                        <StatusBadge tone="neutral">
-                          <RadarIcon className="size-3" aria-hidden />
-                          Monitorável
-                        </StatusBadge>
-                      )}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {f.timing}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              {purposeFor(feature.id, target.type)}
-            </p>
-
-            {feature.id === "lawsuit_async" && (
-              <label className="flex w-fit items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={aiSummary}
-                  onChange={(e) => setAiSummary(e.target.checked)}
-                  className="size-4 accent-primary"
+              {features.map((f, index) => (
+                <QuestionOption
+                  key={f.id}
+                  feature={f}
+                  searchType={target.type}
+                  active={f.id === feature.id}
+                  index={index}
+                  onSelect={() => {
+                    setFeatureId(f.id);
+                    setResult(null);
+                  }}
                 />
-                Pedir também o resumo escrito pela IA da JUDIT (beta, custo não
-                informado)
-              </label>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={run} disabled={running || demoUnavailable}>
-                {running ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <SearchIcon data-icon="inline-start" />
-                )}
-                Consultar
-              </Button>
-              {tracking && (
-                <Button
-                  variant="outline"
-                  onClick={() => monitor(true)}
-                  disabled={demoUnavailable}
-                >
-                  <RadarIcon data-icon="inline-start" />
-                  Monitorar
-                </Button>
-              )}
-              <a
-                href={featureInfo(feature.id).docsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
-              >
-                Documentação da JUDIT
-                <ExternalLinkIcon className="size-3" aria-hidden />
-              </a>
+              ))}
             </div>
-            {demoUnavailable && (
-              <p className="text-sm text-warning">
-                Indisponível na demonstração: os dados fictícios só têm
-                empresas, pessoas e processos.
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {tracking
-                ? `Consultar: uma resposta agora, cobrada uma vez. Monitorar (${lowerFirst(tracking.label)}): ${lowerFirst(tracking.follows)} Cobrado a cada execução, até ser pausado.`
-                : "Consultar: uma resposta agora, cobrada uma vez. Esta pergunta não tem monitoramento na JUDIT."}
-            </p>
+
+            <QuestionActions
+              featureId={feature.id}
+              searchType={target.type}
+              aiSummary={aiSummary}
+              onAiSummaryChange={setAiSummary}
+              running={running}
+              unavailable={demoUnavailable}
+              onRun={run}
+              onMonitor={() => monitor(true)}
+            />
           </CardContent>
         </Card>
       )}
