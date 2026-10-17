@@ -435,6 +435,16 @@ Ficha do Acervo: consultar e monitorar ali mesmo (question-parts, ask-here)
    produto está terminado.
 4. **Etapa 8, opcional:** itens abertos, auditoria e correções.
 
+## Retomar aqui (2026-10-17, antes de um `/clear`)
+
+PR #7 (círculos 1 a 5) mergeado; PR #8 (círculo 6: aviso na aba, ícone do
+app, sem o indicador do Next) aberto. Círculo 7 (menu de alertas)
+implementado, sem commit: o que foi pedido e o que foi feito estão em
+`docs/etapa-7-escopo.md`, seção "Círculo 7". Falta o usuário conferir no
+Firefox, decidir os dois pontos marcados como "Ficou" e pedir o commit. O bug da aba que não se
+atualiza ficou para a etapa 8 (mesma página, seção "Para a etapa 8"). Depois
+do círculo 7: o fechamento da etapa 7 (dois produtos).
+
 ## Como retomar com o agente
 
 > Leia `docs/relatorio-de-progresso.md`, a seção 6 do `AGENTS.md` e

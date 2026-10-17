@@ -68,6 +68,13 @@ export async function listAlerts(
   return docs.map(toModel);
 }
 
+// Quantos alertas ainda não foram lidos (o aviso na aba, círculo 6).
+// `readAt: null` também casa com documentos sem o campo.
+export async function countUnreadAlerts(): Promise<number> {
+  const { alerts } = collections(await getDb());
+  return alerts.countDocuments({ readAt: null });
+}
+
 // Só marca o que ainda não foi lido: a data da primeira leitura é mantida.
 export async function markAlertRead(id: string): Promise<boolean> {
   const { alerts } = collections(await getDb());

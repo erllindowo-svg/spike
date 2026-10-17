@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  // Sem o indicador do Next (a bolinha "N" no canto) no `next dev`: os erros
+  // de compilação e de execução continuam aparecendo.
+  devIndicators: false,
   // Endereços antigos (círculo 3): Consultar virou a página inicial. A
   // query (?valor=) passa adiante sozinha.
   async redirects() {

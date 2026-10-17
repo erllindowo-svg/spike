@@ -1,8 +1,8 @@
 "use client";
 
-import { CheckIcon, RadarIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { RadarIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import type { SearchType, TrackingSearchType } from "@/db/models";
-import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
+import { unreadAlertsByCnj } from "@/features/alerts/links";
 import { featuresFor, trackingFor } from "@/features/consult/catalog";
 import { formatSearchKey, SEARCH_TYPES } from "@/features/consult/identify";
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
@@ -34,7 +34,7 @@ import type { QueryView } from "@/features/queries/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingsTable } from "@/features/trackings/components/trackings-table";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
-import { formatNumber, formatShortDateTime } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { deleteSubjectAction } from "../actions";
@@ -54,7 +54,10 @@ import {
 // identificador. Lê o banco (base própria, histórico, monitoramentos,
 // alertas); não consulta a JUDIT ao abrir. Desde o círculo 5, as perguntas
 // que faltam se consultam aqui mesmo (ask-here.tsx), e o monitoramento se
-// cria aqui, com o diálogo de sempre.
+// cria aqui, com o diálogo de sempre. Desde o círculo 7, os alertas não têm
+// cartão próprio: o processo com alerta não lido ganha a marca azul na lista
+// de processos, e abri-lo marca o alerta como lido. O menu do sino chega
+// aqui com ?processo=<cnj>, que abre o processo no painel lateral.
 
 // Como os resultados do monitoramento chegam (círculo 3, fatia 8).
 function deliveryText(trackings: { delivery: "polling" | "webhook" }[]) {
@@ -75,14 +78,10 @@ export function SubjectPage({
   queries: QueryView[];
 }) {
   const router = useRouter();
-  const {
-    parties,
-    trackings,
-    alerts,
-    markAlertRead,
-    markAllAlertsRead,
-    dataSource,
-  } = useDemoStore();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { parties, trackings, alerts, markAlertRead, dataSource } =
+    useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [selected, setSelected] = useState<Lawsuit | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -111,13 +110,17 @@ export function SubjectPage({
       t.status !== "deleted",
   );
   const trackingIds = new Set(ownTrackings.map((t) => t.id));
-  const ownAlerts = alerts
-    .filter((a) => a.trackingId && trackingIds.has(a.trackingId))
-    .sort(
-      (a, b) =>
-        Number(!!a.readAt) - Number(!!b.readAt) ||
-        b.createdAt.getTime() - a.createdAt.getTime(),
-    );
+  // Alertas não lidos deste assunto, por processo: a marca azul na lista.
+  const unreadByCnj = unreadAlertsByCnj(alerts, trackingIds);
+  const highlighted = new Set(unreadByCnj.keys());
+
+  // O processo aberto: o clicado na lista ou, vindo do menu do sino, o do
+  // ?processo=. Sem o processo guardado na ficha, o painel não abre.
+  const cnjFromUrl = searchParams.get("processo");
+  const fromUrl = cnjFromUrl
+    ? (view.lawsuits.find((l) => l.cnj === cnjFromUrl) ?? null)
+    : null;
+  const shown = selected ?? fromUrl;
 
   const lawsuits = view.lawsuits.filter((l) => l.kind === "lawsuit");
   const executions = view.lawsuits.filter((l) => l.kind === "execution");
@@ -132,6 +135,17 @@ export function SubjectPage({
   const canTrack = featuresFor(searchType).some(
     (f) => !!trackingFor(f.id, searchType),
   );
+
+  function openLawsuit(lawsuit: Lawsuit) {
+    setSelected(lawsuit);
+    for (const id of unreadByCnj.get(lawsuit.cnj) ?? []) markAlertRead(id);
+  }
+
+  function closeLawsuit() {
+    setSelected(null);
+    // Fechar tira o ?processo= da URL, para o F5 não reabrir o painel.
+    if (cnjFromUrl) router.replace(pathname, { scroll: false });
+  }
 
   function remove() {
     startDelete(async () => {
@@ -188,87 +202,6 @@ export function SubjectPage({
           )}
         </div>
       </div>
-
-      {ownAlerts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Alertas</CardTitle>
-            <CardDescription>
-              Avisos dos monitoramentos deste assunto, os não lidos primeiro.
-            </CardDescription>
-            {ownAlerts.some((a) => !a.readAt) && (
-              <CardAction>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    for (const tracking of ownTrackings) {
-                      const error = await markAllAlertsRead(tracking.id);
-                      if (error) {
-                        toast.error(error);
-                        return;
-                      }
-                    }
-                  }}
-                >
-                  <CheckIcon data-icon="inline-start" />
-                  Marcar todos como lidos
-                </Button>
-              </CardAction>
-            )}
-          </CardHeader>
-          <CardContent>
-            <ul className="flex flex-col divide-y">
-              {ownAlerts.slice(0, 20).map((alert) => {
-                const { icon: Icon, className } = alertTypeStyles[alert.type];
-                return (
-                  <li key={alert.id} className="flex items-start gap-3 py-2.5">
-                    <span
-                      className={cn(
-                        "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
-                        className,
-                      )}
-                    >
-                      <Icon className="size-3.5" aria-hidden />
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span
-                        className={cn(
-                          "text-sm",
-                          !alert.readAt && "font-medium",
-                        )}
-                      >
-                        {alert.title}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {alert.description}
-                      </span>
-                    </span>
-                    <span className="flex shrink-0 flex-col items-end gap-1">
-                      <time
-                        dateTime={alert.createdAt.toISOString()}
-                        className="text-xs text-muted-foreground tabular-nums"
-                      >
-                        {formatShortDateTime(alert.createdAt)}
-                      </time>
-                      {!alert.readAt && (
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => markAlertRead(alert.id)}
-                        >
-                          <CheckIcon data-icon="inline-start" />
-                          Marcar como lido
-                        </Button>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
 
       <Card className={cn(ownTrackings.length > 0 && "gap-0 pb-0")}>
         <CardHeader>
@@ -364,7 +297,11 @@ export function SubjectPage({
           </CardHeader>
           {lawsuits.length > 0 && (
             <CardContent className="flex flex-col gap-3">
-              <LawsuitsBody lawsuits={lawsuits} onSelect={setSelected} />
+              <LawsuitsBody
+                lawsuits={lawsuits}
+                onSelect={openLawsuit}
+                highlighted={highlighted}
+              />
             </CardContent>
           )}
         </Card>
@@ -376,7 +313,11 @@ export function SubjectPage({
             <CardTitle>Execuções penais</CardTitle>
           </CardHeader>
           <CardContent>
-            <LawsuitsBody lawsuits={executions} onSelect={setSelected} />
+            <LawsuitsBody
+              lawsuits={executions}
+              onSelect={openLawsuit}
+              highlighted={highlighted}
+            />
           </CardContent>
         </Card>
       )}
@@ -414,8 +355,8 @@ export function SubjectPage({
       )}
 
       <LawsuitSheet
-        lawsuit={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
+        lawsuit={shown}
+        onOpenChange={(open) => !open && closeLawsuit()}
         readOnly
       />
 

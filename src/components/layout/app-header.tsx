@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BellIcon,
   DatabaseIcon,
   FlaskConicalIcon,
   SearchIcon,
@@ -18,7 +17,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AlertsMenu } from "@/features/alerts/components/alerts-menu";
 import { WalletButton } from "@/features/settings/components/wallet";
+import { TabBadge } from "./tab-badge";
 import { SupportOnly } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 
@@ -82,44 +83,6 @@ function PageHeading() {
     <h1 className="hidden min-w-0 truncate font-heading text-base font-semibold tracking-tight md:block">
       {title}
     </h1>
-  );
-}
-
-// Resumo cruzado dos alertas: o número de não lidos de todos os
-// monitoramentos, a um clique de qualquer página.
-function AlertsBell() {
-  const { alerts } = useDemoStore();
-  const unread = alerts.filter((a) => !a.readAt).length;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            nativeButton={false}
-            render={<Link href="/acervo" />}
-            aria-label={
-              unread > 0
-                ? `Alertas: ${unread} não lidos`
-                : "Alertas: nenhum não lido"
-            }
-          />
-        }
-      >
-        <BellIcon />
-        {unread > 0 && (
-          <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground tabular-nums">
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
-      </TooltipTrigger>
-      <TooltipContent>
-        {unread > 0 ? `${unread} alertas não lidos` : "Nenhum alerta não lido"}
-      </TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -205,7 +168,8 @@ export function AppHeader() {
           )}
 
           <WalletButton />
-          <AlertsBell />
+          <AlertsMenu />
+          <TabBadge />
 
           <Tooltip>
             <TooltipTrigger

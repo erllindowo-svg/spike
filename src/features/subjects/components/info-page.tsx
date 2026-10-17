@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  BellIcon,
-  BellOffIcon,
   FileSearchIcon,
   FolderSearchIcon,
   RadarIcon,
@@ -18,7 +16,6 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -26,7 +23,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { SearchType } from "@/db/models";
-import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
 import { SEARCH_TYPES } from "@/features/consult/identify";
 import { isQueryOpen, type QueryView } from "@/features/queries/types";
 import type { SearchHit } from "@/features/search/hits";
@@ -35,8 +31,7 @@ import { useKnownSearch } from "@/features/search/use-known-search";
 import { formatSearchKey } from "@/features/trackings/format";
 import { getTrackingDisplayState } from "@/features/trackings/types";
 import { useDemoStore } from "@/lib/demo-store";
-import { formatDate, formatNumber, formatShortDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { formatDate, formatNumber } from "@/lib/format";
 
 import {
   buildSubjects,
@@ -47,10 +42,11 @@ import {
   type Subject,
 } from "../subjects";
 
-// Acervo (círculo 3, fatia 6): a página de ler. No topo, o que
-// chegou (alertas não lidos) e os números; no meio, os assuntos (cada
-// identificador pesquisado, monitorado ou salvo), que abrem a ficha. Nada
-// aqui consulta a JUDIT: fazer fica na página Consultar.
+// Acervo (círculo 3, fatia 6): a página de ler. No topo, os números; no
+// meio, os assuntos (cada identificador pesquisado, monitorado ou salvo), que
+// abrem a ficha. Nada aqui consulta a JUDIT: fazer fica na página Consultar.
+// Desde o círculo 7, os alertas moram no menu do sino (alerts-menu.tsx); aqui
+// sobra só a marca de alertas não lidos em cada assunto.
 
 const PAGE_SIZE = 30;
 const ACERVO_SEARCH_LIMIT = 50;
@@ -86,22 +82,16 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
     subjects.some((s) => s.searchType === t),
   );
 
-  const unread = alerts
-    .filter((a) => !a.readAt)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const activeTrackings = trackings.filter(
     (t) => getTrackingDisplayState(t) === "active",
   ).length;
   const openQueries = queries.filter(isQueryOpen).length;
-  const subjectOfTracking = new Map(
-    trackings.map((t) => [t.id, subjectHref(t.searchType, t.searchKey)]),
-  );
 
   return (
     <>
       <section
         aria-label="Números"
-        className="grid grid-cols-2 gap-4 xl:grid-cols-4"
+        className="grid grid-cols-2 gap-4 xl:grid-cols-3"
       >
         <StatCard
           label="Assuntos"
@@ -116,12 +106,6 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
           icon={RadarIcon}
         />
         <StatCard
-          label="Alertas não lidos"
-          value={formatNumber(unread.length)}
-          hint={`${formatNumber(alerts.length)} no total`}
-          icon={BellIcon}
-        />
-        <StatCard
           label="Consultas"
           value={formatNumber(queries.length)}
           hint={
@@ -132,70 +116,6 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
           icon={FileSearchIcon}
         />
       </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>O que chegou</CardTitle>
-          <CardDescription>
-            Alertas ainda não lidos. Abra o assunto para ler e marcar como lido.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {unread.length === 0 ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <BellOffIcon className="size-4" aria-hidden />
-              Tudo em dia: nenhum alerta não lido.
-            </p>
-          ) : (
-            <ul className="flex flex-col divide-y">
-              {unread.slice(0, 5).map((alert) => {
-                const { icon: Icon, className } = alertTypeStyles[alert.type];
-                const href =
-                  (alert.trackingId &&
-                    subjectOfTracking.get(alert.trackingId)) ||
-                  "/acervo";
-                return (
-                  <li key={alert.id}>
-                    <Link
-                      href={href}
-                      className="flex items-start gap-3 rounded-md py-2.5 outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      <span
-                        className={cn(
-                          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
-                          className,
-                        )}
-                      >
-                        <Icon className="size-3.5" aria-hidden />
-                      </span>
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-sm font-medium">
-                          {alert.title}
-                        </span>
-                        <span className="truncate text-xs text-muted-foreground">
-                          {alert.description}
-                        </span>
-                      </span>
-                      <time
-                        dateTime={alert.createdAt.toISOString()}
-                        className="shrink-0 text-xs text-muted-foreground tabular-nums"
-                      >
-                        {formatShortDateTime(alert.createdAt)}
-                      </time>
-                    </Link>
-                  </li>
-                );
-              })}
-              {unread.length > 5 && (
-                <li className="pt-2 text-xs text-muted-foreground">
-                  E mais {unread.length - 5}: os assuntos com alertas aparecem
-                  primeiro na lista abaixo.
-                </li>
-              )}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
 
       <Card className="gap-0 py-0">
         <CardHeader className="border-b py-4">
