@@ -57,38 +57,34 @@ export function isNavItemActive(pathname: string, item: NavItem): boolean {
   );
 }
 
-// Título e ajuda (o "i" ao lado do título) de cada página. Duas ou três
-// frases, para quem nunca usou o app. Os prefixos mais específicos vêm
-// primeiro.
-type PageInfo = { prefix: string; title: string; help: string };
+// Título de cada página. Os prefixos mais específicos vêm primeiro. O "i"
+// com a ajuda de cada página saiu no círculo 5: o fluxo das páginas já se
+// explica.
+type PageInfo = { prefix: string; title: string };
 
 const pages: PageInfo[] = [
   {
     prefix: "/acervo",
     title: "Acervo",
-    help: "Tudo o que o app já sabe. No topo, o que chegou (alertas) e os números; embaixo, cada identificador que você pesquisou, monitorou ou salvou, que abre a ficha com consultas, dados guardados, monitoramento e alertas. Abrir esta página não consulta a JUDIT.",
   },
   {
     prefix: "/webhooks",
     title: "Diagnóstico de webhooks",
-    help: "Registro técnico das entregas de webhook da JUDIT: o que chegou, quando e o que o app fez com cada entrega. Serve para investigar falhas e duplicidades.",
   },
   {
     prefix: "/configuracoes",
     title: "Configurações",
-    help: "Situação das integrações (JUDIT, webhooks e banco), calculada a partir das variáveis de ambiente do servidor, e a vista de suporte.",
   },
   {
     prefix: "/",
     title: "Consultar",
-    help: "Digite um CPF, CNPJ, número de processo (CNJ), OAB, nome ou RJI: o tipo é reconhecido pela digitação. Depois escolha o que quer saber e clique em Consultar (uma resposta, cobrada uma vez) ou, onde existe, em Monitorar (acompanhamento cobrado a cada execução).",
   },
 ];
 
-export function getPageInfo(pathname: string): { title: string; help: string } {
+export function getPageInfo(pathname: string): { title: string } {
   const page =
     pages.find((p) =>
       p.prefix === "/" ? pathname === "/" : isNavActive(pathname, p.prefix),
     ) ?? null;
-  return page ?? { title: "Raio-X Jurídico", help: "" };
+  return page ?? { title: "Raio-X Jurídico" };
 }

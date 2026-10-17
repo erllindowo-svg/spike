@@ -4,7 +4,6 @@ import {
   BellIcon,
   DatabaseIcon,
   FlaskConicalIcon,
-  InfoIcon,
   SearchIcon,
   SettingsIcon,
   XIcon,
@@ -14,13 +13,6 @@ import { usePathname } from "next/navigation";
 import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -78,41 +70,17 @@ function ActiveMainSwitch() {
   return <MainSwitch pathname={usePathname()} />;
 }
 
-// Título da página e o "i" com a explicação dela (navigation.ts). O título
-// só aparece fora das duas páginas principais (a alternância já diz o nome
-// delas).
+// Título da página, só fora das duas páginas principais (a alternância já
+// diz o nome delas).
 function PageHeading() {
   const pathname = usePathname();
-  const { title, help } = getPageInfo(pathname);
+  const { title } = getPageInfo(pathname);
   const isMain = mainNav.some((item) => isNavItemActive(pathname, item));
+  if (isMain) return null;
   return (
-    <div className="hidden min-w-0 items-center gap-1 md:flex">
-      {!isMain && (
-        <h1 className="truncate font-heading text-base font-semibold tracking-tight">
-          {title}
-        </h1>
-      )}
-      {help && (
-        <Popover>
-          <PopoverTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="text-muted-foreground"
-                aria-label={`O que é ${title}?`}
-              />
-            }
-          >
-            <InfoIcon />
-          </PopoverTrigger>
-          <PopoverContent>
-            <PopoverTitle>{title}</PopoverTitle>
-            <PopoverDescription>{help}</PopoverDescription>
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
+    <h1 className="hidden min-w-0 truncate font-heading text-base font-semibold tracking-tight md:block">
+      {title}
+    </h1>
   );
 }
 
