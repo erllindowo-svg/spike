@@ -44,7 +44,7 @@ import {
   type Subject,
 } from "../subjects";
 
-// Minhas informações (círculo 3, fatia 6): a página de ler. No topo, o que
+// Acervo (círculo 3, fatia 6): a página de ler. No topo, o que
 // chegou (alertas não lidos) e os números; no meio, os assuntos (cada
 // identificador pesquisado, monitorado ou salvo), que abrem a ficha. Nada
 // aqui consulta a JUDIT: fazer fica na página Consultar.
@@ -137,7 +137,7 @@ export function InfoPage({ queries }: { queries: QueryView[] }) {
                 const href =
                   (alert.trackingId &&
                     subjectOfTracking.get(alert.trackingId)) ||
-                  "/informacoes";
+                  "/acervo";
                 return (
                   <li key={alert.id}>
                     <Link

@@ -1,6 +1,6 @@
 import {
-  LayoutDashboardIcon,
-  SearchIcon,
+  LibraryBigIcon,
+  NotebookPenIcon,
   SettingsIcon,
   WebhookIcon,
   type LucideIcon,
@@ -8,8 +8,6 @@ import {
 
 export type NavItem = {
   title: string;
-  // Rótulo curto, para o celular.
-  shortTitle?: string;
   href: string;
   icon: LucideIcon;
   // Outros caminhos que também marcam o item como ativo.
@@ -17,19 +15,19 @@ export type NavItem = {
 };
 
 // Duas páginas principais, uma por função (círculo 3 do escopo,
-// docs/etapa-7-escopo.md): Consultar (fazer) e Minhas informações (ver). A
-// barra do topo alterna entre as duas, como dois espaços de trabalho.
+// docs/etapa-7-escopo.md): Consultar (fazer) e Acervo (ver). A
+// barra do topo alterna entre as duas, como dois espaços de trabalho: a
+// ativa aparece com o nome, a outra só com o ícone (círculo 3B).
 export const consultNav: NavItem = {
   title: "Consultar",
   href: "/",
-  icon: SearchIcon,
+  icon: NotebookPenIcon,
 };
 
 export const infoNav: NavItem = {
-  title: "Minhas informações",
-  shortTitle: "Informações",
-  href: "/informacoes",
-  icon: LayoutDashboardIcon,
+  title: "Acervo",
+  href: "/acervo",
+  icon: LibraryBigIcon,
 };
 
 export const mainNav: NavItem[] = [consultNav, infoNav];
@@ -66,8 +64,8 @@ type PageInfo = { prefix: string; title: string; help: string };
 
 const pages: PageInfo[] = [
   {
-    prefix: "/informacoes",
-    title: "Minhas informações",
+    prefix: "/acervo",
+    title: "Acervo",
     help: "Tudo o que o app já sabe. No topo, o que chegou (alertas) e os números; embaixo, cada identificador que você pesquisou, monitorou ou salvou, que abre a ficha com consultas, dados guardados, monitoramento e alertas. Abrir esta página não consulta a JUDIT.",
   },
   {

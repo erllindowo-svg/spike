@@ -43,7 +43,7 @@ export type ConsultFeature = {
   mode: QueryMode;
   searchTypes: readonly SearchType[];
   question: string;
-  // Tempo esperado e custo, para a escolha (ex.: "Na hora · cobrada").
+  // Tempo esperado e custo, para a escolha (ex.: "Agora · cobrada").
   timing: string;
   tracking: ConsultTracking | null;
 };
@@ -63,7 +63,7 @@ const LAWSUIT_TRACKING: ConsultTracking = {
   follows: "Movimentações novas deste processo.",
 };
 
-const SYNC = "Na hora · cobrada por consulta";
+const SYNC = "Agora · cobrada por consulta";
 const ASYNC = "Minutos; o resultado chega depois · cobrada por consulta";
 
 // Na ordem em que fazem sentido: o raio-x rápido (contagem, resumo) antes da
@@ -114,7 +114,7 @@ export const CONSULT_FEATURES: readonly ConsultFeature[] = [
     // name; a Receita consulta por documento. Só CPF e CNPJ.
     searchTypes: ["cpf", "cnpj"],
     question: "Quais são os dados cadastrais, lidos agora na Receita?",
-    timing: "Na hora · mais cara que a consulta cadastral comum",
+    timing: "Agora · mais cara que a consulta cadastral comum",
     tracking: null,
   },
   {
@@ -142,7 +142,7 @@ export const CONSULT_FEATURES: readonly ConsultFeature[] = [
     mode: "lawsuit_datalake",
     searchTypes: ["cnj"],
     question: "Como está o processo na base da JUDIT?",
-    timing: "Na hora · custo não informado",
+    timing: "Agora · custo não informado",
     tracking: LAWSUIT_TRACKING,
   },
   {

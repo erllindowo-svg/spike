@@ -62,7 +62,7 @@ describe("buildSuggestions", () => {
     expect(first).toMatchObject({
       kind: "subject",
       label: "Empresa Fictícia Ltda.",
-      href: `/informacoes/cnpj/${CNPJ}`,
+      href: `/acervo/cnpj/${CNPJ}`,
     });
     expect(first.description).toContain("monitorado");
     expect(first.description).toContain("consultado em 15/10/2026");

@@ -368,7 +368,7 @@ async function callJudit(
 }
 
 // As consultas assíncronas são acompanhadas depois, na ficha do assunto
-// (Minhas informações). As por CPF ou CNPJ salvam a parte antes, sem
+// (Acervo). As por CPF ou CNPJ salvam a parte antes, sem
 // consultar dados cadastrais, porque a action as liga a ela; as por CNJ,
 // OAB, nome ou RJI não têm parte. O resto é a mesma action de sempre (teto
 // diário, consulta igual em aberto, webhook).

@@ -123,6 +123,6 @@ describe("filterSubjects", () => {
 
 it("encodes the key of the subject page", () => {
   expect(subjectHref("name", "Padaria de Exemplo")).toBe(
-    "/informacoes/name/Padaria%20de%20Exemplo",
+    "/acervo/name/Padaria%20de%20Exemplo",
   );
 });

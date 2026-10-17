@@ -605,7 +605,7 @@ export function DemoStoreProvider({
               : "Processo não identificado",
             occurredAt: processedAt,
             partyId: tracking.partyId,
-            href: "/informacoes",
+            href: "/acervo",
           },
         });
       }, PROCESSING_DELAY_MS);

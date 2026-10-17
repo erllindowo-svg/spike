@@ -8,18 +8,21 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/consultar", destination: "/", permanent: false },
-      // As páginas de leitura viraram Minhas informações e a ficha de cada
+      // As páginas de leitura viraram o Acervo e a ficha de cada
       // assunto (fatia 6).
       ...[
-        ["/empresas", "/informacoes?tipo=cnpj"],
-        ["/pessoas", "/informacoes?tipo=cpf"],
-        ["/empresas/:cnpj", "/informacoes/cnpj/:cnpj"],
-        ["/pessoas/:cpf", "/informacoes/cpf/:cpf"],
-        ["/processos/:cnj", "/informacoes/cnj/:cnj"],
-        ["/consultas", "/informacoes"],
-        ["/monitoramentos", "/informacoes?monitorado=1"],
-        ["/monitoramentos/alertas", "/informacoes"],
-        ["/alertas", "/informacoes"],
+        ["/empresas", "/acervo?tipo=cnpj"],
+        ["/pessoas", "/acervo?tipo=cpf"],
+        ["/empresas/:cnpj", "/acervo/cnpj/:cnpj"],
+        ["/pessoas/:cpf", "/acervo/cpf/:cpf"],
+        ["/processos/:cnj", "/acervo/cnj/:cnj"],
+        ["/consultas", "/acervo"],
+        ["/monitoramentos", "/acervo?monitorado=1"],
+        ["/monitoramentos/alertas", "/acervo"],
+        ["/alertas", "/acervo"],
+        // Círculo 3B: "Minhas informações" virou Acervo.
+        ["/informacoes", "/acervo"],
+        ["/informacoes/:tipo/:chave", "/acervo/:tipo/:chave"],
       ].map(([source, destination]) => ({
         source,
         destination,

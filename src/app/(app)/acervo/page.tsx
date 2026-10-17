@@ -5,7 +5,7 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { InfoPage } from "@/features/subjects/components/info-page";
 import { listQueries } from "@/lib/data";
 
-export const metadata: Metadata = { title: "Minhas informações" };
+export const metadata: Metadata = { title: "Acervo" };
 
 // Lê o banco dentro do Suspense, para que a navegação entre páginas mostre o
 // esqueleto em vez de esperar o banco (catálogo do diário, D5).

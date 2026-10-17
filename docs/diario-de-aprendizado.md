@@ -1598,6 +1598,12 @@ Nove fatias em `docs/etapa-7-escopo.md`: reconhecimento de identificadores, cat�
 
 Nove commits na `feat/product-review`: reconhecimento pela digitação, catálogo com perguntas, navegação no topo, Consultar em "/", base própria (D1), Minhas informações com ficha, barra unificada, webhook nos monitoramentos e limpeza com demonstração. 356 testes, lint, typecheck e build. Detalhes em `docs/etapa-7-escopo.md`.
 
+### 2026-10-17 / Círculo 3B: Acervo, selos e avisos
+
+**Resumo técnico**
+
+Página 2 renomeada para Acervo (`/acervo`, com redirecionamento de `/informacoes`); alternância do topo só com ícones, a ativa com o nome. Selo "Agora" verde e "Depois" azul. Saíram os avisos de "base legal". A barra de pesquisa estilo Google ficou para discussão.
+
 ---
 
 ## Perguntas e respostas

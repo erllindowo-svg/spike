@@ -1328,3 +1328,28 @@ implementação ficam marcadas como _decisão do agente_.
      rotas antigas redirecionam; capturas de tela de Minhas informações, da
      ficha e de Consultar com OAB. Não conferido: digitar na barra e clicar
      nos botões (sem navegador interativo).
+
+## Círculo 3B (2026-10-17)
+
+Observações do usuário, de cima para baixo, depois do círculo 3
+(resumidas pelo agente):
+
+1. **Nome da página 2.** "Minhas informações" não serve. Escolhido
+   **Acervo** (o agente apontou que "Dados" confundiria com "dados
+   cadastrais"). A alternância do topo fica só com ícones: a página ativa
+   expande com o nome; a outra mostra só o ícone (caderno com lápis para
+   Consultar, biblioteca para Acervo). _Feito:_ rota `/acervo`, e
+   `/informacoes` (com a ficha) redireciona; os números "1" e "2" saíram.
+2. **Barra de pesquisa como a do Google.** Uma só, igual em todas as
+   páginas: primeiro o que já está no banco e contém o texto (o
+   identificador já pesquisado leva à ficha), depois sempre "Fazer nova
+   consulta", depois os outros resultados; sem nada, "Dado não
+   encontrado". Sem autocompletar. _Em discussão:_ como buscar dentro dos
+   dados guardados sem custo nem demora (ver as opções na conversa).
+3. **Sem avisos de "base legal".** O cliente já conhece as regras. _Feito:_
+   saíram da página Consultar, do diálogo de monitoramento e do diálogo de
+   adicionar parte. O CPF continua mascarado nas listas (o usuário
+   aprovou).
+4. **Cores do selo de tempo.** Cinza parecia "não pode". _Feito:_ "Agora"
+   (era "Na hora") em verde e "Depois" em azul; o texto de tempo e custo do
+   catálogo também diz "Agora".

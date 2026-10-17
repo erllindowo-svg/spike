@@ -240,10 +240,12 @@ export function ConsultPage() {
                       {info.label}
                     </span>
                     <span className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {/* Verde e azul: as duas existem; cinza pareceria
+                          desabilitado (círculo 3B). */}
                       <StatusBadge
-                        tone={info.flow === "sync" ? "info" : "neutral"}
+                        tone={info.flow === "sync" ? "success" : "info"}
                       >
-                        {info.flow === "sync" ? "Na hora" : "Depois"}
+                        {info.flow === "sync" ? "Agora" : "Depois"}
                       </StatusBadge>
                       {monitorable && (
                         <StatusBadge tone="neutral">
@@ -505,11 +507,6 @@ function RecognitionStatus({
           Já está na sua lista: {partyName}.
         </p>
       )}
-      {target.type === "cpf" && (
-        <p className="text-xs text-muted-foreground">
-          CPF é dado pessoal: consulte só com base legal.
-        </p>
-      )}
     </div>
   );
 }
@@ -616,7 +613,7 @@ function PayloadView({
           <p className="flex items-center gap-2">
             <CircleCheckIcon className="size-4 text-success" aria-hidden />
             Consulta criada na JUDIT. O resultado chega depois: acompanhe na
-            ficha do assunto, em Minhas informações.
+            ficha do assunto, em Acervo.
           </p>
           <Button
             variant="outline"

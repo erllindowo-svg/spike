@@ -46,7 +46,7 @@ export function LawsuitSheet({
               <Button
                 variant="outline"
                 nativeButton={false}
-                render={<Link href={`/informacoes/cnj/${lawsuit.cnj}`} />}
+                render={<Link href={`/acervo/cnj/${lawsuit.cnj}`} />}
               >
                 <ExternalLinkIcon data-icon="inline-start" />
                 Abrir ficha

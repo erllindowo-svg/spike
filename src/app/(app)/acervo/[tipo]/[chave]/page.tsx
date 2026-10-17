@@ -15,7 +15,7 @@ import { SubjectPage } from "@/features/subjects/components/subject-page";
 import { isSearchType } from "@/features/subjects/subjects";
 import { getSubjectView, listQueries, staticParamSamples } from "@/lib/data";
 
-type Props = PageProps<"/informacoes/[tipo]/[chave]">;
+type Props = PageProps<"/acervo/[tipo]/[chave]">;
 
 export function generateStaticParams() {
   return staticParamSamples.subjects();
@@ -64,10 +64,10 @@ async function SubjectContent({ params }: Pick<Props, "params">) {
         size="sm"
         className="-ml-2 w-fit text-muted-foreground"
         nativeButton={false}
-        render={<Link href="/informacoes" />}
+        render={<Link href="/acervo" />}
       >
         <ChevronLeftIcon data-icon="inline-start" />
-        Minhas informações
+        Acervo
       </Button>
       <SubjectPage
         searchType={subject.searchType}

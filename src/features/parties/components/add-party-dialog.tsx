@@ -198,7 +198,7 @@ function AddPartyForm({
               ? `Já está na lista: ${existing.name ?? "nome não consultado"}.`
               : isCompany
                 ? "Aceita o CNPJ numérico e o alfanumérico."
-                : "CPF é dado pessoal: use só com base legal para consultar."}
+                : "CPF com ou sem máscara."}
           </FieldDescription>
         )}
       </Field>

@@ -9,7 +9,7 @@ import {
 
 // Um "assunto" (decisão D2 do círculo 3): qualquer identificador que a
 // pessoa pesquisou, monitorou ou salvou, com o nome quando houver. É a
-// unidade da página Minhas informações. Não há coleção própria: o assunto
+// unidade da página Acervo. Não há coleção própria: o assunto
 // é montado do histórico de consultas, dos monitoramentos e das partes.
 
 export type Subject = {
@@ -36,7 +36,7 @@ export function subjectKey(type: SearchType, key: string): string {
 
 // Endereço da ficha. A chave vai codificada: um nome tem espaços.
 export function subjectHref(type: SearchType, key: string): string {
-  return `/informacoes/${type}/${encodeURIComponent(key)}`;
+  return `/acervo/${type}/${encodeURIComponent(key)}`;
 }
 
 export function isSearchType(value: string): value is SearchType {

@@ -139,7 +139,7 @@ const searchTypeFields: Record<
     icon: UserIcon,
     label: "CPF da pessoa",
     placeholder: "000.000.000-00",
-    help: "Novos processos em que este CPF aparecer serão notificados. CPF é dado pessoal: monitore só com base legal.",
+    help: "Novos processos em que este CPF aparecer serão notificados.",
   },
   cnj: {
     toggle: "Processo",

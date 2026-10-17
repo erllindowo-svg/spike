@@ -141,7 +141,7 @@ export async function getSubjectView(
   return EMPTY_SUBJECT_VIEW;
 }
 
-// Todas as consultas, síncronas e assíncronas (Minhas informações, barra de
+// Todas as consultas, síncronas e assíncronas (Acervo, barra de
 // pesquisa e ficha do assunto). Na
 // demonstração, linhas fictícias no mesmo formato.
 export async function listQueries(): Promise<QueryView[]> {

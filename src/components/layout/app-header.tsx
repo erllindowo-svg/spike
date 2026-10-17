@@ -49,23 +49,24 @@ function MainSwitch({ pathname }: { pathname: string }) {
       aria-label="Páginas principais"
       className="inline-flex h-8 items-center rounded-lg bg-muted p-[3px]"
     >
-      {mainNav.map((item: NavItem, index) => {
+      {mainNav.map((item: NavItem) => {
         const active = isNavItemActive(pathname, item);
         return (
           <Link
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
+            // Recolhida, a página fica só com o ícone; o nome vai para o
+            // leitor de tela e para a dica do mouse.
+            aria-label={item.title}
+            title={active ? undefined : item.title}
             className={cn(
-              "inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              active && "bg-background text-foreground shadow-sm",
+              "inline-flex h-full items-center gap-1.5 rounded-md px-2 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              active && "bg-background px-2.5 text-foreground shadow-sm",
             )}
           >
-            <span className="hidden size-4 items-center justify-center rounded-sm border text-[10px] text-muted-foreground tabular-nums sm:flex">
-              {index + 1}
-            </span>
-            <span className="hidden sm:inline">{item.title}</span>
-            <span className="sm:hidden">{item.shortTitle ?? item.title}</span>
+            <item.icon className="size-4" aria-hidden />
+            {active && <span>{item.title}</span>}
           </Link>
         );
       })}
@@ -130,7 +131,7 @@ function AlertsBell() {
             size="icon"
             className="relative"
             nativeButton={false}
-            render={<Link href="/informacoes" />}
+            render={<Link href="/acervo" />}
             aria-label={
               unread > 0
                 ? `Alertas: ${unread} não lidos`

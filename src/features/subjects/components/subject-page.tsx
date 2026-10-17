@@ -189,7 +189,7 @@ export function SubjectPage({
         }
         toast.success("Assunto apagado", { description: result.message });
         setConfirming(false);
-        router.push("/informacoes");
+        router.push("/acervo");
       } catch {
         toast.error(SERVER_UNREACHABLE);
       }
