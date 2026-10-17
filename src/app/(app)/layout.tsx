@@ -10,6 +10,7 @@ import {
   getSupportViewPreference,
   listParties,
   listLawsuits,
+  listQueries,
 } from "@/lib/data";
 import { DemoStoreProvider } from "@/lib/demo-store";
 
@@ -31,12 +32,14 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 }
 
 async function AppData({ children }: { children: React.ReactNode }) {
-  const [initialState, parties, lawsuits, supportView] = await Promise.all([
-    getInitialState(),
-    listParties(),
-    listLawsuits(),
-    getSupportViewPreference(),
-  ]);
+  const [initialState, parties, lawsuits, queries, supportView] =
+    await Promise.all([
+      getInitialState(),
+      listParties(),
+      listLawsuits(),
+      listQueries(),
+      getSupportViewPreference(),
+    ]);
 
   return (
     <SupportViewProvider initial={supportView}>
@@ -45,6 +48,7 @@ async function AppData({ children }: { children: React.ReactNode }) {
         initialState={initialState}
         parties={parties}
         lawsuits={lawsuits}
+        queries={queries}
       >
         <NewTrackingDialogProvider>
           {/* Navegação só no topo (círculo 3, fatia 3): duas páginas

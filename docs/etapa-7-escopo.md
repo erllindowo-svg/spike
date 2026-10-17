@@ -1278,3 +1278,16 @@ implementação ficam marcadas como _decisão do agente_.
      a ficha cuida do que já existe (pausar, marcar como lido, apagar); pedir
      algo novo é sempre um link para Consultar. Os componentes das páginas
      removidas saem na fatia 9.
+7. **Barra de pesquisa unificada** (`search-suggestions.ts`,
+   `global-search.tsx`). Em todas as páginas: primeiro os assuntos do banco
+   (nome ou parte da chave; o do identificador digitado vem antes), com
+   "monitorado" e "consultado em"; se o texto é um identificador, as
+   consultas feitas sobre ele, com a data (levam à ficha); por último, com
+   menos destaque, "Consultar …", que abre a página Consultar preenchida
+   (`?valor=&tipo=`), para qualquer tipo reconhecido, inclusive OAB e nome.
+   Na página Consultar, a barra não abre sugestões: o que se digita nela vai
+   para o campo da página, que recebe o foco (evento
+   `raio-x:consult-field`). O histórico de consultas passou a ir do layout
+   para o store do navegador (`queries`), para a barra montar os assuntos.
+   Testes da lógica pura; o comportamento de digitar na barra não foi
+   conferido num navegador interativo.

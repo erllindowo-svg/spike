@@ -11,8 +11,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
+import { CONSULT_FIELD_EVENT } from "@/components/layout/global-search";
 import { DistributionChart } from "@/components/shared/distribution-chart";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,19 @@ export function ConsultPage() {
         )
       : undefined;
 
+  // Na página Consultar, o que se digita na barra do topo vem para cá
+  // (global-search.tsx).
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    function onBarInput(event: Event) {
+      setValue((event as CustomEvent<string>).detail);
+      setResult(null);
+      inputRef.current?.focus();
+    }
+    window.addEventListener(CONSULT_FIELD_EVENT, onBarInput);
+    return () => window.removeEventListener(CONSULT_FIELD_EVENT, onBarInput);
+  }, []);
+
   function changeValue(next: string) {
     setValue(next);
     setResult(null);
@@ -151,6 +165,7 @@ export function ConsultPage() {
               aria-hidden
             />
             <Input
+              ref={inputRef}
               id="consult-value"
               autoFocus
               value={value}

@@ -1,34 +1,37 @@
 "use client";
 
 import {
-  Building2Icon,
-  CloudDownloadIcon,
-  RadarIcon,
-  ScaleIcon,
+  FileClockIcon,
+  FolderSearchIcon,
   SearchIcon,
   type LucideIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
+import { buildSubjects } from "@/features/subjects/subjects";
 import { useDemoStore } from "@/lib/demo-store";
 import { cn } from "@/lib/utils";
 
 import { buildSuggestions, type SearchSuggestion } from "./search-suggestions";
 
 const kindIcons: Record<SearchSuggestion["kind"], LucideIcon> = {
-  party: Building2Icon,
-  tracking: RadarIcon,
-  lawsuit: ScaleIcon,
-  consult: CloudDownloadIcon,
+  subject: FolderSearchIcon,
+  query: FileClockIcon,
+  consult: SearchIcon,
 };
 
-// Barra de pesquisa do cabeçalho (escolha R4 do escopo): sugere o que o app
-// já tem (empresas, pessoas, monitoramentos, processos) enquanto se digita, e
-// oferece "Consultar na JUDIT" para um identificador completo. Teclado:
-// "/" foca, setas escolhem, Enter abre, Esc fecha.
+// Evento com o que foi digitado na barra quando a página aberta é a
+// Consultar: lá, a barra não abre sugestões, ela preenche o campo da página
+// (consult-page.tsx escuta). Dois campos para a mesma coisa confundiriam.
+export const CONSULT_FIELD_EVENT = "raio-x:consult-field";
+
+// Barra de pesquisa do cabeçalho, em todas as páginas (círculo 3, fatia 7):
+// sugere o que já está no banco (assuntos e consultas, com data) enquanto se
+// digita e, por último, "Consultar". Teclado: "/" foca, setas escolhem,
+// Enter abre, Esc fecha.
 export function GlobalSearch({
   onNavigate,
 }: {
@@ -36,14 +39,16 @@ export function GlobalSearch({
   onNavigate?: () => void;
 } = {}) {
   const router = useRouter();
+  const onConsultPage = usePathname() === "/";
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const { parties, trackings, lawsuits } = useDemoStore();
+  const { parties, trackings, alerts, queries } = useDemoStore();
 
-  const suggestions = buildSuggestions(query, { parties, trackings, lawsuits });
+  const subjects = buildSubjects({ queries, trackings, parties, alerts });
+  const suggestions = buildSuggestions(query, { subjects, queries });
   const showList = open && query.trim().length >= 2;
 
   useEffect(() => {
@@ -103,6 +108,15 @@ export function GlobalSearch({
         ref={inputRef}
         value={query}
         onChange={(e) => {
+          if (onConsultPage) {
+            // Passa o texto ao campo da página, que recebe o foco.
+            window.dispatchEvent(
+              new CustomEvent(CONSULT_FIELD_EVENT, { detail: e.target.value }),
+            );
+            setQuery("");
+            onNavigate?.();
+            return;
+          }
           setQuery(e.target.value);
           setActive(0);
           setOpen(true);
@@ -111,8 +125,12 @@ export function GlobalSearch({
         // O atraso deixa o clique numa sugestão acontecer antes de fechar.
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={onKeyDown}
-        placeholder="Buscar empresa, pessoa, CNPJ, CPF ou CNJ"
-        aria-label="Busca global por nome, CNPJ, CPF ou número CNJ"
+        placeholder={
+          onConsultPage
+            ? "Digite aqui ou no campo da página"
+            : "Buscar no que você já consultou"
+        }
+        aria-label="Busca por nome, CPF, CNPJ, processo, OAB ou RJI"
         role="combobox"
         aria-expanded={showList}
         aria-controls={listId}
@@ -134,8 +152,8 @@ export function GlobalSearch({
         >
           {suggestions.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted-foreground">
-              Nada no app com esse nome. Para consultar na JUDIT, digite o CNPJ,
-              CPF ou número CNJ completo.
+              Nada no seu histórico com esse nome. Para consultar na JUDIT,
+              digite o identificador completo.
             </li>
           ) : (
             suggestions.map((suggestion, index) => {
@@ -156,7 +174,7 @@ export function GlobalSearch({
                     "flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-sm",
                     index === active && "bg-muted",
                     suggestion.kind === "consult" &&
-                      "mt-1 border-t pt-2.5 text-primary",
+                      "mt-1 border-t pt-2.5 opacity-70",
                   )}
                 >
                   <Icon

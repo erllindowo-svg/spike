@@ -1,123 +1,123 @@
-import type { Party, Tracking } from "@/db/models";
-import { identify } from "@/features/consult/identify";
+import type { SearchType } from "@/db/models";
 import {
-  displayDocument,
-  DOCUMENTS,
-  partyHref,
-} from "@/features/parties/documents";
-import { formatCnj, normalizeCnj } from "@/features/processes/cnj";
-import type { Lawsuit } from "@/features/processes/types";
-import { isTrackingClosed } from "@/features/trackings/types";
+  formatSearchKey as formatKey,
+  identify,
+  SEARCH_TYPES,
+} from "@/features/consult/identify";
+import { QUERY_MODES } from "@/features/queries/modes";
+import type { QueryView } from "@/features/queries/types";
+import {
+  subjectHref,
+  subjectKey,
+  type Subject,
+} from "@/features/subjects/subjects";
+import { formatSearchKey } from "@/features/trackings/format";
+import { formatDate } from "@/lib/format";
 
-// Sugestões da barra de pesquisa (escolha R4 do escopo). Tudo vem do que o
-// app já tem; a JUDIT só entra por um item explícito, "Consultar na JUDIT",
-// que abre a página Consultar (onde cada consulta mostra o custo). Nada é
-// consultado só por digitar.
+// Sugestões da barra de pesquisa (círculo 3, fatia 7). A barra é o atalho
+// para as duas páginas: primeiro o que já está no banco (os assuntos e,
+// quando o que foi digitado é o próprio identificador, as consultas feitas
+// sobre ele, com a data); por último, discreto, "Consultar", que abre a
+// página Consultar já preenchida. Nada é consultado só por digitar.
 
 export type SearchSuggestion = {
   id: string;
-  kind: "party" | "tracking" | "lawsuit" | "consult";
+  kind: "subject" | "query" | "consult";
   label: string;
   description: string;
   href: string;
 };
 
-const MAX_SUGGESTIONS = 7;
+const MAX_SUBJECTS = 5;
+const MAX_QUERIES = 3;
 
 export function buildSuggestions(
   rawQuery: string,
-  data: { parties: Party[]; trackings: Tracking[]; lawsuits: Lawsuit[] },
+  data: { subjects: Subject[]; queries: QueryView[] },
 ): SearchSuggestion[] {
   const query = rawQuery.trim();
   if (query.length < 2) return [];
 
   const term = query.toLowerCase();
-  const digits = query.toUpperCase().replace(/[^0-9A-Z]/g, "");
-  const suggestions: SearchSuggestion[] = [];
-  const monitored = new Set(
-    data.trackings
-      .filter((t) => !isTrackingClosed(t))
-      .map((t) => `${t.searchType}:${t.searchKey}`),
+  const compact = query.toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const identification = identify(query);
+  const target =
+    identification.status === "recognized"
+      ? identification.candidates[0]
+      : null;
+
+  // Assuntos: pelo nome ou por parte da chave (3 caracteres ou mais).
+  const subjects = data.subjects.filter(
+    (s) =>
+      !!s.name?.toLowerCase().includes(term) ||
+      (compact.length >= 3 && s.searchKey.toUpperCase().includes(compact)),
   );
-
-  // Partes: pelo nome ou por parte do documento.
-  for (const party of data.parties) {
-    const byName = !!party.name?.toLowerCase().includes(term);
-    const byDocument = digits.length >= 3 && party.document.includes(digits);
-    if (!byName && !byDocument) continue;
-    const info = DOCUMENTS[party.documentType];
-    const isMonitored = monitored.has(
-      `${party.documentType}:${party.document}`,
-    );
-    suggestions.push({
-      id: `party:${party.id}`,
-      kind: "party",
-      label: party.name ?? displayDocument(party.documentType, party.document),
-      description: [
-        info.partyLabel,
-        displayDocument(party.documentType, party.document),
-        isMonitored ? "monitorada" : null,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      href: partyHref(party.documentType, party.document),
-    });
-  }
-
-  // Processos: monitoramentos por CNJ e processos conhecidos.
-  const cnj = normalizeCnj(query);
-  if (cnj.length >= 7 && /^[\d.\-\s]+$/.test(query)) {
-    for (const tracking of data.trackings) {
-      if (tracking.searchType !== "cnj" || !tracking.searchKey.includes(cnj)) {
-        continue;
-      }
-      suggestions.push({
-        id: `tracking:${tracking.id}`,
-        kind: "tracking",
-        label: formatCnj(tracking.searchKey),
-        description: "Monitoramento processual",
-        href: `/informacoes/cnj/${tracking.searchKey}`,
-      });
-    }
-    for (const lawsuit of data.lawsuits) {
-      if (!lawsuit.cnj.includes(cnj)) continue;
-      suggestions.push({
-        id: `lawsuit:${lawsuit.id}`,
-        kind: "lawsuit",
-        label: formatCnj(lawsuit.cnj),
-        description: `Processo · ${lawsuit.tribunal}`,
-        href: `/informacoes/cnj/${lawsuit.cnj}`,
-      });
-    }
-  }
-
-  const found = suggestions.slice(0, MAX_SUGGESTIONS - 1);
-
-  // Um identificador completo e válido pode ser consultado na JUDIT.
-  const target = consultTarget(query);
+  // O assunto do identificador digitado vem antes dos parecidos.
   if (target) {
-    const label =
-      target.type === "cnj"
-        ? `processo ${formatCnj(target.key)}`
-        : `${DOCUMENTS[target.type].label} ${displayDocument(target.type, target.key)}`;
-    found.push({
-      id: `consult:${target.type}:${target.key}`,
-      kind: "consult",
-      label: `Consultar ${label} na JUDIT`,
-      description: "Abre a página Consultar. Cada consulta é cobrada.",
-      href: `/?valor=${target.key}`,
-    });
+    const exact = subjectKey(target.type, target.key);
+    subjects.sort(
+      (a, b) =>
+        Number(subjectKey(b.searchType, b.searchKey) === exact) -
+        Number(subjectKey(a.searchType, a.searchKey) === exact),
+    );
   }
-  return found;
+
+  const suggestions: SearchSuggestion[] = subjects
+    .slice(0, MAX_SUBJECTS)
+    .map((s) => ({
+      id: `subject:${subjectKey(s.searchType, s.searchKey)}`,
+      kind: "subject",
+      label: s.name ?? formatSearchKey(s.searchType, s.searchKey),
+      description: subjectDescription(s),
+      href: subjectHref(s.searchType, s.searchKey),
+    }));
+
+  // As consultas já feitas sobre o identificador digitado, para reabrir.
+  if (target) {
+    for (const q of data.queries
+      .filter((q) => q.searchType === target.type && q.searchKey === target.key)
+      .slice(0, MAX_QUERIES)) {
+      suggestions.push({
+        id: `query:${q.id}`,
+        kind: "query",
+        label: QUERY_MODES[q.mode].label,
+        description: `Consulta de ${formatDate(q.createdAt)}`,
+        href: subjectHref(q.searchType, q.searchKey),
+      });
+    }
+  }
+
+  const consult = consultSuggestion(target);
+  if (consult) suggestions.push(consult);
+  return suggestions;
 }
 
-function consultTarget(
-  query: string,
-): { type: "cnpj" | "cpf" | "cnj"; key: string } | null {
-  const result = identify(query);
-  if (result.status !== "recognized") return null;
-  const { type, key } = result.candidates[0];
-  return type === "cnpj" || type === "cpf" || type === "cnj"
-    ? { type, key }
-    : null;
+function subjectDescription(s: Subject): string {
+  return [
+    SEARCH_TYPES[s.searchType].label,
+    s.name && s.searchType !== "name"
+      ? formatSearchKey(s.searchType, s.searchKey)
+      : null,
+    s.monitored ? "monitorado" : null,
+    s.lastQueryAt ? `consultado em ${formatDate(s.lastQueryAt)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function consultSuggestion(
+  target: { type: SearchType; key: string } | null,
+): SearchSuggestion | null {
+  if (!target) return null;
+  const what =
+    target.type === "name"
+      ? `“${target.key}”`
+      : `${SEARCH_TYPES[target.type].label} ${formatKey(target.type, target.key)}`;
+  return {
+    id: `consult:${target.type}:${target.key}`,
+    kind: "consult",
+    label: `Consultar ${what}`,
+    description: "Abre a página Consultar. Cada consulta é cobrada.",
+    href: `/?valor=${encodeURIComponent(target.key)}&tipo=${target.type}`,
+  };
 }

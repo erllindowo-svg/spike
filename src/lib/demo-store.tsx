@@ -19,6 +19,7 @@ import type { DocumentType } from "@/features/parties/documents";
 import type { Party } from "@/features/parties/types";
 import { formatCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
+import type { QueryView } from "@/features/queries/types";
 import { trackingModeFor } from "@/features/queries/modes";
 import { subjectHref } from "@/features/subjects/subjects";
 import { formatSearchKey } from "@/features/trackings/format";
@@ -207,6 +208,9 @@ type DemoStore = DemoState & {
   dataSource: DataSource;
   parties: Party[];
   lawsuits: Lawsuit[];
+  // Histórico de consultas (síncronas e assíncronas), lido do servidor a
+  // cada navegação. A barra de pesquisa monta os assuntos com ele.
+  queries: QueryView[];
   getParty: (id: string | null) => Party | null;
   // Só na demonstração (no modo "db", addPartyAction grava no banco).
   // Devolve a parte já existente quando o documento está na lista.
@@ -230,12 +234,14 @@ export function DemoStoreProvider({
   initialState,
   parties,
   lawsuits,
+  queries,
   children,
 }: {
   dataSource: DataSource;
   initialState: DemoState;
   parties: Party[];
   lawsuits: Lawsuit[];
+  queries: QueryView[];
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -624,6 +630,7 @@ export function DemoStoreProvider({
       dataSource,
       parties: allParties,
       lawsuits,
+      queries,
       getParty,
       addDemoParty,
       addTracking,
@@ -641,6 +648,7 @@ export function DemoStoreProvider({
       dataSource,
       allParties,
       lawsuits,
+      queries,
       getParty,
       addDemoParty,
       addTracking,
