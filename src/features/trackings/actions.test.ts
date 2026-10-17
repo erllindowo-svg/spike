@@ -10,6 +10,7 @@ import {
 
 import { collections } from "@/db/collections";
 import { createTestDb } from "@/db/test-db";
+import { fakeWebhookToken } from "@/lib/judit/__fixtures__/webhooks";
 import {
   createdCnpjTrackingBody,
   pausedTrackingBody,
@@ -35,6 +36,8 @@ import {
 const testDb = vi.hoisted(() => ({
   current: undefined as Awaited<ReturnType<typeof createTestDb>> | undefined,
 }));
+// The daily cap reads the database; covered in src/features/queries/budget.test.ts.
+vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: async () => testDb.current!.db }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 
@@ -93,6 +96,9 @@ beforeEach(async () => {
   vi.stubEnv("DATA_SOURCE", "db");
   vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
   vi.stubEnv("JUDIT_API_KEY", "test-key");
+  // Sem webhook, salvo nos testes que o ligam (fatia 8 do círculo 3).
+  vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "");
+  vi.stubEnv("JUDIT_WEBHOOK_TOKEN", "");
   vi.spyOn(console, "info").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -138,6 +144,46 @@ describe("createTrackingAction", () => {
         hourRange: 21,
         delivery: "polling",
       },
+    });
+  });
+
+  it("asks for webhook delivery when a public origin is configured", async () => {
+    vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "https://tunel.example.com");
+    vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
+    const fetchMock = mockFetch(createdCnpjTrackingBody);
+
+    const result = await createTrackingAction(input);
+
+    expect(call(fetchMock).body.callback_url).toBe(
+      `https://tunel.example.com/api/webhooks/judit?token=${fakeWebhookToken}`,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      tracking: { delivery: "webhook" },
+      message: expect.stringContaining("por webhook"),
+    });
+  });
+
+  it("stays on polling without a public origin", async () => {
+    const fetchMock = mockFetch(createdCnpjTrackingBody);
+
+    const result = await createTrackingAction(input);
+
+    expect(call(fetchMock).body).not.toHaveProperty("callback_url");
+    expect(result).toMatchObject({ tracking: { delivery: "polling" } });
+  });
+
+  it("keeps the reservation pending when the webhook is half configured", async () => {
+    vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "https://tunel.example.com");
+    const fetchMock = mockFetch(createdCnpjTrackingBody);
+
+    const result = await createTrackingAction(input);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      outcome: "not_sent",
+      tracking: { creation: "pending" },
     });
   });
 
@@ -243,7 +289,7 @@ describe("reservations from stage 2", () => {
     await trackingsCollection().insertOne({
       _id: "legacy-1",
       juditTrackingId: null,
-      companyId: null,
+      partyId: null,
       searchType: "cnpj",
       searchKey: CNPJ,
       status: null,

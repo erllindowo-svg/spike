@@ -49,7 +49,13 @@ vi.mock("@/features/alerts/db", async (importOriginal) => {
   };
 });
 
-vi.spyOn(console, "info").mockImplementation(() => {});
+const info = vi.spyOn(console, "info").mockImplementation(() => {});
+
+// Outbound events (src/features/notifications/outbound.ts) published so far.
+const outboundLogs = () =>
+  info.mock.calls.filter(([message]) =>
+    String(message).startsWith("[outbound]"),
+  );
 
 // Fictitious identifiers. The reference ids come from the fixtures.
 const CNPJ = "A1B2C3D4E5F668";
@@ -66,7 +72,7 @@ async function seedRequest(requestId = REQUEST_ID) {
   await db().juditRequests.insertOne({
     _id: randomUUID(),
     requestId,
-    companyId: COMPANY_ID,
+    partyId: COMPANY_ID,
     mode: "historical_async",
     delivery: "webhook",
     searchType: "cnpj",
@@ -86,7 +92,7 @@ async function seedTracking(mode: TrackingMode = "tracking_document") {
   await db().trackings.insertOne({
     _id: id,
     juditTrackingId: TRACKING_ID,
-    companyId: byCnj ? null : COMPANY_ID,
+    partyId: byCnj ? null : COMPANY_ID,
     mode,
     searchType: byCnj ? "cnj" : "cnpj",
     searchKey: byCnj ? CNJ : CNPJ,
@@ -200,13 +206,28 @@ describe("processWebhookEvent: trackings", () => {
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({
       type: "new_lawsuit",
-      companyId: COMPANY_ID,
+      partyId: COMPANY_ID,
       trackingId,
       webhookEventId: cached,
       lawsuitCnj: LAWSUIT_CNJ,
       readAt: null,
     });
     expect((await getEvent(updated))?.processingNote).toContain("já existia");
+  });
+
+  it("publishes the outbound event once per new alert, not for repetitions", async () => {
+    await seedTracking("tracking_document");
+    const cached = await receive(trackingLawsuitDelivery);
+    const updated = await receive(trackingLawsuitDelivery);
+    const before = outboundLogs().length;
+
+    await processWebhookEvent(cached);
+    await processWebhookEvent(updated);
+
+    const published = outboundLogs().slice(before);
+    expect(published).toHaveLength(1);
+    const [alert] = await allAlerts();
+    expect(String(published[0][0])).toContain(`alert.created ${alert._id}`);
   });
 
   it("creates one lawsuit_movement alert per delivery for a CNJ tracking", async () => {

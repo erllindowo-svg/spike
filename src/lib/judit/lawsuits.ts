@@ -38,7 +38,7 @@ export async function getEntity(params: {
   revealPartnersDocuments?: boolean;
 }) {
   const searchKey = params.searchKey.trim();
-  assertAllowedSearchKey(params.searchType, searchKey);
+  await assertAllowedSearchKey(params.searchType, searchKey);
 
   return juditRequest({
     service: "lawsuits",
@@ -78,7 +78,7 @@ export async function searchLawsuits(params: {
   cacheTtlInDays?: number;
 }) {
   const searchKey = params.searchKey.trim();
-  assertAllowedSearchKey(params.searchType, searchKey);
+  await assertAllowedSearchKey(params.searchType, searchKey);
 
   return juditRequest({
     service: "lawsuits",
@@ -117,7 +117,7 @@ export async function countLawsuits(params: {
   filter?: LawsuitFilter;
 }) {
   const searchKey = params.searchKey.trim();
-  assertAllowedSearchKey(params.searchType, searchKey);
+  await assertAllowedSearchKey(params.searchType, searchKey);
 
   return juditRequest({
     service: "lawsuits",
@@ -145,7 +145,7 @@ export async function getLawsuitsSynthetic(params: {
   filter?: LawsuitFilter;
 }) {
   const searchKey = params.searchKey.trim();
-  assertAllowedSearchKey(params.searchType, searchKey);
+  await assertAllowedSearchKey(params.searchType, searchKey);
 
   return juditRequest({
     service: "lawsuits",
@@ -173,7 +173,7 @@ export async function getLawsuitByCnj(params: {
   instance?: number;
 }) {
   const cnj = params.cnj.trim();
-  assertAllowedSearchKey("lawsuit_cnj", cnj);
+  await assertAllowedSearchKey("lawsuit_cnj", cnj);
 
   return juditRequest({
     service: "lawsuits",

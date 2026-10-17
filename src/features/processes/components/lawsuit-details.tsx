@@ -6,8 +6,9 @@ import Link from "next/link";
 import { CopyButton } from "@/components/shared/copy-button";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { partyHref } from "@/features/parties/documents";
 import { formatCnj } from "@/features/processes/cnj";
-import { companyRoleLabels, type Lawsuit } from "@/features/processes/types";
+import { partyRoleLabels, type Lawsuit } from "@/features/processes/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { TrackingStatusBadge } from "@/features/trackings/components/tracking-status-badge";
 import { isTrackingClosed } from "@/features/trackings/types";
@@ -36,14 +37,12 @@ function InfoItem({
   );
 }
 
-export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
+export function LawsuitTrackingAction({ cnj }: { cnj: string }) {
   const { trackings } = useDemoStore();
   const { openNewTracking } = useNewTrackingDialog();
   const tracking = trackings.find(
     (t) =>
-      t.searchType === "cnj" &&
-      t.searchKey === lawsuit.cnj &&
-      !isTrackingClosed(t),
+      t.searchType === "cnj" && t.searchKey === cnj && !isTrackingClosed(t),
   );
 
   if (tracking) {
@@ -58,9 +57,7 @@ export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
 
   return (
     <Button
-      onClick={() =>
-        openNewTracking({ searchType: "cnj", searchKey: lawsuit.cnj })
-      }
+      onClick={() => openNewTracking({ searchType: "cnj", searchKey: cnj })}
     >
       <RadarIcon data-icon="inline-start" />
       Monitorar este processo
@@ -69,8 +66,8 @@ export function LawsuitTrackingAction({ lawsuit }: { lawsuit: Lawsuit }) {
 }
 
 export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
-  const { getCompany } = useDemoStore();
-  const company = getCompany(lawsuit.companyId);
+  const { getParty, dataSource } = useDemoStore();
+  const company = getParty(lawsuit.partyId);
 
   return (
     <div className="flex flex-col gap-5">
@@ -94,8 +91,8 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
         <InfoItem label="Área">{lawsuit.area}</InfoItem>
         <InfoItem label="Classe processual">{lawsuit.className}</InfoItem>
         <InfoItem label="Assunto">{lawsuit.subject}</InfoItem>
-        <InfoItem label="Papel da empresa">
-          {lawsuit.companyRole ? companyRoleLabels[lawsuit.companyRole] : null}
+        <InfoItem label="Papel da parte">
+          {lawsuit.partyRole ? partyRoleLabels[lawsuit.partyRole] : null}
         </InfoItem>
         <InfoItem label="Distribuição">
           {lawsuit.distributedAt ? formatDate(lawsuit.distributedAt) : null}
@@ -103,13 +100,19 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
         <InfoItem label="Valor da causa">
           {lawsuit.amount !== null ? formatCurrency(lawsuit.amount) : null}
         </InfoItem>
-        <InfoItem label="Empresa relacionada">
+        <InfoItem
+          label={
+            company?.documentType === "cpf"
+              ? "Pessoa relacionada"
+              : "Empresa relacionada"
+          }
+        >
           {company ? (
             <Link
-              href={`/empresas/${company.cnpj}`}
+              href={partyHref(company.documentType, company.document)}
               className="text-primary underline-offset-4 hover:underline"
             >
-              {company.legalName ?? "Razão social indisponível"}
+              {company.name ?? "Nome não consultado"}
             </Link>
           ) : null}
         </InfoItem>
@@ -120,14 +123,17 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
       <section className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold">Movimentações</h3>
-          <span className="text-xs text-muted-foreground">
-            Exemplos fictícios
-          </span>
+          {dataSource === "demo" && (
+            <span className="text-xs text-muted-foreground">
+              Exemplos fictícios
+            </span>
+          )}
         </div>
         {lawsuit.movements.length === 0 ? (
           <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Nenhuma movimentação disponível. Os dados deste processo ainda não
-            foram retornados.
+            {dataSource === "db"
+              ? "As movimentações dos processos da JUDIT ainda não são exibidas."
+              : "Nenhuma movimentação disponível."}
           </p>
         ) : (
           <ol className="flex flex-col">

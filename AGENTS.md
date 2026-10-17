@@ -133,22 +133,32 @@ A ordem prevista é:
 4. Criação e acompanhamento de um monitoramento real.
 5. Recebimento e persistência de um webhook de teste.
 6. Idempotência, associação do evento ao monitoramento e geração de alerta.
-7. Diagnóstico, tratamento de falhas e refinamento da experiência.
-8. Auditoria completa do código, no modo descrito abaixo.
+7. Produto: usar o app como cliente e repensar fluxos e telas. Ao terminar essa revisão visual, gerar dois produtos separados:
+   - **o protótipo:** um produto à parte, gerado a partir do app revisado, que só funciona com dados fictícios (mock data) e só tem o código necessário para isso, com tag própria;
+   - **o app real, no `main`:** reduzido para funcionar só com banco e chave da JUDIT, sem nenhum código de demonstração; sem configuração, mostra na tela o que falta. README atualizado e teste do clone limpo.
+
+   **O produto está terminado no fim da etapa 7.**
+
+8. Opcional; pode ser feita depois, a qualquer momento:
+   - 8A. Itens abertos da revisão técnica (prioridade média e baixa) e pendências do relatório de progresso.
+   - 8B. Auditoria completa do código, no modo descrito abaixo.
+   - 8C. Correções anotadas durante a auditoria.
 
 A ordem pode mudar se uma dependência técnica exigir isso. Explique o motivo da mudança. Não conecte todas as telas à API de uma vez; valide um fluxo de ponta a ponta antes de ampliar.
 
-### Modo auditoria (só no final do projeto)
+### Modo auditoria (etapa 8B, opcional)
 
-Depois da etapa 7, faremos uma auditoria completa do código, para que eu saiba explicar cada linha e diagnosticar falhas. Ela não vale durante o desenvolvimento: só começa quando eu pedir. Enquanto durar:
+Na etapa 8B, depois da 8A, faremos uma auditoria completa do código, para que eu saiba explicar cada linha e diagnosticar falhas. Ela não vale durante o desenvolvimento: só começa quando eu pedir. Enquanto durar:
 
 - não altere código-fonte; apenas leia e explique;
+- questione as decisões de cada arquivo e anote o que mudaria numa lista para a 8C, em vez de corrigir;
 - um arquivo por vez, indicando caminho e intervalo de linhas (por exemplo, `client.ts:62-108`) em vez de colar o arquivo no terminal; trechos curtos só quando ajudarem;
 - explicação densa, sem simplificar demais: o que o código faz, por que foi feito assim, que alternativa foi descartada e qual seria o custo;
 - sempre que fizer sentido, ligue ao suporte técnico: como a falha apareceria para o cliente e que ticket ela geraria;
 - diferencie fato documentado da JUDIT, hipótese e decisão nossa; cite o README de `src/lib/judit` quando houver contradição documentada relevante;
 - sem quizzes, a menos que eu peça; a conversa é livre e eu posso desviar;
-- ao terminar cada arquivo ou bloco, registre no diário uma entrada curta "Auditoria / <arquivo>" com o resumo técnico e as dúvidas que levantei, sem escrever em meu nome; acumule as mudanças e só commite quando eu pedir.
+- ao terminar cada arquivo ou bloco, registre no diário uma entrada curta "Auditoria / <arquivo>" com o resumo técnico e as dúvidas que levantei; acumule as mudanças e só commite quando eu pedir;
+- quando eu ditar o que entendi, registre como texto de leitura fluida, marcado como ditado: sem as marcas da fala ("né", repetições, vírgulas soltas) e com erros de transcrição corrigidos, mas com as minhas ideias e o meu vocabulário, sem acrescentar nada. Mostre o texto na resposta para eu corrigir. Fora do ditado, não escreva em meu nome.
 
 Ordem: `src/lib/judit/errors.ts` → `guard.ts` → `src/lib/env.ts` e `scripts/check-env.mjs` → `dev-route.ts` → `lawsuits.ts`, `requests.ts`, `tracking.ts` e os schemas → fluxo síncrono (`src/features/processes`) → fluxo assíncrono (`src/features/queries`) → monitoramentos, webhooks e alertas (`src/features/trackings`, `webhooks`, `alerts`) → persistência (`src/db` e os `db.ts` das features). O `client.ts` já foi auditado (entrada "Auditoria / client.ts" do diário, 2026-10-15).
 

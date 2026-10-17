@@ -25,6 +25,21 @@ export const serverEnvSchema = z.object({
   // "disabled", and src/lib/judit/guard.ts only accepts the exact value
   // "enabled".
   JUDIT_LIVE_CALLS: z.string().trim().optional(),
+  // Restricted mode: searches by document or CNJ only for the keys listed in
+  // src/lib/judit/guard.ts. "locked" keeps it on with no switch; otherwise
+  // the switch in Configurações decides, starting off only with "disabled"
+  // (src/features/settings/cost-protection.ts).
+  JUDIT_ALLOWLIST: z.string().trim().optional(),
+  // Our own pace limit, below JUDIT's 180 per minute (README item 43).
+  // Empty means the default in src/lib/judit/rate-limit.ts.
+  JUDIT_MAX_CALLS_PER_MINUTE: emptyAsAbsent(
+    z.coerce.number().int().min(1).max(170).optional(),
+  ),
+  // Daily cap of billable calls, counted in the app's own history.
+  // Empty means the default in src/features/queries/budget.ts.
+  JUDIT_DAILY_CALL_LIMIT: emptyAsAbsent(
+    z.coerce.number().int().min(1).max(10_000).optional(),
+  ),
   // Secret that JUDIT sends back in the webhook URL (?token=...): the docs
   // define no signature, so this is how the route tells JUDIT from anyone
   // else. Absent means the webhook route is disabled (404). See
@@ -55,6 +70,16 @@ export const serverEnvSchema = z.object({
   ),
 });
 
+// An empty line copied from .env.example reaches process.env as "": read it
+// as absent, so the default applies instead of a validation error.
+function emptyAsAbsent<T extends z.ZodType>(schema: T) {
+  return z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    schema,
+  );
+}
+
 function isHttpsOrigin(value: string): boolean {
   try {
     const url = new URL(value);
@@ -76,4 +101,14 @@ export function getServerEnv<K extends keyof ServerEnv>(key: K): ServerEnv[K] {
   }
 
   return result.data as ServerEnv[K];
+}
+
+// Whether a variable is set and valid, without handing its value to the
+// caller. An empty or absent variable counts as not set, even when the
+// schema has a default. Used by the settings page, which shows the state of
+// each integration but never a value.
+export function hasServerEnv(key: keyof ServerEnv): boolean {
+  const value = process.env[key];
+  if (value === undefined || value.trim() === "") return false;
+  return serverEnvSchema.shape[key].safeParse(value).success;
 }

@@ -4,13 +4,22 @@ import { MongoClient, type Db } from "mongodb";
 
 import { getServerEnv } from "@/lib/env";
 
+import { rebuildSearchEntriesIfStale } from "@/features/search/entries";
+
 import { ensureIndexes } from "./collections";
+import { migrateCompaniesToParties } from "./migrations";
 
 async function connect(): Promise<Db> {
   const client = new MongoClient(getServerEnv("MONGODB_URI"));
   await client.connect();
   const db = client.db(getServerEnv("MONGODB_DB"));
+  // Dados primeiro, índices depois: o índice único de partes já encontra
+  // as empresas migradas.
+  await migrateCompaniesToParties(db);
   await ensureIndexes(db);
+  // A busca (círculo 3B) é derivada: vazia ou montada por regras antigas, é
+  // montada de novo com o que já existe.
+  await rebuildSearchEntriesIfStale(db);
   return db;
 }
 

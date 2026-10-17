@@ -77,6 +77,21 @@ describe("createTracking", () => {
     });
   });
 
+  it("sends the movement terms in notification_filters, at the top level", async () => {
+    const fetchMock = mockFetch(createdCnpjTrackingBody, 201);
+
+    await createTracking({
+      searchType: "cnpj",
+      searchKey: TEST_CNPJ,
+      recurrence: 7,
+      stepTerms: ["sentença", "intimação"],
+    });
+
+    expect(sentRequest(fetchMock).body).toMatchObject({
+      notification_filters: { step_terms: ["sentença", "intimação"] },
+    });
+  });
+
   it("sends with_attachments and search_params only when asked", async () => {
     const fetchMock = mockFetch(createdCnpjTrackingBody, 201);
 

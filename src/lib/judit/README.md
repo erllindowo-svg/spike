@@ -387,3 +387,56 @@ Registradas em vez de escolhidas em silêncio.
     processamento dos webhooks (`src/features/webhooks/delivery.ts`) guarda
     os dois como texto e não decide nada pelo valor: só os mostra na nota do
     evento e no alerta.
+43. **Limite de requisições por minuto.** A página
+    [rate-limits](https://docs.judit.io/essentialConcepts/rate-limits) diz
+    "180 requisições por minuto por API Key", compartilhadas entre os
+    serviços, em janela deslizante de 60 s; a tabela de erros da
+    [consulta síncrona](https://docs.judit.io/cache-judit/hotstorage) diz
+    "Rate limit excedido (500 req/min)". Lido em 2026-10-16. Qualquer limite
+    nosso deve ficar abaixo do menor dos dois (180).
+44. **`notification_filters.step_terms` com texto truncado e exemplo
+    inválido.** A página [tracking](https://docs.judit.io/tracking/tracking)
+    ("Payload da Solicitação") diz que `step_terms` filtra as movimentações
+    "quando utilizada em conjunto com o monitoramento via webhook" e a frase
+    termina aí. O exemplo de payload não é JSON válido (falta uma vírgula
+    depois de `notification_emails` e os termos usam aspas simples). O
+    client envia `notification_filters: { step_terms: [...] }` no topo do
+    corpo, como o exemplo indica. Lido em 2026-10-16; não testado ao vivo.
+    Dúvida aberta: o filtro vale também para quem lê por polling?
+    _Observado em 2026-10-16:_ `POST /tracking` por CNJ (o fictício) com
+    `step_terms: ["sentença"]` respondeu 201, e `GET /tracking/{id}`
+    devolveu `"notification_filters": { "step_terms": ["sentença"] }`. O
+    campo é aceito e guardado no lugar que usamos. O efeito sobre as
+    notificações não foi observado: o processo fictício não movimenta.
+45. **Resposta do saldo de créditos sem formato.** A página
+    [credits](https://docs.judit.io/resource/consumption/credits) mostra
+    `GET https://users.production.judit.io/credits/balance` e exemplos de
+    chamada, mas nenhum exemplo de resposta nem a lista de campos ("traz o
+    saldo de créditos remanescente"). O client aceita qualquer objeto e a
+    tela mostra os campos que vierem. Lido em 2026-10-16; não testado ao
+    vivo. Nem esta página nem a do consumo do ciclo dizem se a leitura é
+    cobrada: o app só lê por clique.
+    _Observado em 2026-10-16:_ com a nossa chave, a leitura respondeu
+    `422 HttpUnprocessableEntityError`, enquanto `GET /billing/consumption`
+    respondeu 200 com teto de ciclo (`max_consumption`). A página avisa que
+    a rota atende ao modelo pré-pago e que, no pós-pago, o número
+    equivalente é o `remaining` do consumo. Que o 422 é a resposta para
+    conta pós-paga é inferência nossa: a página não lista erros.
+46. **Resumo por IA (`judit_ia: ["summary"]`) demora.** _Observado em
+    2026-10-16 e 2026-10-17:_ `POST /requests` por CNJ (o fictício) com
+    `judit_ia: ["summary"]` foi aceito, e `GET /requests/{id}` devolve o
+    campo como enviado. A requisição de 2026-10-16 ficou `pending` por cerca
+    de 16 minutos (12:38 a 12:54 UTC) e terminou com `responses_count: 2`;
+    sem o resumo, a mesma consulta terminou em segundos na etapa 6. Que a
+    demora venha do resumo é hipótese nossa: uma amostra só. A documentação
+    não informa o tempo esperado.
+47. **Formato da OAB e do RJI sem definição.** Os exemplos de OAB não
+    concordam: `"SP123456"` (UF antes) em
+    [tracking-communication](https://docs.judit.io/tracking/tracking-communication),
+    `"123456SP"` em [count](https://docs.judit.io/cache-judit/count) e
+    `"99999RJ"` em [cache-grouped](https://docs.judit.io/cache-judit/cache-grouped)
+    (UF depois). Nenhuma página diz qual a API aceita, nem se aceita as duas.
+    O único exemplo de RJI, em
+    [warrant](https://docs.judit.io/criminal-consultation/warrant), é
+    `"00000000000000000000"`: 20 dígitos, o mesmo tamanho de um CNJ sem
+    máscara. Lido em 2026-10-17; não testado ao vivo.

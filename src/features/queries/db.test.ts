@@ -1,5 +1,6 @@
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -16,9 +17,12 @@ import {
   findOpenJuditRequest,
   getJuditRequest,
   listJuditRequests,
+  listRecentJuditRequests,
+  listSyncQueries,
   markJuditRequestCompleted,
   OPEN_QUERY_WINDOW_MS,
   saveJuditRequest,
+  saveSyncQuery,
   updateJuditRequestStatus,
   type NewJuditRequest,
 } from "./db";
@@ -32,7 +36,7 @@ vi.mock("@/db", () => ({ getDb: async () => testDb.current!.db }));
 
 const base: NewJuditRequest = {
   requestId: "84b4d8f5-50f8-4c14-818f-912c722a6908",
-  companyId: "company-1",
+  partyId: "company-1",
   mode: "historical_async",
   delivery: "polling",
   searchType: "cnpj",
@@ -62,7 +66,7 @@ describe("judit_requests", () => {
       mode: "historical_on_demand",
       cacheTtlInDays: 7,
     });
-    await saveJuditRequest({ ...base, requestId: "other", companyId: "c-2" });
+    await saveJuditRequest({ ...base, requestId: "other", partyId: "c-2" });
 
     const list = await listJuditRequests("company-1");
 
@@ -101,13 +105,22 @@ describe("findOpenJuditRequest", () => {
     await saveJuditRequest(base);
 
     expect(
-      await findOpenJuditRequest("company-1", "historical_async"),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+      ),
     ).toMatchObject({ requestId: base.requestId });
     expect(
-      await findOpenJuditRequest("company-1", "historical_on_demand"),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_on_demand",
+      ),
     ).toBeNull();
     expect(
-      await findOpenJuditRequest("company-2", "historical_async"),
+      await findOpenJuditRequest(
+        { partyId: "company-2", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+      ),
     ).toBeNull();
   });
 
@@ -116,7 +129,10 @@ describe("findOpenJuditRequest", () => {
     await markJuditRequestCompleted(base.requestId);
 
     expect(
-      await findOpenJuditRequest("company-1", "historical_async"),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+      ),
     ).toBeNull();
   });
 
@@ -125,7 +141,11 @@ describe("findOpenJuditRequest", () => {
     const later = new Date(Date.now() + OPEN_QUERY_WINDOW_MS + 1000);
 
     expect(
-      await findOpenJuditRequest("company-1", "historical_async", later),
+      await findOpenJuditRequest(
+        { partyId: "company-1", searchKey: "A1B2C3D4E5F668" },
+        "historical_async",
+        later,
+      ),
     ).toBeNull();
   });
 });
@@ -137,5 +157,86 @@ describe("markJuditRequestCompleted", () => {
     const updated = await markJuditRequestCompleted(base.requestId);
 
     expect(updated).toMatchObject({ status: "completed", lastCheckedAt: null });
+  });
+});
+
+// Only Date is faked: the MongoDB driver keeps its real timers. Two saves in
+// the same millisecond would make "newest first" ambiguous.
+function at(iso: string) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(iso));
+}
+
+describe("listRecentJuditRequests", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("lists the requests of every company, newest first", async () => {
+    at("2026-10-16T10:00:00Z");
+    await saveJuditRequest(base);
+    at("2026-10-16T11:00:00Z");
+    await saveJuditRequest({
+      ...base,
+      requestId: "c2a6f0de-0a4e-4b0b-9a43-5d1f0f7f2b11",
+      partyId: "company-2",
+    });
+
+    const requests = await listRecentJuditRequests();
+
+    expect(requests.map((r) => r.partyId)).toEqual(["company-2", "company-1"]);
+  });
+});
+
+describe("sync_queries", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("records only metadata and lists newest first", async () => {
+    at("2026-10-16T10:00:00Z");
+    await saveSyncQuery({
+      mode: "datalake_sync",
+      partyId: "company-1",
+      searchType: "cnpj",
+      searchKey: "A1B2C3D4E5F668",
+      requestId: "2bf22fa7-4061-4ea6-8e69-b479bc12c24c",
+      outcome: "ok",
+      resultCount: 1,
+      errorKind: null,
+    });
+    at("2026-10-16T11:00:00Z");
+    await saveSyncQuery({
+      mode: "registration_data",
+      // Looked up before the company was saved.
+      partyId: null,
+      searchType: "cnpj",
+      searchKey: "A1B2C3D4E5F668",
+      requestId: null,
+      outcome: "uncertain",
+      resultCount: null,
+      errorKind: "timeout",
+    });
+
+    const queries = await listSyncQueries();
+
+    expect(queries.map((q) => [q.mode, q.outcome])).toEqual([
+      ["registration_data", "uncertain"],
+      ["datalake_sync", "ok"],
+    ]);
+    expect(Object.keys(queries[1]).sort()).toEqual(
+      [
+        "partyId",
+        "createdAt",
+        "errorKind",
+        "id",
+        "mode",
+        "outcome",
+        "requestId",
+        "resultCount",
+        "searchKey",
+        "searchType",
+      ].sort(),
+    );
   });
 });

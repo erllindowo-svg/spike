@@ -4,7 +4,12 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import type { Tracking } from "@/db/models";
-import { getCompanyByCnpj } from "@/features/companies/db";
+import { getPartyByDocument } from "@/features/parties/db";
+import { saveQuietly } from "@/features/base/db";
+import { saveResponsesToBase } from "@/features/base/ingest";
+import { isDocumentType } from "@/features/parties/documents";
+import { productCallbackUrl } from "@/features/webhooks/callback";
+import { assertDailyBudget } from "@/features/queries/budget";
 import {
   juditActionFailure,
   type JuditActionFailure,
@@ -46,6 +51,7 @@ import {
   type CreateTrackingResult,
   type NewTrackingRequest,
 } from "./db";
+import { formatHourRange } from "./format";
 import { formatRecurrence } from "./types";
 
 // Server Actions de monitoramento. O navegador chama estas funções, mas elas
@@ -182,29 +188,57 @@ async function sendReservation(id: string): Promise<{
   if (!claimed) return null;
 
   const requestedRecurrence = claimed.recurrenceDays ?? 30;
+
+  // Webhook como padrão (D6): com JUDIT_WEBHOOK_PUBLIC_ORIGIN preenchida, a
+  // criação leva a callback_url e cada resultado chega sozinho. Uma
+  // configuração pela metade (origem sem token) falha aqui, antes da
+  // chamada cobrada: a reserva volta a pendente.
+  let callbackUrl: string | null;
   try {
+    callbackUrl = productCallbackUrl();
+  } catch (error) {
+    const reason = `Webhook configurado pela metade: ${error instanceof Error ? error.message : String(error)} A reserva continua pendente.`;
+    console.error(`[trackings] envio not_sent: ${reason}`);
+    const tracking = await releaseReservation(id, reason);
+    return {
+      tracking: tracking ?? claimed,
+      outcome: "not_sent",
+      message: reason,
+    };
+  }
+
+  try {
+    // Teto diário: barrado aqui, a reserva volta a "pendente" (not_sent).
+    await assertDailyBudget();
     const remote = await createJuditTracking({
       searchType: juditSearchType(claimed),
       searchKey: claimed.searchKey,
       recurrence: requestedRecurrence,
+      stepTerms: claimed.stepTerms ?? undefined,
+      callbackUrl: callbackUrl ?? undefined,
     });
     // O tracking_id não é segredo e é a única forma de achar o monitoramento
     // na JUDIT se a gravação abaixo falhar; por isso vai para o log antes.
     console.info(
       `[trackings] monitoramento criado na JUDIT: tracking_id ${remote.tracking_id}`,
     );
+    const delivery = callbackUrl ? "webhook" : "polling";
     const tracking = await confirmReservation(
       id,
       remote.tracking_id,
       remoteFields(remote),
+      delivery,
     );
     return {
       tracking: tracking ?? claimed,
       outcome: "confirmed",
       message: [
         remote.hour_range !== undefined
-          ? `Criado na JUDIT. Primeira execução prevista para as ${remote.hour_range}h, em até 24 horas.`
+          ? `Criado na JUDIT. Primeira execução prevista por volta das ${formatHourRange(remote.hour_range)}, em até 24 horas.`
           : "Criado na JUDIT. A primeira execução acontece em até 24 horas.",
+        delivery === "webhook"
+          ? "Os resultados chegam sozinhos, por webhook."
+          : "Sem endereço público para o webhook: os resultados aparecem em “Ver resultados”.",
         recurrenceWarning(requestedRecurrence, remote.recurrence),
       ]
         .filter(Boolean)
@@ -253,7 +287,9 @@ function classifySendError(error: unknown): {
     return {
       outcome: "not_sent",
       reason:
-        "Identificador fora da allowlist de desenvolvimento. A reserva continua pendente.",
+        error.kind === "guard"
+          ? "Identificador fora da allowlist (modo restrito). A reserva continua pendente."
+          : `${error.message} A reserva continua pendente.`,
     };
   }
   // A JUDIT respondeu recusando (4xx, incluindo limite de taxa, ou erro de
@@ -385,7 +421,7 @@ function normalizeKey(key: string): string {
 }
 
 function juditSearchType(tracking: Pick<Tracking, "searchType">) {
-  return tracking.searchType === "cnpj" ? "cnpj" : "lawsuit_cnj";
+  return tracking.searchType === "cnj" ? "lawsuit_cnj" : tracking.searchType;
 }
 
 // --- Monitoramentos confirmados -------------------------------------------
@@ -468,14 +504,24 @@ export async function trackingResultsAction(
       createdAtGte: dateOnly(new Date(tracking.createdAt.getTime() - day)),
       createdAtLte: dateOnly(new Date(Date.now() + day)),
     });
-    const company =
-      tracking.searchType === "cnpj"
-        ? await getCompanyByCnpj(tracking.searchKey)
-        : null;
+    const party = isDocumentType(tracking.searchType)
+      ? await getPartyByDocument(tracking.searchType, tracking.searchKey)
+      : null;
+    await saveQuietly(`monitoramento ${tracking.juditTrackingId}`, () =>
+      saveResponsesToBase(
+        { searchType: tracking.searchType, searchKey: tracking.searchKey },
+        {
+          origin: "tracking",
+          mode: tracking.mode,
+          reference: tracking.juditTrackingId,
+        },
+        list.page_data,
+      ),
+    );
     return {
       ok: true,
       tracking,
-      results: summarizeResponses(list, company),
+      results: summarizeResponses(list, party),
     };
   } catch (error) {
     return juditActionFailure(error, "trackings");

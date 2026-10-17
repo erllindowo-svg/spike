@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { formatCnj, normalizeCnj } from "@/features/processes/cnj";
 import {
-  companyRoleLabels,
+  partyRoleLabels,
   lawsuitStatusLabels,
   type Lawsuit,
 } from "@/features/processes/types";
@@ -120,7 +120,7 @@ export function LawsuitsTable({
               <TableHead>Número CNJ</TableHead>
               <TableHead>Tribunal</TableHead>
               <TableHead>Área / classe</TableHead>
-              <TableHead>Papel da empresa</TableHead>
+              <TableHead>Papel da parte</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Última movimentação</TableHead>
             </TableRow>
@@ -155,11 +155,11 @@ export function LawsuitsTable({
                 </TableCell>
                 <TableCell
                   className={
-                    lawsuit.companyRole ? undefined : "text-muted-foreground"
+                    lawsuit.partyRole ? undefined : "text-muted-foreground"
                   }
                 >
-                  {lawsuit.companyRole
-                    ? companyRoleLabels[lawsuit.companyRole]
+                  {lawsuit.partyRole
+                    ? partyRoleLabels[lawsuit.partyRole]
                     : NOT_AVAILABLE}
                 </TableCell>
                 <TableCell>

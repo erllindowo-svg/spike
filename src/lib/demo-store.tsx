@@ -6,6 +6,7 @@ import {
   useContext,
   useMemo,
   useReducer,
+  useState,
 } from "react";
 
 import type { ActivityItem } from "@/features/activity/types";
@@ -14,14 +15,18 @@ import {
   markAllAlertsReadAction,
 } from "@/features/alerts/actions";
 import type { AlertView } from "@/features/alerts/types";
-import { formatCnpj } from "@/features/companies/cnpj";
-import type { Company } from "@/features/companies/types";
+import type { DocumentType } from "@/features/parties/documents";
+import type { Party } from "@/features/parties/types";
 import { formatCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
+import type { QueryView } from "@/features/queries/types";
 import { trackingModeFor } from "@/features/queries/modes";
+import { subjectHref } from "@/features/subjects/subjects";
+import { formatSearchKey } from "@/features/trackings/format";
 import {
   getTrackingDisplayState,
   isTrackingClosed,
+  searchTypeLabels,
   type NewTrackingInput,
   type Tracking,
 } from "@/features/trackings/types";
@@ -43,6 +48,10 @@ import type { DataSource, DemoState } from "./data";
 //   server action que muda esses dados chama refresh(): o layout é
 //   renderizado de novo no servidor, relê o banco e entrega as listas novas.
 //   Simular webhook e restaurar só existem na demonstração.
+//
+// Na demonstração, uma parte adicionada pelo usuário também fica só na
+// memória da aba (addDemoParty); a página dela é desenhada no navegador
+// (DemoPartyPage), porque o servidor não a conhece.
 
 export type SimulationScenario =
   | "lawsuit_movement"
@@ -56,7 +65,7 @@ type Action =
   | { type: "setTrackingStatus"; id: string; status: string }
   | { type: "addActivity"; activity: ActivityItem }
   | { type: "markAlertRead"; id: string }
-  | { type: "markAllAlertsRead" }
+  | { type: "markAllAlertsRead"; trackingId?: string }
   | { type: "receiveEvent"; event: WebhookEventView; activity: ActivityItem }
   | { type: "registerDuplicate"; eventId: string }
   | { type: "patchEvent"; eventId: string; patch: Partial<WebhookEventView> }
@@ -100,7 +109,13 @@ function reducer(state: DemoState, action: Action): DemoState {
       const now = new Date();
       return {
         ...state,
-        alerts: state.alerts.map((a) => (a.readAt ? a : { ...a, readAt: now })),
+        alerts: state.alerts.map((a) =>
+          a.readAt ||
+          (action.trackingId !== undefined &&
+            a.trackingId !== action.trackingId)
+            ? a
+            : { ...a, readAt: now },
+        ),
       };
     }
     case "receiveEvent":
@@ -158,23 +173,21 @@ const trackingErrorMessages = {
 
 function trackingActivity(
   tracking: Tracking,
-  company: Company | null,
+  company: Party | null,
   title: string,
 ): ActivityItem {
-  const identifier =
-    tracking.searchType === "cnpj"
-      ? `CNPJ ${formatCnpj(tracking.searchKey)}`
-      : `CNJ ${formatCnj(tracking.searchKey)}`;
+  const identifier = `${searchTypeLabels[tracking.searchType]} ${formatSearchKey(
+    tracking.searchType,
+    tracking.searchKey,
+  )}`;
   return {
     id: newId(),
     kind: "tracking_created",
     title,
-    description: company?.legalName
-      ? `${identifier} · ${company.legalName}`
-      : identifier,
+    description: company?.name ? `${identifier} · ${company.name}` : identifier,
     occurredAt: tracking.createdAt,
-    companyId: tracking.companyId,
-    href: "/monitoramentos",
+    partyId: tracking.partyId,
+    href: subjectHref(tracking.searchType, tracking.searchKey),
   };
 }
 
@@ -193,14 +206,21 @@ export type SimulationResult =
 
 type DemoStore = DemoState & {
   dataSource: DataSource;
-  companies: Company[];
+  parties: Party[];
   lawsuits: Lawsuit[];
-  getCompany: (id: string | null) => Company | null;
+  // Histórico de consultas (síncronas e assíncronas), lido do servidor a
+  // cada navegação. A barra de pesquisa monta os assuntos com ele.
+  queries: QueryView[];
+  getParty: (id: string | null) => Party | null;
+  // Só na demonstração (no modo "db", addPartyAction grava no banco).
+  // Devolve a parte já existente quando o documento está na lista.
+  addDemoParty: (documentType: DocumentType, document: string) => Party;
   addTracking: (input: NewTrackingInput) => Promise<AddTrackingResult>;
   setTrackingPaused: (id: string, paused: boolean) => void;
   markAlertRead: (id: string) => void;
   // Resolve com a mensagem de erro, ou null se deu certo.
-  markAllAlertsRead: () => Promise<string | null>;
+  // Sem argumento, todos; com o id de um monitoramento, só os dele.
+  markAllAlertsRead: (trackingId?: string) => Promise<string | null>;
   simulateWebhookEvent: (scenario: SimulationScenario) => SimulationResult;
   reset: () => void;
 };
@@ -212,17 +232,20 @@ const PROCESSING_DELAY_MS = 1500;
 export function DemoStoreProvider({
   dataSource,
   initialState,
-  companies,
+  parties,
   lawsuits,
+  queries,
   children,
 }: {
   dataSource: DataSource;
   initialState: DemoState;
-  companies: Company[];
+  parties: Party[];
   lawsuits: Lawsuit[];
+  queries: QueryView[];
   children: React.ReactNode;
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [addedParties, setAddedParties] = useState<Party[]>([]);
   // No modo "db", as listas são as do servidor (ver o comentário no topo).
   // O reducer só guarda os dados da demonstração e a atividade.
   const fromServer = dataSource === "db";
@@ -231,12 +254,44 @@ export function DemoStoreProvider({
   const webhookEvents = fromServer
     ? initialState.webhookEvents
     : state.webhookEvents;
+  const allParties = useMemo(
+    () =>
+      fromServer || addedParties.length === 0
+        ? parties
+        : [...addedParties, ...parties].sort((a, b) =>
+            (a.name ?? a.document).localeCompare(b.name ?? b.document, "pt-BR"),
+          ),
+    [fromServer, parties, addedParties],
+  );
 
   const companiesById = useMemo(
-    () => new Map(companies.map((c) => [c.id, c])),
-    [companies],
+    () => new Map(allParties.map((c) => [c.id, c])),
+    [allParties],
   );
-  const getCompany = useCallback(
+
+  const addDemoParty = useCallback(
+    (documentType: DocumentType, document: string): Party => {
+      const existing = allParties.find(
+        (p) => p.documentType === documentType && p.document === document,
+      );
+      if (existing) return existing;
+      const now = new Date();
+      const party: Party = {
+        id: newId(),
+        documentType,
+        document,
+        name: null,
+        tradeName: null,
+        registrationStatus: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setAddedParties((current) => [party, ...current]);
+      return party;
+    },
+    [allParties],
+  );
+  const getParty = useCallback(
     (id: string | null) => (id ? (companiesById.get(id) ?? null) : null),
     [companiesById],
   );
@@ -248,11 +303,20 @@ export function DemoStoreProvider({
         // monitoramento novo chega à lista pelo refresh() da action.
         let result: CreateTrackingActionResult;
         try {
-          result = await createTrackingAction({
-            searchType: input.searchType,
-            searchKey: input.searchKey,
-            recurrenceDays: input.recurrenceDays,
-          });
+          result = await createTrackingAction(
+            input.searchType === "cnj"
+              ? {
+                  searchType: "cnj",
+                  searchKey: input.searchKey,
+                  recurrenceDays: input.recurrenceDays,
+                  stepTerms: input.stepTerms,
+                }
+              : {
+                  searchType: input.searchType,
+                  searchKey: input.searchKey,
+                  recurrenceDays: input.recurrenceDays,
+                },
+          );
         } catch {
           return { ok: false, error: SERVER_UNREACHABLE };
         }
@@ -264,7 +328,7 @@ export function DemoStoreProvider({
           type: "addActivity",
           activity: trackingActivity(
             result.tracking,
-            getCompany(result.tracking.companyId),
+            getParty(result.tracking.partyId),
             sent
               ? "Monitoramento criado na JUDIT"
               : "Monitoramento reservado no banco",
@@ -296,7 +360,7 @@ export function DemoStoreProvider({
         // Sem ID da JUDIT: nenhum monitoramento real foi criado. A criação
         // "confirmada" e o status "created" são simulados.
         juditTrackingId: null,
-        companyId: input.companyId ?? null,
+        partyId: input.partyId ?? null,
         mode: trackingModeFor(input.searchType),
         searchType: input.searchType,
         searchKey: input.searchKey,
@@ -306,6 +370,7 @@ export function DemoStoreProvider({
         recurrenceDays: input.recurrenceDays,
         hourRange: null,
         delivery: "webhook",
+        stepTerms: input.stepTerms ?? null,
         createdAt: now,
         updatedAt: now,
         lastCheckedAt: null,
@@ -315,13 +380,13 @@ export function DemoStoreProvider({
         tracking,
         activity: trackingActivity(
           tracking,
-          getCompany(tracking.companyId),
+          getParty(tracking.partyId),
           "Monitoramento criado (demonstração)",
         ),
       });
       return { ok: true, tracking };
     },
-    [dataSource, state.trackings, getCompany],
+    [dataSource, state.trackings, getParty],
   );
 
   // Só para a demonstração. No modo "db", pausar chama a JUDIT
@@ -351,18 +416,21 @@ export function DemoStoreProvider({
     },
     [dataSource],
   );
-  const markAllAlertsRead = useCallback(async (): Promise<string | null> => {
-    if (dataSource === "db") {
-      try {
-        const result = await markAllAlertsReadAction();
-        return result.ok ? null : result.message;
-      } catch {
-        return SERVER_UNREACHABLE;
+  const markAllAlertsRead = useCallback(
+    async (trackingId?: string): Promise<string | null> => {
+      if (dataSource === "db") {
+        try {
+          const result = await markAllAlertsReadAction(trackingId);
+          return result.ok ? null : result.message;
+        } catch {
+          return SERVER_UNREACHABLE;
+        }
       }
-    }
-    dispatch({ type: "markAllAlertsRead" });
-    return null;
-  }, [dataSource]);
+      dispatch({ type: "markAllAlertsRead", trackingId });
+      return null;
+    },
+    [dataSource],
+  );
 
   const simulateWebhookEvent = useCallback(
     (scenario: SimulationScenario): SimulationResult => {
@@ -404,7 +472,7 @@ export function DemoStoreProvider({
       const lawsuit =
         tracking?.searchType === "cnj"
           ? (lawsuits.find((l) => l.cnj === tracking.searchKey) ?? null)
-          : (lawsuits.find((l) => l.companyId === tracking?.companyId) ?? null);
+          : (lawsuits.find((l) => l.partyId === tracking?.partyId) ?? null);
       const callbackId = newId();
       const receivedAt = new Date();
       const step =
@@ -455,7 +523,7 @@ export function DemoStoreProvider({
           title: "Webhook recebido (simulado)",
           description: "response_created aguardando processamento",
           occurredAt: receivedAt,
-          companyId: tracking?.companyId ?? null,
+          partyId: tracking?.partyId ?? null,
           href: "/webhooks",
         },
       });
@@ -492,7 +560,7 @@ export function DemoStoreProvider({
               description:
                 "reference_id sem monitoramento local correspondente",
               occurredAt: processedAt,
-              companyId: null,
+              partyId: null,
               href: "/webhooks",
             },
           });
@@ -503,7 +571,7 @@ export function DemoStoreProvider({
         const alert: AlertView = {
           id: newId(),
           type: isNewLawsuit ? "new_lawsuit" : "lawsuit_movement",
-          companyId: tracking.companyId,
+          partyId: tracking.partyId,
           webhookEventId: event.id,
           trackingId: tracking.id,
           lawsuitCnj: lawsuit?.cnj ?? null,
@@ -536,8 +604,8 @@ export function DemoStoreProvider({
               ? `${formatCnj(lawsuit.cnj)} · ${lawsuit.tribunal}`
               : "Processo não identificado",
             occurredAt: processedAt,
-            companyId: tracking.companyId,
-            href: "/alertas",
+            partyId: tracking.partyId,
+            href: "/acervo",
           },
         });
       }, PROCESSING_DELAY_MS);
@@ -550,6 +618,7 @@ export function DemoStoreProvider({
   const reset = useCallback(() => {
     if (dataSource === "db") return;
     dispatch({ type: "reset", state: initialState });
+    setAddedParties([]);
   }, [dataSource, initialState]);
 
   const value = useMemo<DemoStore>(
@@ -559,9 +628,11 @@ export function DemoStoreProvider({
       alerts,
       webhookEvents,
       dataSource,
-      companies,
+      parties: allParties,
       lawsuits,
-      getCompany,
+      queries,
+      getParty,
+      addDemoParty,
       addTracking,
       setTrackingPaused,
       markAlertRead,
@@ -575,9 +646,11 @@ export function DemoStoreProvider({
       alerts,
       webhookEvents,
       dataSource,
-      companies,
+      allParties,
       lawsuits,
-      getCompany,
+      queries,
+      getParty,
+      addDemoParty,
       addTracking,
       setTrackingPaused,
       markAlertRead,

@@ -5,7 +5,7 @@ import { lawsuitsSearchResponseSchema } from "@/lib/judit/schemas/lawsuits";
 
 import { fromJuditLawsuit } from "./judit";
 
-const company = { id: "company-1", cnpj: "A1B2C3D4E5F668" };
+const company = { id: "company-1", document: "A1B2C3D4E5F668" };
 
 function observedLawsuit() {
   const parsed = lawsuitsSearchResponseSchema.parse(hotStorageObservedBody);
@@ -17,13 +17,13 @@ describe("fromJuditLawsuit", () => {
     expect(fromJuditLawsuit(observedLawsuit(), company)).toEqual({
       id: "00000003920268260050-1",
       cnj: "00000003920268260050",
-      companyId: "company-1",
+      partyId: "company-1",
       tribunal: "TJSP",
       area: null,
       className: null,
       subject: null,
       judgingBody: "20 CRIMINAL DE CENTRAL",
-      companyRole: "passive",
+      partyRole: "passive",
       status: null,
       distributedAt: new Date("2026-05-01T03:00:00.000Z"),
       lastMovementAt: null,
@@ -59,7 +59,7 @@ describe("fromJuditLawsuit", () => {
       ...observedLawsuit(),
       parties: [{ main_document: "A1B2C3D4/E5F6-68", side: "ACTIVE" }],
     };
-    expect(fromJuditLawsuit(lawsuit, company).companyRole).toBe("active");
+    expect(fromJuditLawsuit(lawsuit, company).partyRole).toBe("active");
   });
 
   it("leaves the role unknown when no party has the company's document", () => {
@@ -67,7 +67,7 @@ describe("fromJuditLawsuit", () => {
       ...observedLawsuit(),
       parties: [{ name: "EMPRESA TESTE", side: "Passive", documents: [] }],
     };
-    expect(fromJuditLawsuit(lawsuit, company).companyRole).toBeNull();
+    expect(fromJuditLawsuit(lawsuit, company).partyRole).toBeNull();
   });
 
   it("maps only documented statuses with a clear equivalent", () => {

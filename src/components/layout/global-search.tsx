@@ -1,23 +1,53 @@
 "use client";
 
-import { SearchIcon } from "lucide-react";
+import {
+  CircleOffIcon,
+  LibraryBigIcon,
+  NotebookPenIcon,
+  type LucideIcon,
+  SearchIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
-import { isValidCnpj, normalizeCnpj } from "@/features/companies/cnpj";
-import { isValidCnj, normalizeCnj } from "@/features/processes/cnj";
-import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
-import { useDemoStore } from "@/lib/demo-store";
+import { useKnownSearch } from "@/features/search/use-known-search";
+import { cn } from "@/lib/utils";
 
-export function GlobalSearch() {
+import { buildSuggestions, type SearchSuggestion } from "./search-suggestions";
+
+const kindIcons: Record<SearchSuggestion["kind"], LucideIcon> = {
+  hit: LibraryBigIcon,
+  consult: NotebookPenIcon,
+  notice: CircleOffIcon,
+};
+
+// Barra de pesquisa do cabeçalho (círculo 3B): uma só, igual em todas as
+// páginas, como a do Google. Procura no acervo (search_entries, no servidor)
+// enquanto se digita; o melhor resultado vem primeiro, "Fazer nova
+// consulta" logo depois. Teclado: "/" foca, setas escolhem, Enter abre, Esc
+// fecha.
+export function GlobalSearch({
+  onNavigate,
+}: {
+  // Chamado ao abrir uma sugestão (no celular, fecha a linha da pesquisa).
+  onNavigate?: () => void;
+} = {}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listId = useId();
   const [query, setQuery] = useState("");
-  const { companies, lawsuits, dataSource } = useDemoStore();
-  const { openNewTracking } = useNewTrackingDialog();
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const found = useKnownSearch(query.trim());
+  const suggestions = buildSuggestions(query, found);
+  // Os avisos ("Dado não encontrado") aparecem, mas não são escolhidos.
+  const options = suggestions.filter(
+    (s): s is Extract<SearchSuggestion, { href: string }> =>
+      s.kind !== "notice",
+  );
+  const showList = open && suggestions.length > 0;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -34,66 +64,38 @@ export function GlobalSearch() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  function notFound(kind: "cnpj" | "cnj", key: string) {
-    toast.info(
-      `${kind === "cnpj" ? "CNPJ" : "Processo"} não encontrado ${
-        dataSource === "db" ? "no banco de dados" : "nos dados de demonstração"
-      }`,
-      {
-        description:
-          "A consulta real à JUDIT será habilitada na etapa de integração.",
-        action: {
-          label: "Monitorar",
-          onClick: () => openNewTracking({ searchType: kind, searchKey: key }),
-        },
-      },
-    );
+  function go(suggestion: (typeof options)[number]) {
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.blur();
+    onNavigate?.();
+    router.push(suggestion.href);
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const value = query.trim();
-    if (!value) return;
-
-    const cnj = normalizeCnj(value);
-    const cnpj = normalizeCnpj(value);
-
-    if (cnj.length === 20 && /^[\d.\-\s]+$/.test(value)) {
-      if (!isValidCnj(cnj)) {
-        toast.error("Número CNJ inválido", {
-          description: "Confira os dígitos verificadores.",
-        });
-        return;
-      }
-      const lawsuit = lawsuits.find((l) => l.cnj === cnj);
-      if (!lawsuit) return notFound("cnj", cnj);
-      setQuery("");
-      router.push(`/processos/${cnj}`);
+  function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      setOpen(false);
       return;
     }
-
-    if (cnpj.length === 14 && /\d{2}$/.test(cnpj)) {
-      if (!isValidCnpj(cnpj)) {
-        toast.error("CNPJ inválido", {
-          description: "Confira os dígitos verificadores.",
-        });
-        return;
-      }
-      const company = companies.find((c) => c.cnpj === cnpj);
-      if (!company) return notFound("cnpj", cnpj);
-      setQuery("");
-      router.push(`/empresas/${cnpj}`);
-      return;
+    if (!options.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      setActive((i) => (i + 1) % options.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((i) => (i - 1 + options.length) % options.length);
     }
-
-    setQuery("");
-    router.push(`/empresas?q=${encodeURIComponent(value)}`);
   }
 
   return (
     <form
       role="search"
-      onSubmit={handleSubmit}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const chosen = options[active] ?? options[0];
+        if (chosen) go(chosen);
+      }}
       className="relative w-full max-w-md"
     >
       <SearchIcon
@@ -103,14 +105,91 @@ export function GlobalSearch() {
       <Input
         ref={inputRef}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar por CNPJ, número CNJ ou razão social"
-        aria-label="Busca global por CNPJ, número CNJ ou razão social"
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setActive(0);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        // O atraso deixa o clique numa sugestão acontecer antes de fechar.
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={onKeyDown}
+        placeholder="Pesquisar no acervo ou fazer nova consulta"
+        aria-label="Busca por nome, CPF, CNPJ, processo, OAB ou RJI"
+        role="combobox"
+        aria-expanded={showList}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={
+          showList && options[active]
+            ? `${listId}-${options[active].id}`
+            : undefined
+        }
         className="bg-background pr-8 pl-8"
       />
       <Kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 sm:inline-flex">
         /
       </Kbd>
+      {showList && (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="Sugestões"
+          className="absolute top-full right-0 left-0 z-50 mt-1 max-h-96 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+        >
+          {suggestions.map((suggestion) => {
+            const Icon = kindIcons[suggestion.kind];
+            if (suggestion.kind === "notice") {
+              return (
+                <li
+                  key={suggestion.id}
+                  role="presentation"
+                  className="flex items-start gap-2.5 px-2.5 py-2 text-sm text-muted-foreground"
+                >
+                  <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-medium">{suggestion.label}</span>
+                    <span className="text-xs">{suggestion.description}</span>
+                  </span>
+                </li>
+              );
+            }
+            const index = options.indexOf(suggestion);
+            return (
+              <li
+                key={suggestion.id}
+                id={`${listId}-${suggestion.id}`}
+                role="option"
+                aria-selected={index === active}
+                // mousedown: acontece antes do blur do campo.
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  go(suggestion);
+                }}
+                onMouseEnter={() => setActive(index)}
+                className={cn(
+                  "flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-sm",
+                  index === active && "bg-muted",
+                  suggestion.kind === "consult" && "text-primary",
+                )}
+              >
+                <Icon
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium">
+                    {suggestion.label}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {suggestion.description}
+                  </span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </form>
   );
 }

@@ -1,22 +1,23 @@
 # Relatório de progresso: Raio-X Jurídico
 
-Última atualização: 2026-10-15, noite (etapa 6 implementada; etapa 7 redefinida como etapa de produto). Registros detalhados:
+Última atualização: 2026-10-17 (etapa 7: círculos 1 a 5 implementados na `feat/product-review`; o antigo "3B" é o círculo 4). Registros detalhados:
 [`docs/logs/2026-10-13-sessao.md`](logs/2026-10-13-sessao.md) e
 [`docs/logs/2026-10-14-sessao.md`](logs/2026-10-14-sessao.md).
 
 ## Onde estamos
 
-| Etapa (AGENTS.md, seção 6)                  | Estado                                                                   |
-| ------------------------------------------- | ------------------------------------------------------------------------ |
-| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                      |
-| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                            |
-| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                    |
-| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                |
-| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado. |
-| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                          |
-| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15: entrega real processada pelo túnel.         |
-| 7. Produto: fluxos e experiência            | Redefinida em 2026-10-15 (`docs/plano-etapas-6-7.md`). Não iniciada.     |
-| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").              |
+| Etapa (AGENTS.md, seção 6)                  | Estado                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                       |
+| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                             |
+| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                     |
+| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                 |
+| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.  |
+| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                           |
+| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real. |
+| 7. Produto: revisão visual e dois produtos  | Em andamento: círculos 1 a 5 implementados (`docs/etapa-7-escopo.md`).    |
+| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                 |
+| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").               |
 
 ### Estado do Git
 
@@ -29,9 +30,25 @@
   levados para a `feat/judit-tracking`, que foi enviada com o PR da etapa 4.
   PR #4 mergeado em 2026-10-15 (`main` em `2881807`).
 - Etapa 5 mergeada na `main` (PR #5, `2785610`).
-- Etapa 6 na branch `feat/judit-webhook-processing` (a partir de
-  `2785610`): um commit por fatia (6a a 6d) e um de documentação. **Não
-  enviada** ao GitHub.
+- Etapa 6 mergeada na `main` (PR #6, `b3b727d`).
+- Etapa 7 na branch `feat/product-review` (a partir de `b3b727d`). Primeiro
+  commit: as decisões de 2026-10-15 sobre as etapas 7 e 8 (`AGENTS.md`,
+  plano e diário). Depois, o círculo 1 (`c8c94d6`, `379e2e4`) e as 14
+  fatias do círculo 2 (último commit `f7c9028`), uma por commit. Enviada
+  pelo usuário em `fcc9918` (2026-10-16); sem PR. Depois: testes ao vivo do
+  círculo 2 (`c22e1da`) e o planejamento do círculo 3 (2026-10-17).
+- Círculo 3 implementado em 2026-10-17: nove fatias, uma por commit, de
+  `ab68820` (reconhecimento) a `86c1f90` (limpeza e demonstração), mais
+  `79447d0` (quebra de linha de uma nota). **Não enviado** ao GitHub.
+- Círculo 3B em 2026-10-17: `832d0de` (Acervo, ícones, selos, sem avisos
+  de base legal), `5601d6b` (coleção `search_entries`), `315b9d0` (barra
+  única e filtro do Acervo), `42a0ec8` (Consultar personalizada) e
+  `dae5636` (documentação). **Não enviado** ao GitHub; sem PR.
+- Numeração: o "3B" passou a se chamar círculo 4 (decisão do usuário,
+  2026-10-17). Fecho do círculo 4: `085a3f3` e `f0a63b6` (tipo e máscara
+  dentro do campo).
+- Círculo 5 em 2026-10-17: plano `fb98c6d`, sete fatias de `054b8b0` a
+  `4b31102`, mais a documentação. **Não enviado** ao GitHub; sem PR.
 
 ## Etapa 3: o que existe
 
@@ -290,10 +307,15 @@ produto.
     `hour_range: 6`; IK5), então a tela "às 6h" engana quem está em Brasília.
     Falta: o `response_type` e os campos das respostas de monitoramento (a
     execução não teve resultados).
-15. Componentes grandes: `company-detail.tsx` (328 linhas),
+15. **Em parte corrigido em 2026-10-16:** o card da consulta síncrona saiu
+    da página da parte (`party-lawsuits-card.tsx`). Texto original:
+    componentes grandes: `company-detail.tsx` (328 linhas),
     `new-tracking-dialog.tsx` (333) e `demo-store.tsx` (575). Extrair o card
     da consulta síncrona, como foi feito com o das assíncronas.
-16. Frases montadas com `label.toLowerCase()` ("Fazer consulta síncrona")
+16. **Corrigido em 2026-10-16:** `lowerFirst` (`src/lib/format.ts`) troca
+    só a primeira letra e preserva siglas; a página Consultar mostrava
+    "processo na base da judit". Texto original: frases montadas com
+    `label.toLowerCase()` ("Fazer consulta síncrona")
     quebram se o rótulo mudar.
 17. **Em parte corrigido em 2026-10-14 (noite):** testes de
     `refreshTrackingAction`, `resumeTrackingAction`, 201 inesperado →
@@ -306,7 +328,8 @@ produto.
     cobrada" também ao pausar ou excluir.
 18. Processo: o diário passou de 1.400 linhas. Um índice por etapa no topo
     ajudaria a estudar.
-19. **Observado em 2026-10-15:** aviso do Next.js em `/empresas`
+19. **Corrigido em 2026-10-16, sem confirmação pelo sintoma (catálogo,
+    D5).** **Observado em 2026-10-15:** aviso do Next.js em `/empresas`
     ("uncached data during prerendering or a navigation"): a página espera
     `listLawsuits()` fora do próprio `<Suspense>` (catálogo, D5). O item 8
     também foi observado ao vivo (catálogo, C16).
@@ -325,10 +348,15 @@ produto.
 
 ## Pendências conhecidas
 
-- No modo `db`, "Abrir processo" leva a `/processos/[cnj]`, que dá 404.
-  Caminho natural: `GET /lawsuits/{cnj}` (CNJ fictício já na allowlist).
-- Razão social vazia no modo `db`: viria de `POST /entities` (`getEntity`
-  já existe no client; nenhuma tela usa).
+- **Allowlist desligada** desde 2026-10-17 (`JUDIT_ALLOWLIST=disabled` no
+  `.env.local`, decisão D0 do círculo 3). Valem só o limite por minuto (30)
+  e o teto diário (50). O teto conta a criação de um monitoramento, não as
+  execuções: um monitoramento real é cobrado até ser pausado.
+- Testes ao vivo do círculo 2: feitos dados cadastrais (K2), `step_terms`
+  (README 44), saldo e consumo (K1) e consulta processual com resumo por IA
+  (README 46, K3; falta ver o resumo na tela). Faltam mandados e execução
+  penal, agora possíveis com documento real.
+- Decisões suas: destino do evento de saída, textos de ajuda.
 - "Conferir na JUDIT" (envio incerto) só foi testada com `fetch` simulado.
   Os filtros de `GET /tracking` não são usados; a comparação é feita no
   nosso código (caso C12).
@@ -341,16 +369,77 @@ produto.
 - Reflog do Git (cosmético, de 2026-10-13): duas entradas citam o commit
   perdido `a5ed8b0`.
 
+## Círculo 3: o que existe (2026-10-17)
+
+```
+Consultar ("/"): campo único → identify() reconhece CPF, CNPJ, CNJ, OAB, nome, RJI
+  → perguntas do catálogo → "Consultar" (runConsultAction) ou "Monitorar" (diálogo,
+    identificador travado, "receber também os dados de agora")
+Resposta da JUDIT → tela  +  base própria (lawsuits, registrations, warrants,
+  lawsuit_stats, findings; o mais novo substitui)  +  histórico (sync_queries,
+  judit_requests)
+Acervo (/acervo): números, "O que chegou", assuntos (filtro = busca do acervo)
+  → ficha /acervo/[tipo]/[chave]: alertas, monitoramento, dados guardados,
+    consultas feitas, o que ainda não se sabe, apagar
+Barra do topo (3B): search_entries (palavras que começam com o texto) →
+  melhor resultado, "Fazer nova consulta", outros; "Dado não encontrado"
+Consultar com identificador conhecido (3B): nome em cima, "Já capturado" embaixo
+Monitoramento: callback_url na criação quando há JUDIT_WEBHOOK_PUBLIC_ORIGIN
+```
+
+- Verificado no 3B: 369 testes, lint, typecheck, format e build; barra,
+  campo da página e filtro do Acervo conduzidos por script no navegador
+  (build de demonstração), com capturas.
+- Verificado no círculo 3: 356 testes (saíram os de código removido), lint, typecheck,
+  format e build; páginas em modo banco (servidor do usuário) e em modo
+  demonstração (build separado); capturas de tela.
+- **Não verificado:** nenhum teste ao vivo com a JUDIT (OAB, nome, RJI,
+  gravação na base com dados reais, monitoramento com `callback_url`);
+  digitar na barra e clicar nos botões num navegador interativo.
+- **Reinicie o `pnpm dev`** antes de testar: os índices das coleções novas
+  e a montagem da busca (`search_entries`) só rodam na conexão.
+
+## Círculo 5: o que existe (2026-10-17)
+
+```
+Consultar: campo no meio → reconhecido, sobe e se alarga; perguntas deslizam
+Busca: grupos do número (982) e estado do tribunal (Roraima); termsVersion
+  remonta search_entries na conexão
+Topo: carteira (lê a conta ao abrir; aviso a cada 10 chamadas cobradas)
+Configurações: interruptor da proteção de custo (vista de suporte ligada);
+  app_settings; JUDIT_ALLOWLIST=locked trava
+Ficha do Acervo: consultar e monitorar ali mesmo (question-parts, ask-here)
+```
+
+- Verificado: 385 testes, lint, typecheck, format e build; no Firefox,
+  Consultar e Configurações no servidor do usuário, carteira e ficha no
+  build de demonstração.
+- **Não verificado:** carteira e consulta pela ficha com a JUDIT real;
+  acionar o interruptor; o aviso do contador; a página no celular.
+- **Reinicie o `pnpm dev`:** a busca é remontada na conexão (TERMS_VERSION 3).
+
 ## Próxima sessão, em ordem
 
-1. Esvaziar `JUDIT_WEBHOOK_PUBLIC_ORIGIN` no `.env.local` (o túnel foi
-   desligado), depois push e PR da `feat/judit-webhook-processing` (você).
-2. **Etapa 7 (produto):** começar pelo uso guiado. Plano em
-   [`docs/plano-etapas-6-7.md`](plano-etapas-6-7.md), seção "Etapa 7
-   redefinida".
-3. **Auditoria completa do código**, no modo descrito no `AGENTS.md`.
+1. **Testes do círculo 3, pelo usuário:** consultas por OAB (as duas
+   ordens, README item 47), nome e RJI com documentos próprios; conferir
+   na ficha que a base gravou ("consultado em"); um monitoramento com o
+   túnel ligado, para ver a entrega chegar por webhook (IK11). Os
+   resultados vão para o diário, sem os números dos documentos.
+2. **Testes do círculo 5, pelo usuário:** abrir a carteira; consultar uma
+   pergunta pela ficha; desligar e ligar o interruptor; buscar por um grupo
+   do CPF e por um estado. Depois, push da branch e PR dos círculos 3 a 5
+   (o merge é do usuário).
+3. **Fechamento da etapa 7:** dois produtos separados. O protótipo fica só
+   com dados fictícios; o `main` vira o app real, só com banco e chave, sem
+   código de demonstração. Depois, README e teste do clone limpo. Aí o
+   produto está terminado.
+4. **Etapa 8, opcional:** itens abertos, auditoria e correções.
 
 ## Como retomar com o agente
 
-> Leia `docs/relatorio-de-progresso.md` e a seção "Etapa 7 redefinida" de
-> `docs/plano-etapas-6-7.md`. Vamos começar a etapa 7 pelo uso guiado.
+> Leia `docs/relatorio-de-progresso.md`, a seção 6 do `AGENTS.md` e
+> `docs/etapa-7-escopo.md` (de "Implementação do círculo 3" até o fim). O
+> círculo 3 está implementado na branch `feat/product-review`. Registre os
+> resultados dos meus testes ao vivo do círculo 3 e me ajude a decidir o
+> próximo passo (círculo 6 ou fechamento da etapa 7). O círculo 5 está
+> implementado; os testes dele estão em "Próxima sessão".

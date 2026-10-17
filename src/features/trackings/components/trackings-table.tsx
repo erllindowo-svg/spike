@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BellIcon,
   Building2Icon,
   EllipsisIcon,
   PauseIcon,
@@ -12,6 +13,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ListPagination, usePaged } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  formatHourRange,
   formatSearchKey,
   getLastEventByReference,
 } from "@/features/trackings/format";
@@ -38,6 +41,9 @@ import {
   searchTypeDescriptions,
   type Tracking,
 } from "@/features/trackings/types";
+import { useSupportView } from "@/features/settings/support-view";
+import { partyHref } from "@/features/parties/documents";
+import { subjectHref } from "@/features/subjects/subjects";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -57,20 +63,23 @@ export function TrackingsTable({
   trackings: Tracking[];
   variant?: "full" | "compact";
 }) {
-  const { getCompany, lawsuits, webhookEvents, setTrackingPaused, dataSource } =
+  const { getParty, alerts, webhookEvents, setTrackingPaused, dataSource } =
     useDemoStore();
+  const [supportView] = useSupportView();
   const lastEvents = getLastEventByReference(webhookEvents);
+  const alertCounts = countAlertsByTracking(alerts);
   const full = variant === "full";
   const [deleting, setDeleting] = useState<Tracking | null>(null);
   const trackingResults = useTrackingResults();
+  // Os filtros ficam na página; uma lista nova volta à primeira página.
+  const paged = usePaged(
+    trackings,
+    `${trackings.length}:${trackings[0]?.id ?? ""}`,
+  );
 
-  function identifierHref(tracking: Tracking): string | null {
-    if (tracking.searchType === "cnpj") {
-      return tracking.companyId ? `/empresas/${tracking.searchKey}` : null;
-    }
-    return lawsuits.some((l) => l.cnj === tracking.searchKey)
-      ? `/processos/${tracking.searchKey}`
-      : null;
+  // A ficha do assunto (círculo 3): todo identificador monitorado tem uma.
+  function identifierHref(tracking: Tracking): string {
+    return subjectHref(tracking.searchType, tracking.searchKey);
   }
 
   function togglePause(tracking: Tracking, paused: boolean) {
@@ -85,14 +94,13 @@ export function TrackingsTable({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead>Identificador</TableHead>
+            {/* O que é monitorado: empresa, pessoa ou processo. */}
+            <TableHead>Alvo</TableHead>
             <TableHead>Tipo</TableHead>
-            <TableHead className={full ? undefined : "hidden lg:table-cell"}>
-              Empresa
-            </TableHead>
             {full && <TableHead>Recorrência</TableHead>}
             <TableHead>Status</TableHead>
             {full && <TableHead>Criado em</TableHead>}
+            {full && <TableHead>Alertas</TableHead>}
             <TableHead className="text-right">
               {full ? "Último evento" : "Atualizado em"}
             </TableHead>
@@ -104,8 +112,8 @@ export function TrackingsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {trackings.map((tracking) => {
-            const company = getCompany(tracking.companyId);
+          {paged.items.map((tracking) => {
+            const company = getParty(tracking.partyId);
             const href = identifierHref(tracking);
             const identifier = formatSearchKey(
               tracking.searchType,
@@ -118,17 +126,39 @@ export function TrackingsTable({
 
             return (
               <TableRow key={tracking.id}>
-                <TableCell className="font-mono text-xs">
-                  {href ? (
-                    <Link
-                      href={href}
-                      className="rounded-sm text-foreground underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      {identifier}
-                    </Link>
-                  ) : (
-                    identifier
-                  )}
+                <TableCell className="max-w-72">
+                  {/* Nome da parte em cima, identificador embaixo; sem nome
+                      (ou num processo), só o identificador. */}
+                  {(() => {
+                    const name =
+                      tracking.searchType === "cnj" ? null : company?.name;
+                    const main = name ?? identifier;
+                    return (
+                      <>
+                        {href ? (
+                          <Link
+                            href={href}
+                            title={main}
+                            className={`block truncate rounded-sm text-foreground underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 ${name ? "font-medium" : "font-mono text-xs"}`}
+                          >
+                            {main}
+                          </Link>
+                        ) : (
+                          <span
+                            title={main}
+                            className={`block truncate ${name ? "font-medium" : "font-mono text-xs"}`}
+                          >
+                            {main}
+                          </span>
+                        )}
+                        {name && (
+                          <span className="block font-mono text-[11px] text-muted-foreground">
+                            {identifier}
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
                   {full && (
                     <TrackingNote tracking={tracking} dataSource={dataSource} />
                   )}
@@ -137,25 +167,6 @@ export function TrackingsTable({
                   <span title={searchTypeDescriptions[tracking.searchType]}>
                     <SearchTypeBadge type={tracking.searchType} />
                   </span>
-                </TableCell>
-                <TableCell
-                  className={
-                    full
-                      ? "max-w-44 truncate"
-                      : "hidden max-w-48 truncate lg:table-cell"
-                  }
-                >
-                  {company ? (
-                    <span title={company.legalName ?? undefined}>
-                      {company.legalName ?? (
-                        <span className="text-muted-foreground">
-                          Razão social indisponível
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
                 </TableCell>
                 {full && (
                   <TableCell className="text-muted-foreground">
@@ -168,6 +179,14 @@ export function TrackingsTable({
                 {full && (
                   <TableCell className="text-muted-foreground tabular-nums">
                     {formatDate(tracking.createdAt)}
+                  </TableCell>
+                )}
+                {full && (
+                  <TableCell>
+                    <TrackingAlertsLink
+                      trackingId={tracking.id}
+                      counts={alertCounts.get(tracking.id)}
+                    />
                   </TableCell>
                 )}
                 <TableCell className="text-right text-muted-foreground tabular-nums">
@@ -194,10 +213,17 @@ export function TrackingsTable({
                       <DropdownMenuContent align="end" className="w-52">
                         {company && (
                           <DropdownMenuItem
-                            render={<Link href={`/empresas/${company.cnpj}`} />}
+                            render={
+                              <Link
+                                href={partyHref(
+                                  company.documentType,
+                                  company.document,
+                                )}
+                              />
+                            }
                           >
                             <Building2Icon />
-                            Ver empresa
+                            Abrir ficha
                           </DropdownMenuItem>
                         )}
                         {tracking.searchType === "cnj" && href && (
@@ -206,23 +232,37 @@ export function TrackingsTable({
                             Ver processo
                           </DropdownMenuItem>
                         )}
-                        {tracking.juditTrackingId ? (
-                          <DropdownMenuItem
-                            render={
-                              <Link
-                                href={`/webhooks?referencia=${tracking.juditTrackingId}`}
-                              />
-                            }
-                          >
-                            <WebhookIcon />
-                            Ver eventos recebidos
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem disabled>
-                            <WebhookIcon />
-                            Sem eventos (item local)
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem
+                          render={
+                            <Link
+                              href={subjectHref(
+                                tracking.searchType,
+                                tracking.searchKey,
+                              )}
+                            />
+                          }
+                        >
+                          <BellIcon />
+                          Ver alertas
+                        </DropdownMenuItem>
+                        {supportView &&
+                          (tracking.juditTrackingId ? (
+                            <DropdownMenuItem
+                              render={
+                                <Link
+                                  href={`/webhooks?referencia=${tracking.juditTrackingId}`}
+                                />
+                              }
+                            >
+                              <WebhookIcon />
+                              Ver eventos recebidos
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem disabled>
+                              <WebhookIcon />
+                              Sem eventos (item local)
+                            </DropdownMenuItem>
+                          ))}
                         {dataSource === "db" && (
                           <JuditTrackingMenuItems
                             tracking={tracking}
@@ -259,6 +299,7 @@ export function TrackingsTable({
           })}
         </TableBody>
       </Table>
+      <ListPagination paged={paged} />
       <DeleteTrackingDialog
         tracking={deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
@@ -268,6 +309,46 @@ export function TrackingsTable({
         onOpenChange={(open) => !open && trackingResults.close()}
       />
     </>
+  );
+}
+
+type AlertCounts = { total: number; unread: number };
+
+// Alertas por monitoramento (o `trackingId` local do alerta).
+function countAlertsByTracking(
+  alerts: { trackingId: string | null; readAt: Date | null }[],
+): Map<string, AlertCounts> {
+  const counts = new Map<string, AlertCounts>();
+  for (const alert of alerts) {
+    if (!alert.trackingId) continue;
+    const entry = counts.get(alert.trackingId) ?? { total: 0, unread: 0 };
+    entry.total += 1;
+    if (!alert.readAt) entry.unread += 1;
+    counts.set(alert.trackingId, entry);
+  }
+  return counts;
+}
+
+function TrackingAlertsLink({
+  trackingId,
+  counts,
+}: {
+  trackingId: string;
+  counts: AlertCounts | undefined;
+}) {
+  if (!counts) return <span className="text-muted-foreground">Nenhum</span>;
+  return (
+    <Link
+      href={`/monitoramentos/alertas?monitoramento=${trackingId}`}
+      className="inline-flex items-center gap-1.5 rounded-sm text-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <span className="tabular-nums">{counts.total}</span>
+      {counts.unread > 0 && (
+        <span className="rounded-full bg-primary/10 px-1.5 text-xs text-primary tabular-nums">
+          {counts.unread} não lidos
+        </span>
+      )}
+    </Link>
   );
 }
 
@@ -292,7 +373,11 @@ function TrackingNote({
   ) {
     note = tracking.creationError ?? "Envio interrompido: conferir na JUDIT";
   } else if (tracking.status === "created" && tracking.hourRange !== null) {
-    note = `Primeira execução prevista às ${tracking.hourRange}h`;
+    note = `Primeira execução prevista por volta das ${formatHourRange(tracking.hourRange)}`;
+  }
+  if (tracking.stepTerms?.length) {
+    const terms = `Só movimentações com: ${tracking.stepTerms.join(", ")}`;
+    note = note ? `${note}. ${terms}` : terms;
   }
   if (!note) return null;
   return (

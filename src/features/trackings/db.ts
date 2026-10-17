@@ -14,10 +14,14 @@ import {
 } from "@/db/collections";
 import { isDuplicateKeyError } from "@/db/errors";
 import type { Tracking, TrackingCreation } from "@/db/models";
-import { ensureCompany } from "@/features/companies/db";
-import { cnpjSchema } from "@/features/companies/cnpj";
+import { ensureParty } from "@/features/parties/db";
+import { parseSearchKey } from "@/features/consult/identify";
+import { cnpjSchema } from "@/features/parties/cnpj";
+import { isDocumentType } from "@/features/parties/documents";
+import { cpfSchema } from "@/features/parties/cpf";
 import { cnjSchema } from "@/features/processes/cnj";
 import { trackingModeFor } from "@/features/queries/modes";
+import { refreshSearchEntries } from "@/features/search/refresh";
 
 // Persistência de monitoramentos no MongoDB.
 //
@@ -37,6 +41,23 @@ import { trackingModeFor } from "@/features/queries/modes";
 // define com que frequência o monitoramento roda (e custa).
 const recurrenceDaysSchema = z.number().int().positive();
 
+// OAB como número + UF, a mesma regra da página Consultar (identify.ts).
+const oabSchema = z.string().transform((value, ctx) => {
+  const key = parseSearchKey("oab", value);
+  if (!key) {
+    ctx.addIssue({ code: "custom", message: "OAB inválida (número e UF)." });
+    return z.NEVER;
+  }
+  return key;
+});
+
+// Termos que filtram as movimentações avisadas (só monitoramento por CNJ).
+// Limites nossos: a documentação não define tamanho nem quantidade.
+export const stepTermsSchema = z
+  .array(z.string().trim().min(2).max(60))
+  .min(1)
+  .max(10);
+
 const newTrackingSchema = z.discriminatedUnion("searchType", [
   z.object({
     searchType: z.literal("cnpj"),
@@ -44,9 +65,20 @@ const newTrackingSchema = z.discriminatedUnion("searchType", [
     recurrenceDays: recurrenceDaysSchema,
   }),
   z.object({
+    searchType: z.literal("cpf"),
+    searchKey: cpfSchema,
+    recurrenceDays: recurrenceDaysSchema,
+  }),
+  z.object({
+    searchType: z.literal("oab"),
+    searchKey: oabSchema,
+    recurrenceDays: recurrenceDaysSchema,
+  }),
+  z.object({
     searchType: z.literal("cnj"),
     searchKey: cnjSchema,
     recurrenceDays: recurrenceDaysSchema,
+    stepTerms: stepTermsSchema.optional(),
   }),
 ]);
 
@@ -67,7 +99,7 @@ function toTracking(doc: TrackingDoc): Tracking {
   return {
     id: doc._id,
     juditTrackingId: doc.juditTrackingId,
-    companyId: doc.companyId,
+    partyId: doc.partyId,
     mode: doc.mode ?? trackingModeFor(doc.searchType),
     searchType: doc.searchType,
     searchKey: doc.searchKey,
@@ -77,6 +109,7 @@ function toTracking(doc: TrackingDoc): Tracking {
     recurrenceDays: doc.recurrenceDays,
     hourRange: doc.hourRange ?? null,
     delivery: doc.delivery ?? "polling",
+    stepTerms: doc.stepTerms ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     lastCheckedAt: doc.lastCheckedAt ?? null,
@@ -103,19 +136,23 @@ export async function reserveTracking(
     };
   }
   const { searchType, searchKey, recurrenceDays } = parsed.data;
+  const stepTerms =
+    parsed.data.searchType === "cnj" ? (parsed.data.stepTerms ?? null) : null;
 
-  // Monitorar um CNPJ registra a empresa. Não precisa de transação: se o
-  // monitoramento for recusado como duplicado, a empresa criada continua
-  // válida e útil. Um CNJ ainda não é ligado a nenhuma empresa, porque não há
-  // coleção de processos.
-  const companyId =
-    searchType === "cnpj" ? (await ensureCompany(searchKey)).id : null;
+  // Monitorar um documento (CNPJ ou CPF) registra a parte. Não precisa de
+  // transação: se o monitoramento for recusado como duplicado, a parte criada
+  // continua válida e útil. Um CNJ ainda não é ligado a nenhuma parte,
+  // porque não há coleção de processos.
+  // OAB também não tem parte (a coleção `parties` só tem CPF e CNPJ).
+  const partyId = isDocumentType(searchType)
+    ? (await ensureParty(searchType, searchKey)).id
+    : null;
 
   const now = new Date();
   const doc: TrackingDoc = {
     _id: randomUUID(),
     juditTrackingId: null,
-    companyId,
+    partyId,
     mode: trackingModeFor(searchType),
     searchType,
     searchKey,
@@ -125,6 +162,7 @@ export async function reserveTracking(
     recurrenceDays,
     hourRange: null,
     delivery: "polling",
+    stepTerms,
     createdAt: now,
     updatedAt: now,
     lastCheckedAt: null,
@@ -134,6 +172,7 @@ export async function reserveTracking(
   const { trackings } = collections(await getDb());
   try {
     await trackings.insertOne(doc);
+    await refreshSearchEntries([{ searchType, searchKey }]);
     return { ok: true, tracking: toTracking(doc) };
   } catch (error) {
     // A regra de duplicidade é do banco (índice único parcial em
@@ -213,9 +252,12 @@ export async function confirmReservation(
   id: string,
   juditTrackingId: string,
   remote: RemoteTrackingFields,
+  // "webhook" quando a criação levou a callback_url (círculo 3, fatia 8).
+  delivery: Tracking["delivery"] = "polling",
 ): Promise<Tracking | null> {
   return setCreation(id, "confirmed", null, {
     juditTrackingId,
+    delivery,
     ...remoteFields(remote),
   });
 }

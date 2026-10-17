@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Party } from "@/db/models";
 import type { JuditRequest } from "@/db/models";
-import { getCompanyByCnpj } from "@/features/companies/db";
+import { getPartyByDocument } from "@/features/parties/db";
+import { listEventPayloadsForReference } from "@/features/webhooks/db";
+import { saveResponsesToBase } from "@/features/base/ingest";
 import { processEventsForReference } from "@/features/webhooks/process";
 import {
   applicationErrorItem,
@@ -21,7 +24,17 @@ import {
 // The actions run with the real JUDIT client (guard, schemas, errors) and a
 // mocked fetch. The database functions are covered in db.test.ts, and
 // refresh() only works inside a real Next.js request.
-vi.mock("@/features/companies/db", () => ({ getCompanyByCnpj: vi.fn() }));
+// The daily cap reads the database; covered in src/features/queries/budget.test.ts.
+vi.mock("@/features/queries/budget", () => ({ assertDailyBudget: vi.fn() }));
+// Sem banco de verdade aqui: o interruptor da proteção de custo nunca foi
+// usado, então vale a variável JUDIT_ALLOWLIST (cost-protection.ts).
+vi.mock("@/features/settings/cost-protection", () => ({
+  getCostProtection: async () => ({
+    allowlist: process.env.JUDIT_ALLOWLIST !== "disabled",
+    locked: false,
+  }),
+}));
+vi.mock("@/features/parties/db", () => ({ getPartyByDocument: vi.fn() }));
 vi.mock("./db", () => ({
   findOpenJuditRequest: vi.fn(),
   getJuditRequest: vi.fn(),
@@ -29,17 +42,26 @@ vi.mock("./db", () => ({
   updateJuditRequestStatus: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
+// The base itself is covered in src/features/base/db.test.ts.
+vi.mock("@/features/base/ingest", () => ({ saveResponsesToBase: vi.fn() }));
+vi.mock("@/features/base/db", () => ({
+  saveQuietly: async (_label: string, save: () => Promise<unknown>) => save(),
+}));
 // The processing rules are tested in src/features/webhooks/process.test.ts.
 vi.mock("@/features/webhooks/process", () => ({
   processEventsForReference: vi.fn(),
 }));
+vi.mock("@/features/webhooks/db", () => ({
+  listEventPayloadsForReference: vi.fn(),
+}));
 
 const TEST_CNPJ = "A1B2C3D4E5F668";
 const REQUEST_ID = createdRequestBody.request_id;
-const company = {
+const company: Party = {
   id: "company-1",
-  cnpj: TEST_CNPJ,
-  legalName: null,
+  documentType: "cnpj",
+  document: TEST_CNPJ,
+  name: null,
   registrationStatus: null,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -47,7 +69,7 @@ const company = {
 const storedRequest: JuditRequest = {
   id: "row-1",
   requestId: REQUEST_ID,
-  companyId: company.id,
+  partyId: company.id,
   mode: "historical_async",
   delivery: "polling",
   searchType: "cnpj",
@@ -89,7 +111,8 @@ beforeEach(() => {
   vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "");
   vi.stubEnv("JUDIT_WEBHOOK_TOKEN", "");
   vi.mocked(processEventsForReference).mockReset().mockResolvedValue([]);
-  vi.mocked(getCompanyByCnpj).mockReset().mockResolvedValue(company);
+  vi.mocked(listEventPayloadsForReference).mockReset().mockResolvedValue([]);
+  vi.mocked(getPartyByDocument).mockReset().mockResolvedValue(company);
   vi.mocked(getJuditRequest).mockReset().mockResolvedValue(storedRequest);
   vi.mocked(findOpenJuditRequest).mockReset().mockResolvedValue(null);
   vi.mocked(saveJuditRequest)
@@ -108,7 +131,8 @@ describe("startAsyncQueryAction", () => {
     expect(
       await startAsyncQueryAction({
         mode: "historical_async",
-        cnpj: TEST_CNPJ,
+        documentType: "cnpj",
+        document: TEST_CNPJ,
       }),
     ).toMatchObject({ ok: false, reason: "unavailable" });
     expect(fetch).not.toHaveBeenCalled();
@@ -119,7 +143,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: "A1B2C3D4/E5F6-68",
+      documentType: "cnpj",
+      document: "A1B2C3D4/E5F6-68",
     });
 
     expect(sentBody(fetchMock)).toEqual({
@@ -127,7 +152,7 @@ describe("startAsyncQueryAction", () => {
     });
     expect(saveJuditRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
-      companyId: company.id,
+      partyId: company.id,
       mode: "historical_async",
       delivery: "polling",
       searchType: "cnpj",
@@ -138,18 +163,137 @@ describe("startAsyncQueryAction", () => {
     expect(result).toMatchObject({ ok: true });
   });
 
+  it("starts a full lawsuit query by CNJ, with no party and the AI summary", async () => {
+    const fetchMock = mockFetch(createdRequestBody);
+
+    const result = await startAsyncQueryAction({
+      mode: "lawsuit_async",
+      cnj: "0000000-39.2026.8.26.0050",
+      aiSummary: true,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(getPartyByDocument).not.toHaveBeenCalled();
+    expect(sentBody(fetchMock)).toEqual({
+      search: {
+        search_type: "lawsuit_cnj",
+        search_key: "0000000-39.2026.8.26.0050",
+      },
+      judit_ia: ["summary"],
+    });
+    expect(saveJuditRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        partyId: null,
+        mode: "lawsuit_async",
+        searchType: "cnj",
+        searchKey: "00000003920268260050",
+      }),
+    );
+    expect(findOpenJuditRequest).toHaveBeenCalledWith(
+      { partyId: null, searchType: "cnj", searchKey: "00000003920268260050" },
+      "lawsuit_async",
+    );
+  });
+
+  it("does not ask for arrest warrants by CNPJ", async () => {
+    mockFetch(createdRequestBody);
+
+    expect(
+      await startAsyncQueryAction({
+        mode: "warrant",
+        documentType: "cnpj",
+        document: TEST_CNPJ,
+      }),
+    ).toMatchObject({ ok: false, reason: "invalid" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("sends response_type warrant for a person in open mode", async () => {
+    vi.stubEnv("JUDIT_ALLOWLIST", "disabled");
+    const fetchMock = mockFetch(createdRequestBody);
+    // Fictitious CPF (valid check digits, starts with zeros).
+    vi.mocked(getPartyByDocument).mockResolvedValue({
+      ...company,
+      documentType: "cpf",
+      document: "00000000191",
+    });
+
+    const result = await startAsyncQueryAction({
+      mode: "warrant",
+      documentType: "cpf",
+      document: "000.000.001-91",
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(sentBody(fetchMock)).toEqual({
+      search: {
+        search_type: "cpf",
+        search_key: "00000000191",
+        response_type: "warrant",
+      },
+    });
+  });
+
+  it("starts a query by name, RJI or CNJ with no party (circle 3)", async () => {
+    vi.stubEnv("JUDIT_ALLOWLIST", "disabled");
+    const fetchMock = mockFetch(createdRequestBody, createdRequestBody);
+
+    expect(
+      await startAsyncQueryAction({
+        mode: "warrant",
+        searchType: "rji",
+        searchKey: "00000000000000000000",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(sentBody(fetchMock, 0).search).toEqual({
+      search_type: "rji",
+      search_key: "00000000000000000000",
+      response_type: "warrant",
+    });
+
+    expect(
+      await startAsyncQueryAction({
+        mode: "criminal_execution",
+        searchType: "cnj",
+        searchKey: "00000003920268260050",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(sentBody(fetchMock, 1).search).toEqual({
+      search_type: "lawsuit_cnj",
+      search_key: "0000000-39.2026.8.26.0050",
+      response_type: "execution",
+    });
+    expect(getPartyByDocument).not.toHaveBeenCalled();
+    expect(saveJuditRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ partyId: null, searchType: "cnj" }),
+    );
+  });
+
+  it("refuses an identifier the mode does not accept, before JUDIT", async () => {
+    mockFetch(createdRequestBody);
+    expect(
+      await startAsyncQueryAction({
+        mode: "historical_async",
+        searchType: "rji",
+        searchKey: "00000000000000000000",
+      }),
+    ).toMatchObject({ ok: false, reason: "invalid" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("refuses a second query while the same one is still open, without calling JUDIT", async () => {
     vi.mocked(findOpenJuditRequest).mockResolvedValue(storedRequest);
     mockFetch(createdRequestBody);
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: false, reason: "invalid" });
     expect(findOpenJuditRequest).toHaveBeenCalledWith(
-      company.id,
+      { partyId: company.id, searchType: "cnpj", searchKey: TEST_CNPJ },
       "historical_async",
     );
     expect(fetch).not.toHaveBeenCalled();
@@ -165,7 +309,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: true });
@@ -183,7 +328,11 @@ describe("startAsyncQueryAction", () => {
     vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
     const fetchMock = mockFetch(createdRequestBody);
 
-    await startAsyncQueryAction({ mode: "historical_async", cnpj: TEST_CNPJ });
+    await startAsyncQueryAction({
+      mode: "historical_async",
+      documentType: "cnpj",
+      document: TEST_CNPJ,
+    });
 
     expect(sentBody(fetchMock)).not.toHaveProperty("callback_url");
     expect(saveJuditRequest).toHaveBeenCalledWith(
@@ -202,7 +351,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: false, reason: "error" });
@@ -214,7 +364,8 @@ describe("startAsyncQueryAction", () => {
 
     await startAsyncQueryAction({
       mode: "historical_on_demand",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
       cacheTtlInDays: 7,
     });
 
@@ -238,7 +389,8 @@ describe("startAsyncQueryAction", () => {
     expect(
       await startAsyncQueryAction({
         mode: "historical_on_demand",
-        cnpj: TEST_CNPJ,
+        documentType: "cnpj",
+        document: TEST_CNPJ,
         cacheTtlInDays: 0,
       }),
     ).toMatchObject({ ok: false, reason: "invalid" });
@@ -247,11 +399,19 @@ describe("startAsyncQueryAction", () => {
 
   it("does not call JUDIT for a CNPJ outside the allowlist", async () => {
     const other = "11222333000181";
-    vi.mocked(getCompanyByCnpj).mockResolvedValue({ ...company, cnpj: other });
+    vi.mocked(getPartyByDocument).mockResolvedValue({
+      ...company,
+      documentType: "cnpj",
+      document: other,
+    });
     mockFetch();
 
     expect(
-      await startAsyncQueryAction({ mode: "historical_async", cnpj: other }),
+      await startAsyncQueryAction({
+        mode: "historical_async",
+        documentType: "cnpj",
+        document: other,
+      }),
     ).toMatchObject({ ok: false, reason: "not_allowed" });
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -264,7 +424,8 @@ describe("startAsyncQueryAction", () => {
 
     const result = await startAsyncQueryAction({
       mode: "historical_async",
-      cnpj: TEST_CNPJ,
+      documentType: "cnpj",
+      document: TEST_CNPJ,
     });
 
     expect(result).toMatchObject({ ok: false, reason: "error" });
@@ -347,8 +508,72 @@ describe("checkAsyncQueryAction", () => {
         applicationErrors: [
           "LAWSUIT_NOT_FOUND: Lawsuit 0000000-00.0000.0.00.0000 not found in datalake or court.",
         ],
-        lawsuits: [{ cnj: "99999999999999999999", companyId: company.id }],
+        lawsuits: [{ cnj: "99999999999999999999", partyId: company.id }],
       },
+    });
+    // Own database (circle 3, D1): every listed response is offered to it.
+    expect(saveResponsesToBase).toHaveBeenCalledWith(
+      { searchType: "cnpj", searchKey: TEST_CNPJ },
+      { origin: "async", mode: "historical_async", reference: REQUEST_ID },
+      expect.any(Array),
+    );
+  });
+
+  it("compares webhook deliveries with the listed responses", async () => {
+    vi.mocked(getJuditRequest).mockResolvedValue({
+      ...storedRequest,
+      delivery: "webhook",
+      status: "completed",
+    });
+    vi.mocked(listEventPayloadsForReference).mockResolvedValue([
+      {
+        payload: {
+          response_type: "application_info",
+          response_data: { code: 600 },
+        },
+      },
+    ]);
+    mockFetch(responsesBody);
+
+    const result = await checkAsyncQueryAction(REQUEST_ID);
+
+    expect(listEventPayloadsForReference).toHaveBeenCalledWith(REQUEST_ID);
+    expect(result).toMatchObject({
+      ok: true,
+      deliveryCheck: {
+        expected: responsesBody.all_count,
+        received: 0,
+        completionNotice: true,
+      },
+    });
+  });
+
+  it("skips the comparison for polling and survives a database failure", async () => {
+    vi.mocked(getJuditRequest).mockResolvedValue({
+      ...storedRequest,
+      status: "completed",
+    });
+    mockFetch(responsesBody);
+    expect(await checkAsyncQueryAction(REQUEST_ID)).toMatchObject({
+      ok: true,
+      deliveryCheck: null,
+    });
+    expect(listEventPayloadsForReference).not.toHaveBeenCalled();
+
+    vi.mocked(getJuditRequest).mockResolvedValue({
+      ...storedRequest,
+      delivery: "webhook",
+      status: "completed",
+    });
+    vi.mocked(listEventPayloadsForReference).mockRejectedValue(
+      new Error("db down"),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockFetch(responsesBody);
+    expect(await checkAsyncQueryAction(REQUEST_ID)).toMatchObject({
+      ok: true,
+      results: { totalResponses: responsesBody.all_count },
+      deliveryCheck: null,
     });
   });
 });

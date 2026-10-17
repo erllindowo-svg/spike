@@ -15,6 +15,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+  LimitNotice,
+  ListPagination,
+  usePaged,
+} from "@/components/shared/list-pagination";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -54,6 +59,7 @@ import {
   type WebhookProcessingStatus,
 } from "@/features/webhooks/types";
 import { useDemoStore, type SimulationScenario } from "@/lib/demo-store";
+import { LIST_LIMITS } from "@/lib/list-limits";
 import {
   formatDuration,
   formatNumber,
@@ -157,6 +163,10 @@ export function WebhookDiagnostics() {
       v?.toLowerCase().includes(term),
     );
   });
+  const paged = usePaged(
+    filtered,
+    [term, status, eventType, reference ?? ""].join("|"),
+  );
   const selected = webhookEvents.find((e) => e.id === selectedId) ?? null;
   const hasFilters =
     !!term || status !== "all" || eventType !== "all" || !!reference;
@@ -423,27 +433,38 @@ export function WebhookDiagnostics() {
               }
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Recebido em</TableHead>
-                  <TableHead>callback_id</TableHead>
-                  <TableHead>event_type</TableHead>
-                  <TableHead>reference_id</TableHead>
-                  <TableHead>Processamento</TableHead>
-                  <TableHead className="text-right">Duração</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((event) => (
-                  <EventRow
-                    key={event.id}
-                    event={event}
-                    onOpen={() => setParam("evento", event.id)}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Recebido em</TableHead>
+                    <TableHead>callback_id</TableHead>
+                    <TableHead>event_type</TableHead>
+                    <TableHead>reference_id</TableHead>
+                    <TableHead>Processamento</TableHead>
+                    <TableHead className="text-right">Duração</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paged.items.map((event) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      onOpen={() => setParam("evento", event.id)}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+              <ListPagination paged={paged} />
+              <LimitNotice
+                reached={
+                  dataSource === "db" &&
+                  webhookEvents.length >= LIST_LIMITS.webhookEvents
+                }
+                limit={LIST_LIMITS.webhookEvents}
+                what="as entregas"
+              />
+            </>
           )}
         </CardContent>
       </Card>

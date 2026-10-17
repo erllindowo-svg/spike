@@ -16,6 +16,9 @@ const PUBLIC_VALUES = new Set([
   "MONGODB_DB",
   "DATA_SOURCE",
   "JUDIT_LIVE_CALLS",
+  "JUDIT_ALLOWLIST",
+  "JUDIT_MAX_CALLS_PER_MINUTE",
+  "JUDIT_DAILY_CALL_LIMIT",
   "JUDIT_WEBHOOK_FULL_PAYLOAD",
   // URL do túnel: pública por definição (o token não faz parte dela).
   "JUDIT_WEBHOOK_PUBLIC_ORIGIN",

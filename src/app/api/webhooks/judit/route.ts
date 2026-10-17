@@ -7,6 +7,8 @@ import {
   redactToken,
   WEBHOOK_TOKEN_PARAM,
 } from "@/features/webhooks/callback";
+import { saveQuietly } from "@/features/base/db";
+import { saveDeliveryToBase } from "@/features/base/ingest";
 import { saveWebhookEvent } from "@/features/webhooks/db";
 import { prepareWebhookEvent } from "@/features/webhooks/envelope";
 import { processWebhookEvent } from "@/features/webhooks/process";
@@ -82,8 +84,8 @@ export async function POST(request: Request) {
       `[webhooks] recebido: ${ids}${fullPayload ? " (payload completo)" : ""}`,
     );
     const eventId = saved.event.id;
-    after(() =>
-      processWebhookEvent(eventId).catch((error: unknown) => {
+    after(async () => {
+      await processWebhookEvent(eventId).catch((error: unknown) => {
         // Só falhas de banco ao reivindicar ou ao registrar o resultado
         // chegam aqui; o evento continua gravado.
         const message = error instanceof Error ? error.message : String(error);
@@ -91,8 +93,13 @@ export async function POST(request: Request) {
           `[webhooks] processamento interrompido (${ids}):`,
           redactToken(message, token),
         );
-      }),
-    );
+      });
+      // Base própria (D1): o processo inteiro só existe nesta requisição (o
+      // evento gravado guarda um resumo). Uma entrega que chega antes de a
+      // consulta ser gravada não acha o assunto e não grava; o resultado
+      // volta à base quando a consulta é aberta ("Ver resultado").
+      await saveQuietly(ids, () => saveDeliveryToBase(body as never));
+    });
     return reply(200, { duplicate: false });
   } catch (error) {
     // A mensagem do driver pode conter qualquer coisa; o token sai dela.

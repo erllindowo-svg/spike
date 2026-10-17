@@ -4,7 +4,7 @@
 export type LawsuitStatus = "active" | "archived" | "suspended";
 
 // Lado da empresa no processo (equivalente ao "side" das partes).
-export type CompanyRole = "active" | "passive" | "interested";
+export type PartyRole = "active" | "passive" | "interested";
 
 export type LawsuitMovement = {
   id: string;
@@ -15,13 +15,13 @@ export type LawsuitMovement = {
 export type Lawsuit = {
   id: string;
   cnj: string;
-  companyId: string | null;
+  partyId: string | null;
   tribunal: string;
   area: string | null;
   className: string | null;
   subject: string | null;
   judgingBody: string | null;
-  companyRole: CompanyRole | null;
+  partyRole: PartyRole | null;
   status: LawsuitStatus | null;
   distributedAt: Date | null;
   lastMovementAt: Date | null;
@@ -35,7 +35,7 @@ export const lawsuitStatusLabels: Record<LawsuitStatus, string> = {
   suspended: "Suspenso",
 };
 
-export const companyRoleLabels: Record<CompanyRole, string> = {
+export const partyRoleLabels: Record<PartyRole, string> = {
   active: "Polo ativo",
   passive: "Polo passivo",
   interested: "Terceiro interessado",

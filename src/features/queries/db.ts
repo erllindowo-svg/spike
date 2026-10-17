@@ -3,8 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/db";
-import { collections, type JuditRequestDoc } from "@/db/collections";
-import type { JuditRequest } from "@/db/models";
+import { collections, toModel, type JuditRequestDoc } from "@/db/collections";
+import type { JuditRequest, SyncQuery } from "@/db/models";
+import { LIST_LIMITS } from "@/lib/list-limits";
+import { refreshSearchEntries } from "@/features/search/refresh";
 
 // Persistência dos ponteiros de consultas assíncronas (coleção
 // `judit_requests`). Só o `request_id` e os dados para acompanhá-lo: os
@@ -14,7 +16,7 @@ function toJuditRequest(doc: JuditRequestDoc): JuditRequest {
   return {
     id: doc._id,
     requestId: doc.requestId,
-    companyId: doc.companyId,
+    partyId: doc.partyId,
     mode: doc.mode,
     delivery: doc.delivery,
     searchType: doc.searchType,
@@ -30,7 +32,7 @@ function toJuditRequest(doc: JuditRequestDoc): JuditRequest {
 export type NewJuditRequest = Pick<
   JuditRequest,
   | "requestId"
-  | "companyId"
+  | "partyId"
   | "mode"
   | "delivery"
   | "searchType"
@@ -54,16 +56,31 @@ export async function saveJuditRequest(
     lastCheckedAt: null,
   };
   await juditRequests.insertOne(doc);
+  await refreshSearchEntries([input]);
   return toJuditRequest(doc);
 }
 
 export async function listJuditRequests(
-  companyId: string,
+  partyId: string,
 ): Promise<JuditRequest[]> {
   const { juditRequests } = collections(await getDb());
   const docs = await juditRequests
-    .find({ companyId })
+    .find({ partyId })
     .sort({ createdAt: -1 })
+    .toArray();
+  return docs.map(toJuditRequest);
+}
+
+// As mais recentes, de todas as partes, para o histórico de consultas (a
+// tela pagina e avisa quando o limite é atingido).
+export async function listRecentJuditRequests(
+  limit: number = LIST_LIMITS.juditRequests,
+): Promise<JuditRequest[]> {
+  const { juditRequests } = collections(await getDb());
+  const docs = await juditRequests
+    .find()
+    .sort({ createdAt: -1 })
+    .limit(limit)
     .toArray();
   return docs.map(toJuditRequest);
 }
@@ -112,18 +129,22 @@ export async function markJuditRequestCompleted(
 // 24 h, ela deixa de contar.
 export const OPEN_QUERY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-// Consulta ainda em aberto, segundo o NOSSO banco, para a mesma empresa e
-// modalidade. O status do banco só muda quando alguém pergunta à JUDIT
-// ("Verificar status") ou quando o webhook avisa o fim (código 600).
+// Consulta ainda em aberto, segundo o NOSSO banco, para o mesmo alvo e a
+// mesma modalidade. O alvo é a parte (consultas por documento) ou, numa
+// consulta por processo, o CNJ. O status do banco só muda quando alguém
+// pergunta à JUDIT ("Verificar status") ou quando o webhook avisa o fim
+// (código 600).
 export async function findOpenJuditRequest(
-  companyId: string,
+  target: { partyId: string | null; searchKey: string },
   mode: JuditRequest["mode"],
   now = new Date(),
 ): Promise<JuditRequest | null> {
   const { juditRequests } = collections(await getDb());
   const doc = await juditRequests.findOne(
     {
-      companyId,
+      ...(target.partyId
+        ? { partyId: target.partyId }
+        : { searchKey: target.searchKey }),
       mode,
       status: { $in: ["pending", "started"] },
       createdAt: { $gt: new Date(now.getTime() - OPEN_QUERY_WINDOW_MS) },
@@ -131,4 +152,29 @@ export async function findOpenJuditRequest(
     { sort: { createdAt: -1 } },
   );
   return doc ? toJuditRequest(doc) : null;
+}
+
+// Consultas síncronas (coleção `sync_queries`): só metadados de cada chamada
+// que chegou à JUDIT. Ver o comentário de SyncQuery em src/db/models.ts.
+
+export type NewSyncQuery = Omit<SyncQuery, "id" | "createdAt">;
+
+export async function saveSyncQuery(input: NewSyncQuery): Promise<SyncQuery> {
+  const { syncQueries } = collections(await getDb());
+  const doc = { _id: randomUUID(), ...input, createdAt: new Date() };
+  await syncQueries.insertOne(doc);
+  await refreshSearchEntries([input]);
+  return toModel(doc);
+}
+
+export async function listSyncQueries(
+  limit: number = LIST_LIMITS.syncQueries,
+): Promise<SyncQuery[]> {
+  const { syncQueries } = collections(await getDb());
+  const docs = await syncQueries
+    .find()
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .toArray();
+  return docs.map(toModel);
 }

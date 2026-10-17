@@ -1,18 +1,16 @@
-import { OverviewDashboard } from "@/features/overview/components/overview-dashboard";
-import { summarizeDistribution } from "@/features/processes/types";
-import { listLawsuits } from "@/lib/data";
+import type { Metadata } from "next";
+import { Suspense } from "react";
 
-export default async function OverviewPage() {
-  const lawsuits = await listLawsuits();
+import { PageSkeleton } from "@/components/shared/page-skeleton";
+import { ConsultPage } from "@/features/consult/components/consult-page";
 
+export const metadata: Metadata = { title: "Consultar" };
+
+export default function Page() {
   return (
-    <OverviewDashboard
-      lawsuitsCount={lawsuits.length}
-      activeLawsuitsCount={lawsuits.filter((l) => l.status === "active").length}
-      distribution={{
-        area: summarizeDistribution(lawsuits, "area"),
-        tribunal: summarizeDistribution(lawsuits, "tribunal"),
-      }}
-    />
+    // O identificador pode vir na URL (?tipo=&valor=), lida no cliente.
+    <Suspense fallback={<PageSkeleton />}>
+      <ConsultPage />
+    </Suspense>
   );
 }

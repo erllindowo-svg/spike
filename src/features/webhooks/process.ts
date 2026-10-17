@@ -1,8 +1,13 @@
 import "server-only";
 
 import type { Tracking, WebhookEvent } from "@/db/models";
-import { createAlert, type NewAlert } from "@/features/alerts/db";
-import { formatCnpj } from "@/features/companies/cnpj";
+import {
+  createAlert,
+  type CreatedAlert,
+  type NewAlert,
+} from "@/features/alerts/db";
+import { displaySearchKey } from "@/features/consult/identify";
+import { publishAlertCreated } from "@/features/notifications/outbound";
 import { formatCnj } from "@/features/processes/cnj";
 import {
   getJuditRequest,
@@ -52,6 +57,10 @@ import {
 //
 //   Referência que o app não conhece: "ignored". Pode ser reprocessado
 //   depois, se a referência for gravada mais tarde.
+//
+// Cada alerta novo também publica o evento de saída `alert.created`
+// (src/features/notifications/outbound.ts), hoje sem destino: só vai para o
+// log.
 
 export type ProcessResult = ProcessingOutcome | { status: "skipped" };
 
@@ -169,7 +178,7 @@ async function processTrackingEvent(
     case "tracking_paused": {
       await markTrackingPausedByJudit(tracking.id);
       const reason = TRACKING_PAUSE_REASONS[delivery.code];
-      const alert = await createAlert({
+      const alert = await raiseAlert({
         ...alertBase(event, tracking, null),
         type: "tracking_notice",
         dedupeKey: perEventKey("tracking_notice", event),
@@ -184,7 +193,7 @@ async function processTrackingEvent(
     }
 
     case "application_error": {
-      const alert = await createAlert({
+      const alert = await raiseAlert({
         ...alertBase(event, tracking, null),
         type: "tracking_notice",
         dedupeKey: perEventKey("tracking_notice", event),
@@ -221,7 +230,7 @@ async function alertNewLawsuit(
   tracking: Tracking,
   cnj: string | null,
 ): Promise<ProcessingOutcome> {
-  const alert = await createAlert({
+  const alert = await raiseAlert({
     ...alertBase(event, tracking, cnj),
     type: "new_lawsuit",
     dedupeKey: cnj
@@ -248,7 +257,7 @@ async function alertMovement(
   cnj: string | null,
 ): Promise<ProcessingOutcome> {
   const lawsuitCnj = cnj ?? tracking.searchKey;
-  const alert = await createAlert({
+  const alert = await raiseAlert({
     ...alertBase(event, tracking, lawsuitCnj),
     type: "lawsuit_movement",
     dedupeKey: perEventKey("lawsuit_movement", event),
@@ -260,6 +269,15 @@ async function alertMovement(
       ? "Alerta de movimentação criado."
       : "Alerta desta entrega já existia (evento reprocessado).",
   );
+}
+
+// Grava o alerta e, se ele é novo, publica o evento de saída
+// (src/features/notifications/outbound.ts). Um alerta recusado pelo
+// dedupeKey já foi publicado quando nasceu: não sai de novo.
+async function raiseAlert(input: NewAlert): Promise<CreatedAlert> {
+  const result = await createAlert(input);
+  if (result.created) publishAlertCreated(result.alert);
+  return result;
 }
 
 // Chave de um alerta que vale por entrega. Usa o `id` do nosso evento, que
@@ -274,17 +292,18 @@ function alertBase(
   lawsuitCnj: string | null,
 ) {
   return {
-    companyId: tracking.companyId,
+    partyId: tracking.partyId,
     webhookEventId: event.id,
     trackingId: tracking.id,
     lawsuitCnj,
   };
 }
 
+// Vai para o texto do alerta, gravado no banco: o CPF entra mascarado.
 function trackingLabel(tracking: Tracking): string {
-  return tracking.searchType === "cnpj"
-    ? `monitoramento do CNPJ ${formatCnpj(tracking.searchKey)}`
-    : `monitoramento do processo ${formatCnj(tracking.searchKey)}`;
+  return tracking.searchType === "cnj"
+    ? `monitoramento do processo ${formatCnj(tracking.searchKey)}`
+    : `monitoramento do ${tracking.searchType.toUpperCase()} ${displaySearchKey(tracking.searchType, tracking.searchKey)}`;
 }
 
 function describeError(

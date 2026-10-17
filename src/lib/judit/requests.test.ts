@@ -51,6 +51,26 @@ describe("createRequest", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("sends response_type inside search and judit_ia at the top level", async () => {
+    const fetchMock = mockFetch(createdRequestBody, 201);
+
+    await createRequest({
+      searchType: "cnpj",
+      searchKey: TEST_CNPJ,
+      responseType: "execution",
+      juditIa: ["summary"],
+    });
+
+    expect(sentRequest(fetchMock).body).toEqual({
+      search: {
+        search_type: "cnpj",
+        search_key: TEST_CNPJ,
+        response_type: "execution",
+      },
+      judit_ia: ["summary"],
+    });
+  });
+
   it("sends no on_demand or with_attachments by default and reads the 201", async () => {
     const fetchMock = mockFetch(createdRequestBody, 201);
 

@@ -179,6 +179,7 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Efeito: monitoramento diário até ser pausado. O plano já era pausar depois da primeira execução.
 - Lição de suporte: gravar o que o fornecedor devolve, e não o que pedimos, foi o que tornou a divergência visível. "Aceito" (201) não quer dizer "aceito como pedido".
 - Prevenção (2026-10-14, noite): a mensagem de criação compara o pedido com o devolvido e avisa na hora (`recurrenceWarning` em `src/features/trackings/actions.ts`), enquanto ainda dá para pausar ou excluir. Pergunta ao tech lead: "Inside knowledge", IK1.
+- Reproduzido em 2026-10-16 com outra modalidade: monitoramento por CNJ (o fictício, `plan_config_type: "simple_lawsuit_tracking"`), pedido com 30 e gravado com 1. O aviso da criação apareceu e o monitoramento foi pausado em seguida. Como acontece nas duas modalidades, a regra parece ser da conta ou do documento de teste, e não de uma modalidade.
 
 **C12. Envio incerto na criação de um monitoramento.** _Previsto (testado com fetch simulado em 2026-10-14)._
 
@@ -264,6 +265,7 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Por que `/monitoramentos` não avisa: a página não espera nada no servidor.
 - Correção prevista (etapa 7): mover a leitura para um componente dentro do `<Suspense>`. `export const instant = false` só cala o aviso.
 - Lição de suporte: um "Error" no terminal de desenvolvimento nem sempre é falha para o usuário final. Aqui o efeito em produção seria uma navegação mais lenta, e o ticket seria "a tela de empresas demora para abrir", não "deu erro".
+- Atualização (2026-10-16): leitura movida para dentro do `<Suspense>` em `/empresas`, `/pessoas`, Dashboard e Configurações (as duas últimas tinham o mesmo padrão). Não verificado pelo sintoma: no `pnpm dev` em execução, o aviso não apareceu nem com o código antigo de volta (Dashboard), em carregamento direto e em navegação por clique. Se reaparecer, anotar a página e a navegação que o produziram.
 
 **D6. Rota nova responde 503/500 no `pnpm dev`, mas 404 no build.** _Observado em 2026-10-15._
 
@@ -332,6 +334,146 @@ Receber não é processar. A rota grava e responde 200; o processamento roda dep
 **G5. "Já existe uma consulta igual em andamento para esta empresa."** _Previsto; é comportamento correto._ Há uma consulta da mesma modalidade com status `pending` ou `started` no NOSSO banco, criada há menos de 24 h. O banco só muda quando alguém clica em "Verificar status" ou quando o webhook avisa o fim (600). Primeiro passo: "Verificar status" na consulta anterior. A regra é uma consulta prévia, não um índice: dois envios no mesmo instante ainda passam.
 
 **G6. Monitoramento aparece pausado, mas foi reativado.** _Previsto._ Um aviso de pausa (700 a 703) atrasado, processado depois da reativação, grava `paused` de novo. "Atualizar status" no menu do monitoramento corrige pelo que a JUDIT informa. Lição: webhooks podem chegar fora de ordem; o estado da JUDIT é a fonte da verdade.
+
+**G7. "Entregas por webhook: 0 de N resposta(s)" (vista de suporte).** _Previsto (testado com fetch simulado)._
+
+- Sinal: ao abrir o resultado de uma consulta com entrega por webhook (Histórico de consultas → Ver resultado, ou o card da parte), a linha da vista de suporte diz que faltam entregas.
+- Camada: rede entre a JUDIT e a nossa rota / JUDIT.
+- Hipóteses, em ordem: a rota estava fora do ar (túnel desligado, `pnpm dev` parado) e a JUDIT desistiu de reenviar (IK10); a origem pública mudou depois da consulta; a relação "uma resposta, uma entrega" não vale para este tipo de consulta (hipótese nossa, `src/features/queries/deliveries.ts`).
+- Teste que separou: Diagnóstico de webhooks filtrado pelo `request_id`; o log da rota (`[webhook]`) na hora da consulta; o aviso de fim (600) chegou ou não.
+- Correção: nenhuma para os dados: o resultado mostrado veio da consulta direta (`GET /responses`), então nada se perdeu. Para as próximas, manter a rota no ar.
+- Lição de suporte: entrega perdida não é dado perdido. A conferência usa a lista que já foi lida para mostrar o resultado; não faz chamada nova.
+
+### H. Proteções de custo (círculo 2 da etapa 7)
+
+Antes de qualquer chamada cobrada, quatro barreiras, nesta ordem: kill switch (`JUDIT_LIVE_CALLS`), allowlist no modo restrito (`JUDIT_ALLOWLIST`), teto diário (`JUDIT_DAILY_CALL_LIMIT`, contado no histórico do app) e, no client, chamada única para a mesma busca e limite por minuto (`JUDIT_MAX_CALLS_PER_MINUTE`). Nenhuma delas deixa a chamada sair do servidor, então nada é cobrado nem entra no histórico. A situação de cada uma aparece em Configurações → Proteção de custo.
+
+**H1. "Teto diário de N chamadas cobradas atingido".** _Previsto (testado com MongoDB em memória)._
+
+- Sinal: o aviso em qualquer ação cobrada; num monitoramento novo, a reserva volta a "Não enviado à JUDIT".
+- Hipóteses, em ordem: o dia teve muitas consultas de verdade; um teste repetiu uma ação em loop; o teto está baixo demais para o uso.
+- Teste que separou: Configurações mostra "hoje: N"; a página Consultas lista o que foi feito hoje, com hora.
+- Correção: esperar a meia-noite (horário de São Paulo) ou subir `JUDIT_DAILY_CALL_LIMIT`.
+- Lição de suporte: o teto é do app, não da JUDIT. Quem quer o número oficial olha o consumo do ciclo na JUDIT.
+
+**H2. "Limite de N chamadas à JUDIT por minuto atingido neste servidor".** _Previsto (testado)._ O contador fica na memória do servidor e conta todas as chamadas, inclusive as leituras (status, resultados). Sinal típico de um clique repetido ou de um código em loop. Espere os segundos indicados. Reiniciar o `pnpm dev` zera o contador (é proposital: ele não é guardado).
+
+**H3. "A mesma chamada à JUDIT já está em andamento".** _Previsto (testado)._ Duplo clique, duas abas ou um botão sem bloqueio mandaram a mesma busca enquanto a primeira não tinha respondido. Nada foi cobrado na segunda. Lição: a proteção vale para criações (POST, PATCH, DELETE); leituras podem rodar juntas.
+
+### I. Partes: empresas e pessoas físicas (círculo 2 da etapa 7)
+
+A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), e o campo `companyId` virou `partyId` em monitoramentos, consultas e alertas. Quem faz a mudança no banco é `migrateCompaniesToParties` (`src/db/migrations.ts`), na conexão, antes dos índices. Ela pode rodar de novo sem efeito e guarda a coleção antiga como `companies_migrated`.
+
+**I1. Depois da atualização, as empresas sumiram da lista (ou os links quebraram).** _Previsto._
+
+- Sinal: Empresas vazia, monitoramentos sem empresa, mas os dados continuam no Atlas.
+- Hipótese principal: o `pnpm dev` estava rodando antes da atualização. Ele recompila o código, mas guarda a conexão aberta (`globalThis` em `src/db/index.ts`), e a migração só roda ao conectar. O código novo lê `parties`, que ainda não existe.
+- Teste que separou: Atlas → coleções. Com `companies` e sem `parties`, a migração não rodou.
+- Correção: reiniciar o `pnpm dev`. Mesma família do G4 e do D6.
+- Lição de suporte: código novo e dados velhos convivem até a migração rodar; "atualizei e sumiu" quase sempre é isso, não perda de dados.
+
+### J. Telas e listas (círculo 2 da etapa 7)
+
+**J1. Um registro antigo "sumiu" da lista.** _Previsto._
+
+- Sinal: um alerta, uma entrega de webhook ou uma consulta que existe no banco não aparece na tela, nem paginando.
+- Camada: aplicação (limite de leitura).
+- Hipótese principal: a lista chegou ao limite lido do banco (`src/lib/list-limits.ts`: 200 alertas, 200 entregas, 200 consultas de cada fluxo). A tela mostra o aviso "Mostrando ... mais recentes (até 200)", e no Dashboard o número vem com "+".
+- Teste que separou: contar os documentos da coleção no Atlas e comparar com o total da paginação.
+- Correção: hoje, nenhuma além do aviso; paginação no servidor quando o volume justificar.
+- Lição de suporte: "sumiu" pode ser "não foi lido". Antes de suspeitar de perda de dados, confira se a tela lê tudo ou só os mais recentes.
+
+**J2. Dois `<main>` na mesma página.** _Observado em 2026-10-16._
+
+- Sinal: o script de verificação no navegador contou dois elementos `main`; nada aparecia de errado na tela.
+- Camada: componente de terceiros (shadcn).
+- Causa: `SidebarInset` (`src/components/ui/sidebar.tsx`) já é um `<main>`, e o layout do app punha outro dentro dele, desde a etapa 1.
+- Correção: `SidebarInset` passou a ser `div`, com um comentário no arquivo.
+- Lição de suporte: erro de acessibilidade não aparece para quem enxerga a tela. O ticket viria de quem usa leitor de tela ("a página tem dois conteúdos principais") ou de uma auditoria, nunca de um print.
+
+**K1. "Saldo de créditos" falha e "Consumo do ciclo" funciona.** _Observado em 2026-10-16._
+
+- Sinal: no cartão "Conta na JUDIT" (Configurações), o saldo mostra "A JUDIT retornou um erro (http)", e o consumo mostra os valores. Log: `JUDIT respondeu HTTP 422 em GET users/credits/balance (HttpUnprocessableEntityError)`.
+- Camada: JUDIT (modelo de cobrança da conta).
+- Hipóteses: (1) a conta é pós-paga e a rota só atende ao pré-pago; (2) a chave não tem permissão (mas aí o esperado seria 401 ou 403); (3) erro do nosso pedido (é um `GET` sem corpo nem parâmetros).
+- Teste que separou: o consumo veio com `max_consumption` (teto de ciclo, o modelo pós-pago), e a [página de créditos](https://docs.judit.io/resource/consumption/credits) avisa que a rota é do pré-pago. Fica a (1), por inferência: a página não lista erros.
+- Correção: nenhuma no código. Numa conta pós-paga, o número que se procura é o `remaining` do consumo.
+- Lição de suporte: um 422 numa leitura sem parâmetros costuma dizer "esta rota não se aplica à sua conta", e não "o seu pedido está errado". O ticket seria "o saldo não aparece". A resposta é perguntar ou conferir o modelo de cobrança antes de investigar o código.
+
+**K2. "Dados cadastrais: não encontrado" para um CNPJ válido.** _Observado em 2026-10-16._
+
+- Sinal: a página Consultar mostra o cadastro como não encontrado, sem erro. A JUDIT respondeu 200 com `"response_data": []`.
+- Camada: JUDIT (dados).
+- Causa: o CNPJ fictício da documentação não tem cadastro na base de dados cadastrais; a consulta funcionou. O mesmo aparece com um CNPJ real sem dados na base.
+- Lição de suporte: HTTP 200 com lista vazia é "consultei e não há nada", e não uma falha. A confirmação vem da resposta crua (`POST /api/dev/judit/entities`) e do `resultCount: 0` em `sync_queries`. Para um CNPJ real, o próximo passo seria a consulta na Receita em tempo real (on-demand), que é mais cara.
+
+**K3. "Na fila" desde ontem, mas concluída na JUDIT.** _Observado em 2026-10-17._
+
+- Sinal: o histórico de consultas mostra uma consulta processual completa (CNJ fictício, com resumo por IA) "Na fila" desde 16/10, 12:38. `GET /requests/{id}` responde `completed` desde 12:54 do mesmo dia, com duas respostas.
+- Camada: aplicação (por desenho). O app não verifica o status sozinho: o estado gravado só muda com "Verificar status".
+- Hipótese descartada: requisição travada na JUDIT. A leitura direta mostrou a conclusão.
+- Correção: nenhuma por enquanto. É candidata ao círculo 3: indicar há quanto tempo a consulta está na fila, ou verificar ao abrir o histórico.
+- Lição de suporte: o ticket seria "minha consulta está na fila há um dia". Antes de escalar para a JUDIT, ler o status direto na fonte (rota de dev ou vista de suporte). O nosso registro é uma foto da última verificação, não o estado atual.
+
+**L1. A ficha do assunto não mostra processos depois de uma consulta que trouxe processos.** _Previsto em 2026-10-17 (círculo 3, fatia 5)._
+
+- Sinal: a página Consultar mostrou a lista, mas a ficha em Minhas informações diz "Nenhum processo guardado". No terminal: `[base] falha ao gravar na base própria (datalake_sync, request_id …)`.
+- Camada: banco (base própria) ou aplicação.
+- Hipóteses: (1) o MongoDB recusou ou caiu no meio da gravação (a consulta já tinha sido cobrada, então o erro só vai para o log); (2) os índices novos não foram criados porque o `pnpm dev` não foi reiniciado; (3) a consulta foi de contagem ou resumo, que guardam números (`lawsuit_stats`), não processos.
+- Teste que separou: procurar `[base]` no log; no Atlas, conferir `lawsuits` e `findings` com o identificador e os índices `lawsuits_cnj_instance_unique` e `findings_subject_item_unique`.
+- Correção: repetir a consulta (a regra "o mais novo substitui" não duplica nada).
+- Lição de suporte: "paguei e não ficou salvo" tem duas metades. A resposta veio (a tela mostrou); a cópia local falhou. O `request_id` do log permite reler o resultado na JUDIT sem cobrar de novo, quando o fluxo é assíncrono.
+
+**L2. Monitoramento criado "sem webhook" mesmo com o túnel ligado.** _Previsto em 2026-10-17 (círculo 3, fatia 8)._
+
+- Sinal: a mensagem de criação diz "Sem endereço público para o webhook" ou "Webhook configurado pela metade … A reserva continua pendente".
+- Camada: ambiente.
+- Hipóteses: (1) `JUDIT_WEBHOOK_PUBLIC_ORIGIN` vazia ou o servidor não foi reiniciado depois de preenchê-la; (2) origem preenchida e `JUDIT_WEBHOOK_TOKEN` vazio (pela metade: nada é enviado); (3) origem com `http://` (a JUDIT exige https).
+- Teste que separou: `pnpm env:check` mostra as duas variáveis; o card "Recebimento de webhooks" em Configurações diz a situação.
+- Correção: preencher as duas, reiniciar e enviar a reserva de novo.
+- Lição de suporte: um monitoramento criado sem `callback_url` não ganha uma depois sozinho; os resultados ficam em "Ver resultados". Quem abre o ticket "não recebo alertas" precisa ter a forma de entrega conferida antes de qualquer outra coisa (`delivery` do monitoramento).
+
+**L3. A barra de pesquisa não acha algo que já foi consultado.** _Previsto em 2026-10-17 (círculo 3B)._
+
+- Sinal: "Dado não encontrado" para um nome ou número que está no Acervo.
+- Camada: aplicação (busca derivada) ou banco.
+- Hipóteses: (1) o texto está no meio da palavra ("llan" não acha "Erllan": a busca é pelo começo, por desenho); (2) a coleção `search_entries` ainda não foi montada, porque o `pnpm dev` não foi reiniciado depois do círculo 3B (a montagem roda na conexão); (3) uma atualização falhou (`[search] falha ao atualizar a busca` no terminal) e a entrada ficou velha; (4) menos de 3 caracteres.
+- Teste que separou: procurar pelo começo da palavra; no Atlas, contar os documentos de `search_entries` e ver o índice `search_entries_terms`; procurar `[search]` no log.
+- Correção: reiniciar o `pnpm dev`; para forçar a remontagem, apagar a coleção `search_entries` (ela é derivada) e reiniciar.
+- Lição de suporte: uma busca derivada pode divergir da fonte. Antes de concluir "o dado sumiu", abrir a ficha pelo endereço (`/acervo/<tipo>/<chave>`), que lê as coleções de origem.
+
+**L4. O número no campo de Consultar aparece embaralhado, com dígitos sobrepostos.** _Observado em 2026-10-17 (círculo 3B)._
+
+- Sinal: ao digitar um CPF no Firefox do usuário, o número formatado aparecia por cima do número digitado, os dois visíveis ao mesmo tempo.
+- Camada: aplicação (interface) e navegador.
+- Causa: a primeira versão desenhava o número formatado numa camada por cima da caixa e deixava o texto real transparente. No navegador do usuário, o texto de baixo continuou visível. No Firefox e no Chromium de teste, sem janela, o problema não apareceu: uma técnica que depende de duas camadas alinhadas quebra com qualquer diferença de cor ou fonte do navegador.
+- Teste que separou: o mesmo CPF fictício no Firefox de teste (limpo) e no do usuário; a captura de tela do teste saiu limpa, a do usuário não.
+- Correção: os separadores passaram a ser caracteres da própria caixa (`fieldDisplay` e `stripFieldMask`, em `identify.ts`), uma camada só.
+- Prevenção: testes das duas funções; teste no navegador que o usuário usa, não só no do agente.
+- Lição de suporte: "no meu computador funciona" não encerra um ticket de tela. Pedir a captura e o navegador de quem reclamou, e desconfiar de soluções que dependem de sobrepor elementos.
+
+**M1. A proteção de custo volta a barrar documentos mesmo desligada.** _Previsto em 2026-10-17 (círculo 5)._
+
+- Sinal: a consulta responde "fora da allowlist" logo depois de o interruptor ser desligado; no terminal, `[cost] falha ao ler o interruptor; modo restrito`.
+- Camada: banco (leitura do interruptor) ou ambiente.
+- Hipóteses: (1) o MongoDB não respondeu, e o app escolheu o modo restrito por segurança; (2) `JUDIT_ALLOWLIST=locked` no ambiente, que vence o interruptor.
+- Teste que separou: procurar `[cost]` no log; conferir a variável; no Atlas, ver o documento `cost-protection` da coleção `app_settings`.
+- Lição de suporte: na dúvida, o app prefere barrar a gastar. "Não consigo consultar" pode ser essa escolha, e não um defeito.
+
+**M2. A busca não acha um número pelo grupo do meio, nem um processo pelo estado.** _Previsto em 2026-10-17 (círculo 5)._
+
+- Sinal: "Dado não encontrado" para "982" ou "Roraima", embora o assunto esteja no Acervo.
+- Camada: aplicação (busca derivada).
+- Hipótese principal: as entradas foram montadas pelas regras antigas e a remontagem só roda na conexão com o banco; o `pnpm dev` não foi reiniciado.
+- Teste que separou: no terminal, `[search] busca montada` depois de reiniciar; no Atlas, o campo `termsVersion` das entradas de `search_entries`.
+- Lição de suporte: uma mudança nas regras da busca só vale para o que foi montado depois dela.
+
+**M3. A carteira mostra "Sem permissão" ou "Indisponível para esta conta".** _Previsto em 2026-10-17 (círculo 5)._
+
+- Sinal: ao abrir a carteira, o consumo diz "Sem permissão" e o saldo diz "Indisponível para esta conta".
+- Camada: JUDIT (conta e chave).
+- Causa provável: o consumo exige chave administrativa; o saldo é só do pré-pago (caso K1).
+- Lição de suporte: a carteira mostra o que a chave pode ler; trocar a chave resolve, não o código.
 
 ### Modelo para novos casos
 
@@ -442,6 +584,40 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Contexto: a etapa 6 processa entregas de monitoramento (`reference_type: "tracking"`), mas nenhuma foi observada: o CNPJ de teste não gera resultados (C14), e o CNJ fictício depende do IK6.
 - Dúvidas: cada execução termina com um `application_info` 600, como uma consulta? Um monitoramento por CNJ manda a versão do cache e depois a atualizada, ou só uma entrega por movimentação? O `response_data` traz só as movimentações novas ou o processo inteiro (a página diz "o processo por completo")?
 - Impacto: hoje, um 600 de monitoramento é registrado sem ação, e cada entrega de monitoramento por CNJ gera um alerta. Se vierem duas versões por execução, sairão dois alertas de movimentação.
+- Resposta:
+
+**IK12. Posso publicar respostas gravadas da JUDIT?** _Aberta desde 2026-10-15._
+
+- Contexto: a etapa 8A quer uma demonstração que reproduza respostas reais gravadas nos testes, para rodar sem chave. O repositório é público.
+- Dúvidas: o contrato ou os termos de uso permitem republicar respostas da API (mesmo anonimizadas) num repositório público? E as respostas do CNPJ de teste (`A1B2C3D4/E5F6-68`), que são fictícias? A busca na documentação pública (2026-10-15) não achou termos de uso nem regra de redistribuição.
+- Impacto: decide se as gravações de CNPJs reais podem sair desta máquina. Até a resposta, ficam fora do Git.
+- Resposta:
+
+**IK13. Existe um CPF fictício para testes?** _Aberta desde 2026-10-15._
+
+- Contexto: o uso guiado da etapa 7 propôs pessoas físicas no app. A JUDIT aceita CPF no monitoramento por documento, nas consultas e nos dados cadastrais ([tracking-document](https://docs.judit.io/tracking/tracking-document)). O único documento de teste citado na documentação é o CNPJ `A1B2C3D4/E5F6-68`; a busca de 2026-10-15 não achou um CPF equivalente, nem um nome de teste.
+- Dúvidas: há um CPF (e um nome) que devolva dados fictícios, como o CNPJ de teste? Uma chave de sandbox (comercial@judit.io, [postman-collection](https://docs.judit.io/resource/postman-collection)) resolveria?
+- Impacto: sem isso, pessoa física e busca por nome não podem ser testadas ao vivo (allowlist em `guard.ts`), o que pesa nas escolhas C1-5 e C1-6 de `docs/etapa-7-escopo.md`.
+- Resposta:
+
+**IK14. O preço de uma consulta muda com a quantidade de processos devolvidos?** _Aberta desde 2026-10-16._
+
+- Contexto: o usuário quer trocar a allowlist por proteções menos restritivas, entre elas uma contra consultas enormes (uma empresa com milhares de processos). As páginas falam em "cobrança por requisição" e o exemplo do [histórico de consumo](https://docs.judit.io/resource/consumption/history) precifica por requisição (e anexos à parte), mas não dizem se o volume devolvido muda o preço, nem se ler as páginas seguintes (`GET /responses?page=...`) é cobrado.
+- Impacto: decide se a proteção de volume serve para economizar crédito ou só para não travar a tela e o servidor.
+- Resposta:
+
+**IK15. Qual é o formato do RJI e da OAB?** _Aberta desde 2026-10-17._
+
+- Contexto: o círculo 3 quer reconhecer o identificador só pela digitação. O único exemplo de RJI ([warrant](https://docs.judit.io/criminal-consultation/warrant)) é `"00000000000000000000"`: 20 dígitos, como o CNJ sem máscara. Os exemplos de OAB discordam entre UF antes e depois (`SP123456`, `123456SP`, `99999RJ`; README item 47).
+- Dúvidas: o RJI do BNMP 2.0 tem letras, dígito verificador ou só números? A API aceita a OAB nas duas ordens? Com ou sem barra e zeros à esquerda?
+- Impacto: decide a regra que separa CNJ de RJI e o que normalizar na OAB antes de enviar.
+- Resposta:
+
+**IK16. Ler o saldo ou o consumo da conta é cobrado?** _Aberta desde 2026-10-17._
+
+- Contexto: a carteira (círculo 5) lê `GET /credits/balance` e `GET /billing/consumption` ao abrir. As duas páginas da documentação não têm o selo "Cobrança por requisição" nem o selo "Grátis".
+- Dúvidas: essas leituras são cobradas? Em quanto tempo uma chamada aparece no consumo?
+- Impacto: se forem grátis, a carteira pode ler sozinha a cada poucos minutos.
 - Resposta:
 
 ---
@@ -1263,6 +1439,304 @@ Teste feito pelo agente, a pedido do usuário. Depois do `pnpm dev` reiniciado, 
 
 Proposta do usuário: uma etapa 8 para "fechar" o projeto. A 8A deixa o repositório reproduzível por quem clona, com as pontas soltas resolvidas. A 8B é a auditoria, com o usuário ditando o que entendeu para o diário. Avaliação do agente: boa ideia, com a 8A antes da 8B e um critério de pronto testável. Registrada em `docs/plano-etapas-6-7.md`.
 
+### 2026-10-15 / Etapa 8: níveis de execução
+
+**Resumo técnico**
+
+Etapa 8 refinada: a 8A pega os itens médios e baixos da revisão que ficaram abertos; a 8B audita e anota; a 8C corrige o que a auditoria anotou. O ditado vira texto fluido, com as ideias do usuário. Em aberto: como rodar sem a chave da JUDIT e sem o Atlas.
+
+**O que já existe no repositório (fato)**
+
+- O pacote `mongodb` é o driver: a biblioteca que conversa com um banco. Ele não é um banco. Quem clona o projeto não tem acesso ao seu cluster do Atlas (a senha está no seu `.env.local`, e não deve ser compartilhada).
+- O `mongodb-memory-server` (só para desenvolvimento) baixa o programa oficial do MongoDB (`mongod`) e sobe um servidor temporário nesta máquina. Hoje só os testes o usam.
+- Sem `.env.local`, `DATA_SOURCE` vale `demo`: nada chama o banco nem a JUDIT. Hipótese a confirmar no clone limpo: a demonstração roda sem nenhuma variável.
+
+**Níveis propostos (decisão pendente)**
+
+1. Demonstração: `pnpm install` e `pnpm dev`, sem configurar nada.
+2. Banco sem JUDIT: um MongoDB próprio, local (um script com o `mongodb-memory-server`, sem instalar nada) ou no Atlas. Empresas e reservas de monitoramento funcionam; o que depende da JUDIT avisa que a chave não está configurada.
+3. JUDIT real: chave própria, kill switch, allowlist e túnel.
+4. Opcional, mais caro: uma "JUDIT simulada", que responde com os exemplos da documentação (`src/lib/judit/__fixtures__`) e dispara webhooks falsos. Daria o fluxo inteiro sem chave e serviria de base para a fase 2 (ambiente de treino com falhas injetadas).
+
+**Recomendação do agente:** nada de cair na demonstração sozinho quando falta a chave. Uma troca silenciosa já confundiu antes (catálogo, A2). O modo continua explícito, e a tela diz o que falta.
+
+### 2026-10-15 / Etapa 8: JUDIT gravada
+
+**Resumo técnico**
+
+Ideia do usuário: sem chave da JUDIT, o app entra em demonstração e reproduz respostas reais gravadas nos testes, mostrando quais CNPJs têm dados. Juntada ao nível 4 ("JUDIT simulada"). Todos os níveis entram na 8A. Gravações de CNPJs reais ficam fora do Git até o IK12.
+
+**Por que juntar as duas ideias**
+
+- É o mesmo mecanismo (gravar e reproduzir), com duas fontes de gravação: as respostas reais dos testes e os exemplos da documentação.
+- A demonstração de hoje (`mock-data.ts`) não passa pelo código de verdade. Com a JUDIT gravada, a demonstração roda as actions, o banco e o processamento de webhooks. Ela vira um teste do produto, e não uma maquete.
+- A tela dizer "você está em demonstração; CNPJs com dados gravados: …" deixa o modo explícito, o que resolve a objeção da troca silenciosa (A2).
+
+**O cuidado**
+
+- Gravar CNPJs reais grava processos com nomes e documentos de terceiros (partes, advogados, trabalhadores em ações trabalhistas). Num repositório público, isso é publicar dados pessoais. Além disso, os dados são o produto da JUDIT, e a documentação pública não diz se podem ser republicados (IK12).
+- Por isso, só vão para o Git as gravações do CNPJ fictício e os exemplos da documentação. As gravações de CNPJs reais ficam nesta máquina.
+
+### 2026-10-15 / Demonstração com dados reais criptografados?
+
+**Resumo técnico**
+
+O usuário propôs publicar os dados reais criptografados, com uma senha entregue a quem testa. O agente recomendou não fazer: o histórico do Git é irrevogável, dar a senha é compartilhar dado pessoal, e o custo não ensina nada sobre a JUDIT. Proposta: 8A só com os níveis 1 a 3, a JUDIT gravada na fase 2. Decisão pendente.
+
+### 2026-10-15 / Dois produtos: protótipo e app real
+
+**Resumo técnico**
+
+Decisão do usuário: separar os produtos. No fim da etapa 7, o protótipo é atualizado com o visual novo e dados fictícios, e fica congelado. O app real exige banco e chave da JUDIT; o modo demonstração sai do `main` na 8A. O objetivo é que nenhum dos dois tenha um fluxo confuso.
+
+**Condições propostas pelo agente**
+
+- O protótipo é uma cópia tirada uma vez, no fim da etapa 7, e não é mantido em paralelo. Mantê-lo dobraria cada mudança de tela.
+- Sem configuração, o app real mostra o que falta (como o `pnpm env:check`, mas na tela), em vez de quebrar.
+- A remoção acontece na 8A, depois da cópia, porque a etapa 7 ainda usa os mesmos componentes para gerar o protótipo novo. De quebra, a auditoria (8B) fica com cerca de 1.600 linhas a menos.
+
+### 2026-10-15 / Produto terminado na etapa 7; etapa 8 opcional
+
+**Resumo técnico**
+
+Decisão do usuário: o produto termina na etapa 7, apresentável, e a etapa 8 (8A, 8B, 8C) fica opcional para depois. O fechamento (README, clone limpo, tag) foi para a 7; o protótipo v0.2 vira a própria tag. `AGENTS.md`, seção 6, atualizado, inclusive com a regra do ditado.
+
+### 2026-10-15 / Correção: dois produtos separados no fim da etapa 7
+
+**Resumo técnico**
+
+Correção do usuário à entrada anterior: o protótipo não vira uma tag do `main`. Ao terminar a revisão visual da etapa 7, saem dois produtos: o protótipo, à parte, só com dados fictícios e o código necessário para eles; e o `main`, reduzido ao app real, sem código de demonstração. A 8A ficou só com os itens abertos da revisão.
+
+**Erro do agente:** o usuário já tinha decidido "dois produtos", e o agente trocou a decisão por uma tag sem perguntar. `AGENTS.md` e plano corrigidos.
+
+### 2026-10-15 / Preparação da etapa 7
+
+**Resumo técnico**
+
+`main` local igual ao GitHub (`b3b727d`, merge do PR #6). Criada a branch `feat/product-review`, com um commit das decisões sobre as etapas 7 e 8 (`AGENTS.md`, plano, diário e relatório). Próxima sessão: uso guiado do app. Reiniciar o `pnpm dev` não é necessário.
+
+### 2026-10-15 / Uso guiado: roteiro e primeiras anotações
+
+**Resumo técnico**
+
+Criado `docs/etapa-7-uso-guiado.md`: oito tarefas em duas rodadas e as anotações ditadas, com respostas. Achados: busca do topo só olha o banco; Configurações tem "Não configurado" fixo; busca por nome existe na JUDIT, mas a allowlist barra; menu sem dados cadastrais, mandados, DJEN. Proposta: ícone "i".
+
+### 2026-10-15 / Uso guiado: textos fixos do protótipo
+
+**Resumo técnico**
+
+O app não estava em modo demo: o selo do cabeçalho diz "Banco de dados". A sensação vinha de textos fixos da etapa 1 (dica do selo, perfil, Configurações, busca, visão geral, "Exemplos fictícios" sobre dados reais). Inventário em `docs/etapa-7-uso-guiado.md`. Regra: texto que descreve estado deve ser calculado.
+
+### 2026-10-15 / Uso guiado: alertas e notificação externa
+
+**Resumo técnico**
+
+Dois pontos ditados, registrados no guia da etapa 7 para a discussão final: alertas dentro de Monitoramentos, porque só eventos de monitoramento geram alerta (`process.ts:41-51` confirma); e um evento de saída não usado no back-end, para ilustrar uma notificação externa (o "macho da tomada").
+
+### 2026-10-15 / Etapa 7: círculo 1 do escopo
+
+**Resumo técnico**
+
+Fim do uso guiado. 16 pontos reunidos em `docs/etapa-7-escopo.md`, com 11 considerações e 13 escolhas (C1-1 a C1-13). Fatos: menu recolhível já existe (Ctrl+B); a JUDIT monitora CPF, mas não há CPF de teste (IK13). Ideia central: webhook é canal, não coisa.
+
+### 2026-10-15 / Etapa 7: decisões do círculo 1 e fatia C1-13
+
+**Resumo técnico**
+
+Decisões: as recomendadas, com um dashboard geral de verdade (C1-8). Fatia C1-13: Configurações calcula no servidor a situação de cada integração (`settings/status.ts`, `hasServerEnv`), sem valores; textos falsos do modo `db` corrigidos; "Sem login" no perfil. 227 testes, lint, tipos, formato e build ok.
+
+### 2026-10-16 / Etapa 7: círculo 1 implementado
+
+**Resumo técnico**
+
+Todas as escolhas do círculo 1 implementadas, sem commit: vista de suporte, menu por tarefa, alertas dentro de Monitoramentos, página Consultas (coleção nova `sync_queries`, só metadados), adicionar empresa com dados cadastrais, Dashboard com gráficos, ajuda "i" e evento de saída sem destino. 252 testes, lint, tipos, formato e build ok.
+
+### 2026-10-16 / Menu recolhido e proposta de pessoas físicas
+
+**Resumo técnico**
+
+Menu lateral recolhido por padrão, só ícones, com "Expandir menu" acima de Configurações; no celular, o botão do cabeçalho continua. Proposta ditada: todos os identificadores da JUDIT (CPF, CNPJ, CNJ...), reabrindo a C1-5. Escolhas R1 a R6 em `docs/etapa-7-escopo.md`, pendentes.
+
+### 2026-10-16 / Tomadas do back-end (círculos 3 ou 4)
+
+**Resumo técnico**
+
+Proposta ditada e registrada para os círculos 3 ou 4: o repositório como base para clientes, com pontos de extensão prontos no back-end ("tomadas macho"), a começar por um login de exemplo que avisa não proteger nada. Nada implementado. Notas em `docs/etapa-7-escopo.md`.
+
+### 2026-10-16 / Etapa 7: círculo 2, fatias 1 a 10
+
+**Resumo técnico**
+
+Proteções de custo, partes (CNPJ e CPF) com migração, abas Empresas e Pessoas, página Consultar guiada pelo catálogo de features, barra de pesquisa, monitoramento por CPF e por termos, conta na JUDIT, processo no modo `db`, pormenores do círculo 1 e consultas assíncronas novas (processo por CNJ com resumo por IA, mandados, execução penal). Uma fatia por commit; nada testado ao vivo.
+
+### 2026-10-16 / Etapa 7: círculo 2, pormenores da fatia 11
+
+**Resumo técnico**
+
+Vista de suporte num cookie, lido pelo servidor no modo `db` (a página nasce certa); adicionar parte na demonstração (só na aba); paginação de 25 linhas com aviso de limite; leituras dentro do `<Suspense>` (D5); um só `<main>` por página (J2). 317 testes, lint, tipos, formato e build ok.
+
+### 2026-10-16 / Conferência de entregas perdidas (IK10)
+
+**Resumo técnico**
+
+Ao abrir o resultado de uma consulta com entrega por webhook, a vista de suporte compara as respostas listadas pela JUDIT com as entregas gravadas para o mesmo `request_id`, sem chamada nova. A relação "uma resposta, uma entrega" é hipótese nossa (catálogo G7).
+
+### 2026-10-16 / Retomada: o que o círculo 2 implementou
+
+**Resumo técnico**
+
+Retomada pela seção "Como retomar com o agente" do relatório de progresso. Revisão das 14 fatias do círculo 2 (`4d49f2f` a `f7c9028`), a partir de `docs/etapa-7-escopo.md`. Nada alterado no código; próximo passo continua sendo testar ao vivo as chamadas novas.
+
+### 2026-10-17 / Retomada: resumo da etapa 7
+
+**Resumo técnico**
+
+Resumo da etapa 7 a partir do relatório, do escopo e do diff local: uso guiado, círculo 1 (forma geral), círculo 2 (14 fatias). Sem commit: três testes ao vivo de 2026-10-16 (dados cadastrais, `step_terms`, saldo 422). Faltam três testes ao vivo, decisões do usuário e o fechamento.
+
+### 2026-10-17 / Teste ao vivo: consulta processual com resumo por IA
+
+**Resumo técnico**
+
+`lawsuit_async` com resumo por IA no CNJ fictício: aceito (`judit_ia` devolvido), segunda chamada barrada pela regra de consulta em aberto. A de ontem concluiu em cerca de 16 minutos, mas o app mostrava "Na fila" (catálogo K3, README 46). Duas leituras de status feitas, de custo desconhecido.
+
+### 2026-10-17 / Círculo 3, ponto 1: Consultar para leigos
+
+**Resumo técnico**
+
+Ditado registrado em `docs/etapa-7-escopo.md` ("Círculo 3: anotações"): reconhecer o identificador pela digitação e fazer de Consultar a entrada do leigo, com escolha entre consulta única e monitoramento. Devolução do agente: o reconhecimento já existe em parte; custo e entradas sobrepostas pesam.
+
+### 2026-10-17 / Círculo 3, ponto 2: duas páginas, uma função cada
+
+**Resumo técnico**
+
+Ditado registrado: círculo 3 define o fluxo do cliente, com Pesquisar (consultar ou monitorar) e uma página de leitura do que foi recebido. Devolução: monitoramento não devolve o retrato atual (C14), nem todo dado se monitora, webhook depende de URL pública, e a leitura exige decidir se resultados são gravados.
+
+### 2026-10-17 / Círculo 3, ponto 3: digitar uma vez e a barra de pesquisa
+
+**Resumo técnico**
+
+Ditado registrado: consultar e monitorar sem redigitar (secundário); Consultar só com o campo; a barra de pesquisa sai de Consultar e vira busca de consultas já feitas, com "criar consulta" discreto; vista de suporte fica para o círculo 4. Reabrir consulta síncrona depende de gravar resultados.
+
+### 2026-10-17 / Círculo 3: proposta consolidada
+
+**Resumo técnico**
+
+Pontos 1 a 3 reunidos em `docs/etapa-7-escopo.md`: o que foi dito por tema, crítica, decisões D0 a D7 e sete fatias. Achado na documentação: exemplos de OAB discordam e o RJI tem 20 dígitos como o CNJ (README 47). Decisão mais pesada: gravar ou não os resultados.
+
+### 2026-10-17 / Círculo 3: decisões D0 e D1, navegação no topo
+
+**Resumo técnico**
+
+Decidido: allowlist desligada pelo `.env.local` (limites por minuto e diário continuam) e gravar tudo normalizado no MongoDB, revertendo o desenho híbrido da etapa 3. Navegação vira barra no topo com duas páginas; barra de pesquisa em todas. RJI e OAB sem formato documentado (IK15).
+
+### 2026-10-17 / Allowlist desligada
+
+**Resumo técnico**
+
+O usuário pôs `JUDIT_ALLOWLIST=disabled` no `.env.local`; `pnpm env:check` confirma. Os limites ficam no padrão (30 por minuto, 50 por dia), porque as variáveis estão vazias. Falta reiniciar o `pnpm dev`, o que também roda a migração para `parties` (I1).
+
+### 2026-10-17 / Círculo 3: plano de implementação
+
+**Resumo técnico**
+
+Nove fatias em `docs/etapa-7-escopo.md`: reconhecimento de identificadores, catálogo ampliado, navegação no topo, Consultar nova, base própria, Minhas informações, barra unificada, webhook nos monitoramentos, limpeza e demonstração. Relatório de progresso atualizado com o prompt de retomada.
+
+### 2026-10-17 / Círculo 3 implementado (nove fatias)
+
+**Resumo técnico**
+
+Nove commits na `feat/product-review`: reconhecimento pela digitação, catálogo com perguntas, navegação no topo, Consultar em "/", base própria (D1), Minhas informações com ficha, barra unificada, webhook nos monitoramentos e limpeza com demonstração. 356 testes, lint, typecheck e build. Detalhes em `docs/etapa-7-escopo.md`.
+
+### 2026-10-17 / Círculo 3B: Acervo, selos e avisos
+
+**Resumo técnico**
+
+Página 2 renomeada para Acervo (`/acervo`, com redirecionamento de `/informacoes`); alternância do topo só com ícones, a ativa com o nome. Selo "Agora" verde e "Depois" azul. Saíram os avisos de "base legal". A barra de pesquisa estilo Google ficou para discussão.
+
+### 2026-10-17 / Círculo 3B: a conversa sobre a barra de pesquisa e onde o banco roda
+
+**Resumo técnico**
+
+Diálogo antes do código (resumo do agente). O usuário pediu uma barra "como a do Google": uma só, que procura dentro do que já foi consultado ("ERL" acha "Erllan") e oferece "Fazer nova consulta". O agente mostrou que a busca de hoje é um filtro no navegador sobre uma lista limitada (200 consultas) e comparou três jeitos de buscar no MongoDB: Atlas Search (`$search`, o melhor, mas só existe no Atlas), termos próprios com índice comum (opção B, funciona em qualquer MongoDB) e `$text` (só palavras inteiras).
+
+A dúvida seguinte foi de base: "o app precisa de Mongo?". Ficou registrado que há três lugares onde os dados moram: memória (demonstração, sem banco), o cluster no Atlas (modo banco, o `pnpm dev` de hoje) e um MongoDB temporário que o `pnpm test` liga e apaga (o `mongod` baixado em `~/.cache/mongodb-binaries`; não há MongoDB instalado no sistema). O motor é o mesmo nos três; o Atlas só acrescenta serviços, como o Atlas Search. Conferido no código: nada usa recurso exclusivo do Atlas, e a URI aceita `mongodb://` e `mongodb+srv://`. Se o Atlas sumisse, bastaria outro MongoDB e trocar o `MONGODB_URI` (os dados se perderiam, e os monitoramentos continuariam cobrando na JUDIT).
+
+Decisões: opção B agora, numa coleção `search_entries` (derivada, reconstruível), usada pela barra, pelo filtro do Acervo e pela página Consultar personalizada; Atlas Search como extra ligado por variável no círculo 4. A página Consultar ganha o bloco "Já capturado" abaixo das ações, porque ele serve de referência e não deve interromper o fluxo.
+
+### 2026-10-17 / Círculo 3B implementado: busca e Consultar personalizada
+
+**Resumo técnico**
+
+Coleção derivada `search_entries` (termos com índice comum, opção B), barra única como a do Google, filtro do Acervo pela mesma busca e página Consultar que se recolhe para um identificador conhecido, com "Já capturado" abaixo das ações. 369 testes; conferido com digitação simulada no navegador.
+
+**Como pensamos (resumo do agente)**
+
+O círculo 3B seguiu o método dos círculos que o projeto adotou na etapa 7: cada volta implementa tudo o que foi decidido e a seguinte retoma os pormenores. É uma forma de desenvolvimento iterativo e incremental: o produto inteiro muda de forma a cada volta, em vez de ser decidido todo no papel antes. O usuário revisou as telas de cima para baixo, página por página, e o agente devolveu cada observação separada, com crítica, antes de codificar. Duas decisões vieram da conversa: o nome Acervo (em vez de "Dados", que confundiria com "dados cadastrais") e a opção B para a busca (portável, testável e barata), deixando o Atlas Search como extra. A posição do "Já capturado" foi escolhida pelo propósito: servir de referência sem interromper o fluxo de consultar.
+
+### 2026-10-17 / Círculo 3B: "empresa" no texto de um CPF
+
+**Resumo técnico**
+
+O usuário viu "dados cadastrais da empresa" ao consultar um CPF. A chamada estava certa (a mesma `POST /entities` para os dois); o texto era um só por modalidade. Agora a explicação depende do identificador (`purposeFor`), e "Papel da empresa" virou "Papel da parte". Lição: texto genérico escrito para um caso vira erro quando o caso se amplia.
+
+### 2026-10-17 / Círculo 3B: tipo e máscara dentro do campo
+
+**Resumo técnico**
+
+A pedido do usuário, o tipo reconhecido ("Pessoa física:", "Empresa:"…) aparece dentro do campo de Consultar, e os separadores de CPF, CNPJ e CNJ aparecem em tom claro. São só desenho por cima do campo (`IdentifierField`): o valor digitado não muda. Conferido no navegador com os seis tipos.
+
+### 2026-10-17 / Círculo 3B: separadores como caracteres da caixa
+
+**Resumo técnico**
+
+No Firefox do usuário, a camada desenhada por cima mostrava os dois números sobrepostos (catálogo L4). Agora os pontos, a barra e o traço são caracteres da caixa, inseridos quando CPF, CNPJ ou CNJ é reconhecido. O estado guarda só os dígitos: um dígito a mais ou um apagar voltam ao número cru. Conferido no Firefox com CPF, dígito extra, apagar e CNPJ.
+
+**Como pensamos (resumo do agente)**
+
+O usuário descreveu o que queria: os separadores "falsos" dentro da caixa, como nos formulários de CPF, mas só depois de reconhecer o documento, porque o campo aceita qualquer tipo. O cuidado foi não gravar a máscara no estado: o reconhecimento usa a máscara digitada para decidir o tipo, e um CPF formatado seguido de mais um dígito viraria "CPF inválido" para quem digita um CNPJ. Limitação aceita: os caracteres da caixa não podem ter outra cor, e editar no meio do número leva o cursor para o fim.
+
+### 2026-10-17 / Círculos renumerados e proposta do círculo 5
+
+**Resumo técnico**
+
+O 3B passa a ser o círculo 4, e o próximo é o 5. Proposta do círculo 5 no escopo: interruptor da proteção de custo, carteira com o saldo, sem o ícone de informação, Consultar com o campo no meio, busca pelos grupos do número, estados dos tribunais, suporte e Configurações. Atlas Search e login ficam para a etapa 8.
+
+**Como pensamos (resumo do agente)**
+
+O usuário notou que as letras (3A, 3B, 3C) contrariavam o método: cada círculo é uma volta inteira, e a seguinte detalha a anterior; um "3C" seria um círculo próprio com outro nome. Para a carteira, o agente leu o código e a documentação antes de propor: a conta é pós-paga, o número útil é o `remaining` do consumo, e a JUDIT não diz se a leitura é cobrada. A crítica principal do círculo é de segurança: um interruptor de custo sem login põe a decisão na mão de quem abrir o app.
+
+### 2026-10-17 / Círculo 5, item 11: consultar pela ficha
+
+**Resumo técnico**
+
+Proposto consultar e monitorar dentro da ficha do Acervo, em dois cliques, em vez de ir a Consultar. Hoje os botões de "O que ainda não se sabe" só levam a Consultar, sem a pergunta. Recomendação: a mesma Server Action e um componente comum; o resultado aparece nas seções da ficha, que relê o banco.
+
+### 2026-10-17 / Círculo 5: respostas do usuário
+
+**Resumo técnico**
+
+O interruptor da proteção de custo só aparece no modo desenvolvedor, e a vista de suporte fica por isso; o PIN por conta fica para a etapa 8. A carteira lê ao abrir, nunca depois de cada ação. Título de Consultar definido. O campo no meio será testado na tela.
+
+**Como pensamos (resumo do agente)**
+
+O usuário ligou duas pontas soltas: a vista de suporte, que só ficaria se ganhasse função, ganhou o interruptor. O agente apontou que esconder não é controlar: o modo desenvolvedor mora no navegador, e o controle de verdade é do servidor (trava por variável) ou de um PIN por conta.
+
+### 2026-10-17 / Círculo 5: plano de implementação
+
+**Resumo técnico**
+
+Plano fechado em oito fatias: cabeçalho sem ⓘ, Consultar com campo no meio e deslize, busca pelos grupos do número, estados dos tribunais, carteira com contador, interruptor de custo no modo desenvolvedor, consulta pela ficha do Acervo e fechamento. Atlas Search, login e PIN ficam para a etapa 8.
+
+### 2026-10-17 / Círculo 5 implementado
+
+**Resumo técnico**
+
+Sete fatias, uma por commit: sem o ⓘ; Consultar com o campo no meio e o deslize; busca pelos grupos do número e pelo estado do tribunal; carteira com contador; interruptor de custo no modo desenvolvedor; consulta e monitoramento pela ficha. 385 testes; conferido no Firefox.
+
+**Como pensamos (resumo do agente)**
+
+Cada fatia seguiu a decisão do usuário, e onde ele deixou a escolha, o agente escolheu o caminho mais simples de explicar: o deslize só com CSS; o contador da carteira contando no banco do app, sem chamar a JUDIT; a ficha relendo o servidor em vez de desenhar o resultado de novo. Dois cuidados de suporte: o interruptor falha para o lado seguro (sem banco, modo restrito), e a busca se remonta sozinha quando as regras mudam.
+
 ---
 
 ## Perguntas e respostas
@@ -1761,3 +2235,21 @@ Porque receber e processar têm garantias diferentes. Para a JUDIT, o que import
 
 **O mesmo processo chega duas vezes por um monitoramento por documento: o que impede dois alertas, e por que essa regra não serve para o monitoramento por CNJ?** _(etapa 6)_
 O `dedupeKey` `new_lawsuit:<monitoramento>:<CNJ>`, com índice único: o segundo `insert` é recusado pelo banco, mesmo que as duas entregas sejam processadas ao mesmo tempo. No monitoramento por documento, o fato é "apareceu um processo novo", e ele acontece uma vez só. No monitoramento por CNJ, o CNJ é sempre o mesmo e o fato é "houve uma movimentação". Uma chave por CNJ avisaria só a primeira, por isso a chave é por entrega.
+
+**A vista de suporte esconde os `request_id` de quem não deve vê-los?** _(círculo 1, 2026-10-16)_
+Não. Ela só decide o que a tela desenha, e a preferência fica no navegador (`localStorage`). Os dados continuam chegando ao navegador, e qualquer pessoa pode ligar a vista ou abrir `/webhooks` direto. Esconder é interface; proteger exige login e autorização no servidor, que ficaram fora desta versão (C1-10).
+
+**Por que a consulta de dados cadastrais é feita antes de salvar a empresa, e não depois?** _(círculo 1, 2026-10-16)_
+Para que uma recusa não deixe lixo. Se a allowlist barra o CNPJ ou a JUDIT responde com erro, nada é salvo, e a pessoa escolhe "Salvar sem consultar". Se fosse salvar primeiro, uma consulta recusada deixaria uma empresa sem dados na lista. O preço: a consulta fica registrada em `sync_queries` sem `companyId`, por isso a página Consultas liga a consulta à empresa pelo CNPJ.
+
+**Por que a base própria grava o item inteiro da JUDIT (`juditData`) além dos campos normalizados?** _(círculo 3, 2026-10-17)_
+Porque "gravar tudo" e "normalizado" puxam para lados diferentes. Os campos normalizados (CNJ, tribunal, situação, datas) são o que o app usa para listar, filtrar e mostrar; eles têm o nosso formato e o nosso significado. O item inteiro garante que nada se perde: um campo que a tela ainda não usa (partes, andamentos, endereços) continua no banco, e uma tela nova pode lê-lo sem consultar e pagar de novo. O custo é mais dado pessoal guardado, por isso existe "Apagar este assunto".
+
+**Como a regra "o mais novo substitui" impede que um dado velho passe por cima de um novo, mesmo com duas gravações ao mesmo tempo?** _(círculo 3, 2026-10-17)_
+O `updateOne` com `upsert` procura o registro pela chave **e** com `fetchedAt` menor ou igual ao da gravação. Se o registro existente for mais novo, a busca não acha nada e o MongoDB tenta inserir um registro novo com a mesma chave; o índice único recusa, e o código trata essa recusa como "mantido". A decisão fica numa operação só do banco, então duas requisições simultâneas não conseguem ler, comparar e escrever em ordens trocadas.
+
+**Por que a coleção `search_entries` é "derivada", e o que isso muda na hora de um problema?** _(círculo 3B, 2026-10-17)_
+Derivada quer dizer que nada nela é fonte: tudo é calculado das outras coleções (partes, cadastros, processos, consultas, monitoramentos). Por isso a mesma função cria, atualiza e apaga uma entrada, e a coleção inteira pode ser apagada e remontada sem perda. Num problema, a pergunta muda de "o dado sumiu?" para "a cópia de busca está atrasada?": a ficha do Acervo lê as fontes, então, se ela mostra o dado e a barra não, a falha está na busca, não no dado.
+
+**Por que `/^erl/` usa o índice e "contém erl" não?** _(círculo 3B, 2026-10-17)_
+Um índice é uma lista ordenada, como um dicionário. Achar as palavras que começam com "erl" é ir até o "erl" do dicionário e ler em sequência. "Contém erl" pode estar no começo, no meio ou no fim de qualquer palavra, então não há lugar para pular: é preciso ler tudo. Por isso a busca aceita só o começo das palavras.

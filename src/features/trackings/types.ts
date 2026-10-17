@@ -3,19 +3,25 @@ import type { Tracking, TrackingSearchType } from "@/db/models";
 export type { Tracking, TrackingSearchType };
 
 export type NewTrackingInput = Pick<Tracking, "searchType" | "searchKey"> & {
-  companyId?: string | null;
+  partyId?: string | null;
   // Obrigatória e sem padrão: define com que frequência o monitoramento roda.
   recurrenceDays: number;
+  // Só CNJ: avisar apenas movimentações com estes termos.
+  stepTerms?: string[];
 };
 
 export const searchTypeLabels: Record<TrackingSearchType, string> = {
   cnpj: "CNPJ",
+  cpf: "CPF",
   cnj: "CNJ",
+  oab: "OAB",
 };
 
 export const searchTypeDescriptions: Record<TrackingSearchType, string> = {
-  cnpj: "Descoberta de novos processos",
+  cnpj: "Descoberta de novos processos da empresa",
+  cpf: "Descoberta de novos processos da pessoa",
   cnj: "Acompanhamento de processo",
+  oab: "Descoberta de novos processos do advogado",
 };
 
 // Estados exibidos na interface. São deliberadamente independentes dos valores

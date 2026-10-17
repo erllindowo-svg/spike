@@ -9,7 +9,7 @@ export default function NotFound() {
     <EmptyState
       icon={SearchXIcon}
       title="Registro não encontrado"
-      description="Este item não existe nos dados de demonstração."
+      description="Este item não foi encontrado."
       action={
         <Button nativeButton={false} render={<Link href="/" />}>
           Voltar para a visão geral

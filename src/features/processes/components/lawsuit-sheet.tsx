@@ -20,9 +20,13 @@ import { LawsuitDetails, LawsuitTrackingAction } from "./lawsuit-details";
 export function LawsuitSheet({
   lawsuit,
   onOpenChange,
+  readOnly = false,
 }: {
   lawsuit: Lawsuit | null;
   onOpenChange: (open: boolean) => void;
+  // Nas páginas de leitura (ficha do assunto), sem "Monitorar": pedir algo
+  // novo é na página Consultar (círculo 3).
+  readOnly?: boolean;
 }) {
   return (
     <Sheet open={!!lawsuit} onOpenChange={onOpenChange}>
@@ -42,12 +46,12 @@ export function LawsuitSheet({
               <Button
                 variant="outline"
                 nativeButton={false}
-                render={<Link href={`/processos/${lawsuit.cnj}`} />}
+                render={<Link href={`/acervo/cnj/${lawsuit.cnj}`} />}
               >
                 <ExternalLinkIcon data-icon="inline-start" />
-                Abrir página
+                Abrir ficha
               </Button>
-              <LawsuitTrackingAction lawsuit={lawsuit} />
+              {!readOnly && <LawsuitTrackingAction cnj={lawsuit.cnj} />}
             </SheetFooter>
           </>
         )}

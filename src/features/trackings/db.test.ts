@@ -13,10 +13,10 @@ import { activeFor, collections } from "@/db/collections";
 import { isDuplicateKeyError } from "@/db/errors";
 import { createTestDb } from "@/db/test-db";
 import {
-  ensureCompany,
-  getCompanyByCnpj,
-  listCompanies,
-} from "@/features/companies/db";
+  ensureParty,
+  getPartyByDocument,
+  listParties,
+} from "@/features/parties/db";
 
 import { reserveTracking, listTrackings } from "./db";
 
@@ -48,32 +48,33 @@ afterAll(async () => {
   await testDb.current?.close();
 });
 
-describe("ensureCompany", () => {
+describe("ensureParty", () => {
   it("creates the company once, however the CNPJ is formatted", async () => {
-    const first = await ensureCompany("A1.B2C.3D4/E5F6-68");
-    const second = await ensureCompany(CNPJ.toLowerCase());
+    const first = await ensureParty("cnpj", "A1.B2C.3D4/E5F6-68");
+    const second = await ensureParty("cnpj", CNPJ.toLowerCase());
 
     expect(second.id).toBe(first.id);
     expect(first).toMatchObject({
-      cnpj: CNPJ,
-      legalName: null,
+      documentType: "cnpj",
+      document: CNPJ,
+      name: null,
       registrationStatus: null,
     });
-    expect(await listCompanies()).toHaveLength(1);
+    expect(await listParties()).toHaveLength(1);
   });
 
   it("does not duplicate when called concurrently", async () => {
     const results = await Promise.all(
-      Array.from({ length: 5 }, () => ensureCompany(CNPJ)),
+      Array.from({ length: 5 }, () => ensureParty("cnpj", CNPJ)),
     );
 
     expect(new Set(results.map((c) => c.id)).size).toBe(1);
-    expect(await listCompanies()).toHaveLength(1);
+    expect(await listParties()).toHaveLength(1);
   });
 
   it("rejects an invalid CNPJ", async () => {
-    await expect(ensureCompany("A1B2C3D4E5F690")).rejects.toThrow();
-    expect(await listCompanies()).toHaveLength(0);
+    await expect(ensureParty("cnpj", "A1B2C3D4E5F690")).rejects.toThrow();
+    expect(await listParties()).toHaveLength(0);
   });
 });
 
@@ -87,18 +88,89 @@ describe("reserveTracking", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const company = await getCompanyByCnpj(CNPJ);
+    const company = await getPartyByDocument("cnpj", CNPJ);
     expect(result.tracking).toMatchObject({
       searchType: "cnpj",
       searchKey: CNPJ,
       recurrenceDays: 7,
-      companyId: company?.id,
+      partyId: company?.id,
       juditTrackingId: null,
       status: null,
     });
     // The index helper field stays inside the database.
     expect(result.tracking).not.toHaveProperty("active");
     expect(await listTrackings()).toEqual([result.tracking]);
+  });
+
+  it("stores a CPF tracking linked to a person, a document tracking", async () => {
+    const result = await reserveTracking({
+      searchType: "cpf",
+      // Fictitious CPF (valid check digits, starts with zeros).
+      searchKey: "000.000.001-91",
+      recurrenceDays: 7,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const person = await getPartyByDocument("cpf", "00000000191");
+    expect(person).toMatchObject({ documentType: "cpf", name: null });
+    expect(result.tracking).toMatchObject({
+      searchType: "cpf",
+      searchKey: "00000000191",
+      mode: "tracking_document",
+      partyId: person?.id,
+    });
+  });
+
+  it("stores the movement terms of a CNJ tracking", async () => {
+    const result = await reserveTracking({
+      searchType: "cnj",
+      searchKey: "0001234-03.2026.8.26.0100",
+      recurrenceDays: 1,
+      stepTerms: [" sentença ", "intimação"],
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      tracking: { stepTerms: ["sentença", "intimação"] },
+    });
+  });
+
+  it("refuses more than ten movement terms", async () => {
+    const result = await reserveTracking({
+      searchType: "cnj",
+      searchKey: "0001234-03.2026.8.26.0100",
+      recurrenceDays: 1,
+      stepTerms: Array.from({ length: 11 }, (_, i) => `termo ${i}`),
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "invalid_input" });
+    expect(await listTrackings()).toHaveLength(0);
+  });
+
+  it("stores an OAB tracking as number + UF, with no party", async () => {
+    const result = await reserveTracking({
+      searchType: "oab",
+      searchKey: "OAB/SP 123456",
+      recurrenceDays: 30,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tracking).toMatchObject({
+      searchType: "oab",
+      searchKey: "123456SP",
+      partyId: null,
+      mode: "tracking_document",
+    });
+    expect(await listParties()).toHaveLength(0);
+
+    const invalid = await reserveTracking({
+      searchType: "oab",
+      searchKey: "123456XX",
+      recurrenceDays: 30,
+    });
+    expect(invalid).toMatchObject({ ok: false, reason: "invalid_input" });
   });
 
   it("stores a CNJ tracking without a company", async () => {
@@ -110,9 +182,9 @@ describe("reserveTracking", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      tracking: { searchKey: CNJ, companyId: null },
+      tracking: { searchKey: CNJ, partyId: null },
     });
-    expect(await listCompanies()).toHaveLength(0);
+    expect(await listParties()).toHaveLength(0);
   });
 
   it.each([
@@ -137,15 +209,20 @@ describe("reserveTracking", () => {
       { searchType: "cnpj", searchKey: CNPJ, recurrenceDays: 1.5 },
     ],
     [
+      // Nome não tem monitoramento na JUDIT (tracking-document: cpf, cnpj, oab).
       "unknown search type",
-      { searchType: "cpf", searchKey: "12345678909", recurrenceDays: 7 },
+      {
+        searchType: "name",
+        searchKey: "Padaria de Exemplo",
+        recurrenceDays: 7,
+      },
     ],
   ])("rejects %s without touching the database", async (_, input) => {
     const result = await reserveTracking(input as never);
 
     expect(result).toMatchObject({ ok: false, reason: "invalid_input" });
     expect(await listTrackings()).toHaveLength(0);
-    expect(await listCompanies()).toHaveLength(0);
+    expect(await listParties()).toHaveLength(0);
   });
 
   it("refuses a second active tracking for the same identifier", async () => {
@@ -217,7 +294,7 @@ describe("reserveTracking", () => {
     });
 
     expect(a.ok && b.ok).toBe(true);
-    expect(await listCompanies()).toHaveLength(2);
+    expect(await listParties()).toHaveLength(2);
   });
 
   it("allows many trackings not yet sent to JUDIT (null juditTrackingId)", async () => {
@@ -256,25 +333,26 @@ describe("reserveTracking", () => {
 
 describe("isDuplicateKeyError", () => {
   it("tells apart violations of different unique indexes", async () => {
-    const { companies } = collections(testDb.current!.db);
+    const { parties } = collections(testDb.current!.db);
     const doc = {
-      cnpj: CNPJ,
-      legalName: null,
+      documentType: "cnpj" as const,
+      document: CNPJ,
+      name: null,
       registrationStatus: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    await companies.insertOne({ _id: "a", ...doc });
-    const error = await companies
+    await parties.insertOne({ _id: "a", ...doc });
+    const error = await parties
       .insertOne({ _id: "b", ...doc })
       .catch((e: unknown) => e);
 
-    expect(isDuplicateKeyError(error, "companies_cnpj_unique")).toBe(true);
+    expect(isDuplicateKeyError(error, "parties_document_unique")).toBe(true);
     expect(
       isDuplicateKeyError(error, "trackings_active_search_key_unique"),
     ).toBe(false);
     expect(
-      isDuplicateKeyError(new Error("E11000"), "companies_cnpj_unique"),
+      isDuplicateKeyError(new Error("E11000"), "parties_document_unique"),
     ).toBe(false);
   });
 });
