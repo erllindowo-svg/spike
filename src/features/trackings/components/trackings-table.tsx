@@ -4,14 +4,11 @@ import {
   BellIcon,
   Building2Icon,
   EllipsisIcon,
-  PauseIcon,
-  PlayIcon,
   ScaleIcon,
   WebhookIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { ListPagination, usePaged } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
@@ -19,7 +16,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -37,14 +33,13 @@ import {
 } from "@/features/trackings/format";
 import {
   formatRecurrence,
-  getTrackingDisplayState,
   searchTypeDescriptions,
   type Tracking,
 } from "@/features/trackings/types";
 import { useSupportView } from "@/features/settings/support-view";
 import { partyHref } from "@/features/parties/documents";
 import { subjectHref } from "@/features/subjects/subjects";
-import { useDemoStore } from "@/lib/demo-store";
+import { useAppStore } from "@/lib/app-store";
 import { formatDate, formatDateTime } from "@/lib/format";
 
 import { SearchTypeBadge } from "./search-type-badge";
@@ -63,8 +58,7 @@ export function TrackingsTable({
   trackings: Tracking[];
   variant?: "full" | "compact";
 }) {
-  const { getParty, alerts, webhookEvents, setTrackingPaused, dataSource } =
-    useDemoStore();
+  const { getParty, alerts, webhookEvents } = useAppStore();
   const [supportView] = useSupportView();
   const lastEvents = getLastEventByReference(webhookEvents);
   const alertCounts = countAlertsByTracking(alerts);
@@ -80,13 +74,6 @@ export function TrackingsTable({
   // A ficha do assunto (círculo 3): todo identificador monitorado tem uma.
   function identifierHref(tracking: Tracking): string {
     return subjectHref(tracking.searchType, tracking.searchKey);
-  }
-
-  function togglePause(tracking: Tracking, paused: boolean) {
-    setTrackingPaused(tracking.id, paused);
-    toast.success(paused ? "Monitoramento pausado" : "Monitoramento retomado", {
-      description: "Alteração apenas local. Nenhuma chamada foi feita à JUDIT.",
-    });
   }
 
   return (
@@ -122,7 +109,6 @@ export function TrackingsTable({
             const lastEvent = tracking.juditTrackingId
               ? lastEvents.get(tracking.juditTrackingId)
               : undefined;
-            const state = getTrackingDisplayState(tracking);
 
             return (
               <TableRow key={tracking.id}>
@@ -159,9 +145,7 @@ export function TrackingsTable({
                       </>
                     );
                   })()}
-                  {full && (
-                    <TrackingNote tracking={tracking} dataSource={dataSource} />
-                  )}
+                  {full && <TrackingNote tracking={tracking} />}
                 </TableCell>
                 <TableCell>
                   <span title={searchTypeDescriptions[tracking.searchType]}>
@@ -183,8 +167,7 @@ export function TrackingsTable({
                 )}
                 {full && (
                   <TableCell>
-                    <TrackingAlertsLink
-                      trackingId={tracking.id}
+                    <TrackingAlertsCount
                       counts={alertCounts.get(tracking.id)}
                     />
                   </TableCell>
@@ -260,36 +243,14 @@ export function TrackingsTable({
                           ) : (
                             <DropdownMenuItem disabled>
                               <WebhookIcon />
-                              Sem eventos (item local)
+                              Sem eventos (ainda não criado na JUDIT)
                             </DropdownMenuItem>
                           ))}
-                        {dataSource === "db" && (
-                          <JuditTrackingMenuItems
-                            tracking={tracking}
-                            onRequestDelete={setDeleting}
-                            onRequestResults={trackingResults.open}
-                          />
-                        )}
-                        {dataSource === "demo" &&
-                          (state === "active" || state === "paused") && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  togglePause(tracking, state === "active")
-                                }
-                              >
-                                {state === "active" ? (
-                                  <PauseIcon />
-                                ) : (
-                                  <PlayIcon />
-                                )}
-                                {state === "active"
-                                  ? "Pausar (demonstração)"
-                                  : "Retomar (demonstração)"}
-                              </DropdownMenuItem>
-                            </>
-                          )}
+                        <JuditTrackingMenuItems
+                          tracking={tracking}
+                          onRequestDelete={setDeleting}
+                          onRequestResults={trackingResults.open}
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -329,42 +290,26 @@ function countAlertsByTracking(
   return counts;
 }
 
-function TrackingAlertsLink({
-  trackingId,
-  counts,
-}: {
-  trackingId: string;
-  counts: AlertCounts | undefined;
-}) {
+// Os alertas moram no menu do sino (círculo 7); aqui, só a contagem.
+function TrackingAlertsCount({ counts }: { counts: AlertCounts | undefined }) {
   if (!counts) return <span className="text-muted-foreground">Nenhum</span>;
   return (
-    <Link
-      href={`/monitoramentos/alertas?monitoramento=${trackingId}`}
-      className="inline-flex items-center gap-1.5 rounded-sm text-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-    >
+    <span className="inline-flex items-center gap-1.5 text-sm">
       <span className="tabular-nums">{counts.total}</span>
       {counts.unread > 0 && (
         <span className="rounded-full bg-primary/10 px-1.5 text-xs text-primary tabular-nums">
-          {counts.unread} não lidos
+          {counts.unread} {counts.unread === 1 ? "não lido" : "não lidos"}
         </span>
       )}
-    </Link>
+    </span>
   );
 }
 
 // Linha de apoio sob o identificador: o que aconteceu com a criação na
 // JUDIT, ou quando será a primeira execução.
-function TrackingNote({
-  tracking,
-  dataSource,
-}: {
-  tracking: Tracking;
-  dataSource: "demo" | "db";
-}) {
+function TrackingNote({ tracking }: { tracking: Tracking }) {
   let note: string | null = null;
-  if (!tracking.juditTrackingId && dataSource === "demo") {
-    note = "Criado localmente (sem ID da JUDIT)";
-  } else if (tracking.creation === "pending") {
+  if (tracking.creation === "pending") {
     note = tracking.creationError ?? "Reservado no banco, ainda não enviado";
   } else if (
     tracking.creation === "failed" ||

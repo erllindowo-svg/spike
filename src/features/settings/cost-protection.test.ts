@@ -32,7 +32,8 @@ describe("cost protection switch", () => {
   });
   beforeEach(async () => {
     await testDb.current!.reset();
-    vi.stubEnv("DATA_SOURCE", "db");
+    // Fictitious: getDb() is the temporary server above.
+    vi.stubEnv("MONGODB_URI", "mongodb://test.invalid");
   });
 
   it("follows the variable until the switch is used", async () => {

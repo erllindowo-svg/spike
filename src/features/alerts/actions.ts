@@ -3,20 +3,16 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 
-import { getDataSource } from "@/lib/data";
-
 import { countUnreadAlerts, markAlertRead, markAllAlertsRead } from "./db";
 
-// "Marcar como lido" no modo "db". Grava `readAt` e chama refresh(): o
-// layout relê os alertas do banco. No modo demo, a leitura fica só na
-// memória do navegador (src/lib/demo-store.tsx).
+// "Marcar como lido". Grava `readAt` e chama refresh(): o layout relê os
+// alertas do banco.
 
 export type AlertActionResult = { ok: true } | { ok: false; message: string };
 
 export async function markAlertReadAction(
   id: string,
 ): Promise<AlertActionResult> {
-  if (getDataSource() !== "db") return unavailable();
   const parsed = z.uuid().safeParse(id);
   if (!parsed.success) {
     return { ok: false, message: "Identificador de alerta inválido." };
@@ -25,10 +21,8 @@ export async function markAlertReadAction(
 }
 
 // A contagem que a aba confere de minuto em minuto (círculo 6): uma
-// contagem no MongoDB, sem a JUDIT. Nula na demonstração ou com o banco
-// fora do ar.
+// contagem no MongoDB, sem a JUDIT. Nula com o banco fora do ar.
 export async function countUnreadAlertsAction(): Promise<number | null> {
-  if (getDataSource() !== "db") return null;
   try {
     return await countUnreadAlerts();
   } catch {
@@ -41,7 +35,6 @@ export async function countUnreadAlertsAction(): Promise<number | null> {
 export async function markAllAlertsReadAction(
   trackingId?: string,
 ): Promise<AlertActionResult> {
-  if (getDataSource() !== "db") return unavailable();
   const parsed = z.uuid().optional().safeParse(trackingId);
   if (!parsed.success) {
     return { ok: false, message: "Identificador de monitoramento inválido." };
@@ -64,8 +57,4 @@ async function run(write: () => Promise<unknown>): Promise<AlertActionResult> {
       message: "Banco de dados indisponível. Tente novamente em instantes.",
     };
   }
-}
-
-function unavailable(): AlertActionResult {
-  return { ok: false, message: "Disponível só no modo banco de dados." };
 }

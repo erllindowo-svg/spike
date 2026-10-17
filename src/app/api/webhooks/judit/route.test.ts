@@ -53,7 +53,6 @@ function allLogText() {
 }
 
 beforeEach(() => {
-  vi.stubEnv("DATA_SOURCE", "db");
   vi.stubEnv("JUDIT_WEBHOOK_TOKEN", fakeWebhookToken);
   vi.stubEnv("JUDIT_WEBHOOK_FULL_PAYLOAD", "");
   saveWebhookEvent.mockReset();
@@ -167,12 +166,6 @@ describe("POST /api/webhooks/judit", () => {
 
   it("is off (404) without a token configured", async () => {
     vi.stubEnv("JUDIT_WEBHOOK_TOKEN", "");
-
-    expect((await deliver(requestCompletedDelivery)).status).toBe(404);
-  });
-
-  it("is off (404) outside the db mode", async () => {
-    vi.stubEnv("DATA_SOURCE", "demo");
 
     expect((await deliver(requestCompletedDelivery)).status).toBe(404);
   });

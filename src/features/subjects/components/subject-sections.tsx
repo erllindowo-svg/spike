@@ -51,7 +51,7 @@ export function Known({
   origin: RecordOrigin | null;
 }) {
   if (!fetchedAt) {
-    return <span>Dados fictícios da demonstração.</span>;
+    return <span>Data da consulta não registrada.</span>;
   }
   return (
     <span>

@@ -1,16 +1,11 @@
 import type { SearchEntry, SearchType, Tracking } from "@/db/models";
 import { identify, SEARCH_TYPES } from "@/features/consult/identify";
-import type { QueryView } from "@/features/queries/types";
-import type { Lawsuit } from "@/features/processes/types";
-import type { Party } from "@/features/parties/types";
 import { formatSearchKey } from "@/features/trackings/format";
 import {
   getTrackingDisplayState,
   isTrackingClosed,
 } from "@/features/trackings/types";
 import { formatDate, formatNumber } from "@/lib/format";
-
-import { buildTerms, matchesTerms, parseQuery } from "./terms";
 
 // Um resultado da busca, pronto para a barra e para o Acervo. Funções puras.
 
@@ -78,72 +73,4 @@ export function exactFirst<T extends EntryLike>(
     (e) => e.searchType === type && e.searchKey === key,
   );
   return [...exact, ...entries.filter((e) => !exact.includes(e))];
-}
-
-// Demonstração: as entradas montadas em memória com os dados fictícios, pela
-// mesma regra de termos do banco.
-export function demoEntries(data: {
-  parties: Party[];
-  lawsuits: Lawsuit[];
-  queries: QueryView[];
-  trackings: Tracking[];
-}): (EntryLike & { terms: string[] })[] {
-  const entries = new Map<string, EntryLike & { terms: string[] }>();
-  const put = (
-    searchType: SearchType,
-    searchKey: string,
-    at: Date,
-    extra: Partial<EntryLike> & { texts?: (string | null)[] } = {},
-  ) => {
-    const id = `${searchType}:${searchKey}`;
-    const current = entries.get(id);
-    const name =
-      extra.name ?? current?.name ?? (searchType === "name" ? searchKey : null);
-    entries.set(id, {
-      searchType,
-      searchKey,
-      name,
-      detail: extra.detail ?? current?.detail ?? null,
-      lawsuits: extra.lawsuits ?? current?.lawsuits ?? 0,
-      lastSeenAt: current && current.lastSeenAt > at ? current.lastSeenAt : at,
-      terms: [
-        ...new Set([
-          ...(current?.terms ?? []),
-          ...buildTerms(
-            [name, ...(extra.texts ?? [])],
-            [searchKey],
-            searchType,
-          ),
-        ]),
-      ],
-    });
-  };
-
-  for (const party of data.parties) {
-    put(party.documentType, party.document, party.updatedAt, {
-      name: party.name,
-      detail: party.registrationStatus,
-      lawsuits: data.lawsuits.filter((l) => l.partyId === party.id).length,
-    });
-  }
-  for (const l of data.lawsuits) {
-    put("cnj", l.cnj, l.lastMovementAt ?? new Date(0), {
-      detail: [l.tribunal, l.area].filter(Boolean).join(" · ") || null,
-      texts: [l.tribunal, l.area, l.className, l.subject, l.judgingBody],
-    });
-  }
-  for (const q of data.queries) put(q.searchType, q.searchKey, q.createdAt);
-  for (const t of data.trackings) put(t.searchType, t.searchKey, t.updatedAt);
-  return [...entries.values()];
-}
-
-export function searchDemoEntries(
-  text: string,
-  entries: (EntryLike & { terms: string[] })[],
-): EntryLike[] {
-  const query = parseQuery(text);
-  if (!query) return [];
-  return entries
-    .filter((e) => matchesTerms(e.terms, query))
-    .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime());
 }

@@ -17,8 +17,8 @@ import { documentSchema, normalizeDocument } from "./documents";
 export async function listParties(): Promise<Party[]> {
   const { parties } = collections(await getDb());
   const docs = await parties.find().toArray();
-  // Ordenação em memória, com as regras do português (acentos, maiúsculas),
-  // igual à demonstração. Suficiente para dezenas de partes.
+  // Ordenação em memória, com as regras do português (acentos, maiúsculas).
+  // Suficiente para dezenas de partes.
   return docs
     .map(toModel)
     .sort((a, b) =>

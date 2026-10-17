@@ -39,7 +39,7 @@ import type { Lawsuit } from "@/features/processes/types";
 import { ResponsesSummaryView } from "@/features/queries/components/responses-summary-view";
 import { TRACKING_MODES } from "@/features/queries/modes";
 import type { ResponsesSummary } from "@/features/queries/responses";
-import { SERVER_UNREACHABLE } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE } from "@/lib/app-store";
 
 import {
   deleteTrackingAction,
@@ -55,9 +55,9 @@ import {
 import { formatSearchKey } from "../format";
 import { getTrackingDisplayState, type Tracking } from "../types";
 
-// Ações sobre monitoramentos reais (modo "db"). Cada item chama uma server
+// Ações sobre monitoramentos reais. Cada item chama uma server
 // action, que fala com a JUDIT, grava o resultado no banco e chama
-// refresh(): a lista da tela é relida do MongoDB (ver demo-store.tsx).
+// refresh(): a lista da tela é relida do MongoDB (ver app-store.tsx).
 //
 // Toda chamada tem try/catch: se o servidor da aplicação não responder
 // (reiniciando, rede), a promessa rejeita. Sem o catch, o erro iria para a

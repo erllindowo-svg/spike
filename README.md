@@ -1,232 +1,113 @@
 # Raio-X Jurídico
 
-Aplicação para consultar informações de empresas e processos judiciais, criar
-monitoramentos pela API da [JUDIT](https://docs.judit.io) e acompanhar
-novidades recebidas via webhooks.
+App para consultar empresas, pessoas e processos judiciais pela API da
+[JUDIT](https://docs.judit.io), monitorá-los e receber as novidades por
+webhook. As respostas ficam numa base própria no MongoDB, para serem lidas de
+novo sem pagar outra consulta.
 
-## Estado atual
+- **Protótipo navegável, só com dados fictícios:** branch
+  [`prototipo`](https://github.com/erllindowo-svg/spike/tree/prototipo)
+  (tag `prototype-v1.0.0`). Não precisa de banco nem de chave.
+- **Como o projeto foi feito:** diário de aprendizado, catálogo de falhas,
+  escopo e relatórios de progresso estão na tag
+  [`historico-etapa-7`](https://github.com/erllindowo-svg/spike/tree/historico-etapa-7/docs).
 
-**Fase 1 — fundação técnica.** Next.js (App Router) com TypeScript strict,
-Tailwind CSS v4, shadcn/ui, Lucide React, MongoDB (driver oficial), leitura
-validada de variáveis de ambiente, validação de
-CNPJ (incluindo o formato alfanumérico) e de número CNJ, ESLint e Prettier.
+## O que o app faz
 
-**Fase 2 — interface visual com dados de demonstração.** Telas navegáveis:
+| Tela                     | O que mostra                                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `/` Consultar            | Reconhece CPF, CNPJ, CNJ, OAB, RJI ou nome e oferece as perguntas que a JUDIT responde, com o custo de cada uma |
+| `/acervo`                | Tudo o que já foi pesquisado, monitorado ou salvo, com busca                                                    |
+| `/acervo/[tipo]/[chave]` | A ficha de um assunto: o que a base própria sabe, monitoramentos, consultas feitas e as perguntas que faltam    |
+| Sino (topo)              | Alertas gerados pelos webhooks; clicar abre a ficha com o processo do alerta                                    |
+| Carteira (topo)          | Consumo do ciclo e saldo de créditos, lidos na JUDIT quando aberta                                              |
+| `/webhooks`              | Diagnóstico das entregas recebidas, com reprocessamento (vista de suporte)                                      |
+| `/configuracoes`         | Situação de cada integração (sem mostrar valores), proteção de custo e vista de suporte                         |
 
-| Rota               | Conteúdo                                                                      |
-| ------------------ | ----------------------------------------------------------------------------- |
-| `/`                | Visão geral: indicadores, distribuição processual, atividade e monitoramentos |
-| `/empresas`        | Listagem com busca por razão social ou CNPJ                                   |
-| `/empresas/[cnpj]` | Panorama da empresa, processos (com painel lateral) e monitoramentos          |
-| `/processos/[cnj]` | Detalhes e movimentações de um processo                                       |
-| `/monitoramentos`  | Acompanhamento e criação de monitoramentos por CNPJ ou CNJ                    |
-| `/alertas`         | Central de alertas com filtros e estado de leitura                            |
-| `/webhooks`        | Diagnóstico de callbacks: envelope, processamento, payload e simulação        |
-| `/configuracoes`   | Situação das integrações e restauração dos dados de demonstração              |
+## Requisitos
 
-### Fonte de dados: `DATA_SOURCE`
+- Node.js 20.9 ou superior e pnpm 12 (versão fixada em `packageManager`).
+- Um banco MongoDB (o projeto usa o MongoDB Atlas).
+- Uma chave da API da JUDIT.
 
-A variável `DATA_SOURCE` escolhe de onde o app inteiro lê os dados:
-
-- **`demo` (padrão):** dados fictícios em memória (`src/lib/mock-data.ts`).
-  Recarregar a página restaura os dados iniciais. Páginas pré-renderizadas no
-  build.
-- **`db`:** MongoDB. Empresas e monitoramentos são lidos do banco, e criar um
-  monitoramento grava nele (Server Action). Processos, alertas, webhooks e
-  atividade ainda não são persistidos e aparecem vazios. Pausar, simular
-  webhook e restaurar ficam ocultos.
-
-Onde isso acontece:
-
-- `src/lib/data.ts` é o único ponto que decide a origem. No modo `db`, chama
-  `connection()` antes de consultar o banco, para que a consulta aconteça na
-  requisição, e não no build.
-- `src/lib/demo-store.tsx` mantém o estado da interface no navegador nos dois
-  modos; no modo `db`, criar monitoramento chama
-  `src/features/trackings/actions.ts`.
-- O cabeçalho mostra qual modo está ativo.
-- Use o mesmo `DATA_SOURCE` no build e na execução: no modo `demo` as páginas
-  são geradas no build com os dados fictícios.
-
-**Atenção:** ainda não há autenticação. No modo `db`, qualquer pessoa que
-alcance a aplicação pode gravar monitoramentos (a Server Action é uma
-requisição POST comum). Não exponha a aplicação publicamente nesse modo.
-
-Ainda **não** implementado: chamadas à JUDIT pela interface, persistência de
-processos, alertas e webhooks, recebimento real de webhooks e autenticação.
-
-### Pontos levantados pela interface para o backend
-
-- Processos ainda não têm coleção; o modelo de exibição está em
-  `src/features/processes/types.ts`, com quase todos os campos opcionais.
-- Alertas precisam referenciar o processo relacionado (`lawsuitCnj`).
-- Reentregas com o mesmo `callbackId` são rejeitadas pelo índice único;
-  a interface sugere contar essas reentregas (`duplicateDeliveries`).
-- Os estados de monitoramento exibidos (`TrackingDisplayState`) são mapeados
-  a partir dos status técnicos da JUDIT em `src/features/trackings/types.ts`;
-  o mapeamento é provisório.
-
-## Pré-requisitos
-
-- Node.js 20.9 ou superior (recomendado: LTS atual).
-- pnpm 12 (`npm install -g pnpm` ou via Corepack, onde disponível). A versão
-  usada no projeto está fixada em `packageManager` no `package.json`.
-- Um cluster MongoDB (o projeto usa o MongoDB Atlas) — necessário apenas para
-  executar a aplicação com persistência. Os testes não precisam dele.
-
-## Instalação
+## Configurar e rodar
 
 ```bash
 pnpm install
 cp .env.example .env.local   # preencha os valores
-pnpm dev                     # http://localhost:3000
+pnpm env:check               # confere o que foi lido, sem mostrar segredos
+pnpm dev                     # http://127.0.0.1:3000
 ```
 
-## Variáveis de ambiente
+Sem `MONGODB_URI` ou `JUDIT_API_KEY`, o app não abre: a primeira tela lista o
+que falta e como configurar. Para as consultas saírem do servidor, defina
+também `JUDIT_LIVE_CALLS=enabled`.
 
-| Variável           | Uso                                                                     |
-| ------------------ | ----------------------------------------------------------------------- |
-| `MONGODB_URI`      | String de conexão do MongoDB (`mongodb+srv://...` no Atlas).            |
-| `MONGODB_DB`       | Nome do banco dentro do cluster. Opcional; padrão `raio_x`.             |
-| `DATA_SOURCE`      | `demo` (padrão) ou `db`. Ver "Fonte de dados".                          |
-| `JUDIT_API_KEY`    | Chave da API da JUDIT. Usada apenas no servidor.                        |
-| `JUDIT_LIVE_CALLS` | `enabled` libera chamadas reais à JUDIT; qualquer outro valor bloqueia. |
+| Variável                      | Uso                                                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `MONGODB_URI`                 | **Obrigatória.** String de conexão (`mongodb+srv://…` no Atlas)                                          |
+| `JUDIT_API_KEY`               | **Obrigatória.** Chave da API da JUDIT, usada só no servidor                                             |
+| `JUDIT_LIVE_CALLS`            | `enabled` libera as chamadas reais; qualquer outro valor barra todas antes de sair                       |
+| `MONGODB_DB`                  | Nome do banco no cluster (padrão `raio_x`)                                                               |
+| `JUDIT_ALLOWLIST`             | Modo restrito (só os documentos de teste): vazio liga, `disabled` desliga, `locked` trava ligado         |
+| `JUDIT_MAX_CALLS_PER_MINUTE`  | Limite próprio de chamadas por minuto (padrão 30)                                                        |
+| `JUDIT_DAILY_CALL_LIMIT`      | Teto diário de chamadas cobradas (padrão 50)                                                             |
+| `JUDIT_WEBHOOK_TOKEN`         | Segredo do webhook (32+ caracteres); sem ele, a rota `/api/webhooks/judit` responde 404                  |
+| `JUDIT_WEBHOOK_PUBLIC_ORIGIN` | Endereço `https` onde a JUDIT alcança o app; com ele, as consultas assíncronas pedem entrega por webhook |
+| `JUDIT_WEBHOOK_FULL_PAYLOAD`  | `enabled` grava o payload inteiro de cada webhook (só para diagnóstico)                                  |
 
-Regras:
+O `.env.example` explica cada uma. Nunca use `NEXT_PUBLIC_` para segredos nem
+versione arquivos `.env*` com valores.
 
-- As variáveis são lidas somente no servidor, por `getServerEnv()`
-  (`src/lib/env.ts`), módulo protegido por `server-only`.
-- Nunca use o prefixo `NEXT_PUBLIC_` para segredos, nunca versione arquivos
-  `.env*` (apenas `.env.example`) e não registre a chave em logs.
-- O build não exige credenciais: elas são validadas apenas quando usadas.
-- Na Vercel, cadastre as variáveis em _Project Settings → Environment Variables_.
-
-### Segredos: procedimento
-
-O repositório é público. Os valores reais ficam só no `.env.local`, fora do
-Git; o `.env.example` é a ponte entre o código e o `.env.local` e contém apenas
-nomes, sem valores.
-
-- **Inspecionar o ambiente:** `pnpm env:check` mostra os arquivos carregados e,
-  para cada variável, se está definida e o tamanho, nunca o valor secreto.
-  Também aponta nomes que o código não usa (ex.: `MONGO_URI`).
-  `pnpm env:check --db` testa a conexão com o MongoDB (ping, só leitura).
-  Use isso em vez de abrir o arquivo ou imprimir variáveis.
-- **Sincronia automática:** `src/lib/env.test.ts` (roda em `pnpm test`) falha
-  se o `.env.example` tiver um valor preenchido ou se as variáveis dele forem
-  diferentes das validadas em `src/lib/env.ts`.
-- **Agentes de IA:** podem ler o `.env.example`, mas não os arquivos com
-  segredos (regra `deny` em `.claude/settings.local.json`, só nesta máquina).
-  A regra bloqueia a ferramenta de leitura, não o terminal; por isso o
-  `pnpm env:check` é o único caminho combinado.
-- **Incidente:** se um segredo aparecer em um commit, log ou conversa, troque a
-  credencial no serviço de origem (Atlas > Database Access; painel da JUDIT).
-  Apagar o valor num commit novo não o remove do histórico.
-
-### MongoDB Atlas
-
-O cliente (`src/db/index.ts`) abre uma conexão por instância do servidor e a
-reaproveita entre requisições. Na primeira conexão, cria os índices definidos
-em `src/db/collections.ts` (`createIndex` não faz nada se o índice já existe).
-No Atlas, libere o IP de onde a aplicação roda em _Network Access_ e use um
-usuário de banco com permissão apenas no banco do projeto.
+**Atenção:** o app não tem login. Quem alcança o servidor consulta (com
+cobrança), cria monitoramentos e lê os dados guardados. Rode localmente e não
+o publique sem autenticação.
 
 ## Comandos
 
-| Comando             | Descrição                                                |
-| ------------------- | -------------------------------------------------------- |
-| `pnpm dev`          | Servidor de desenvolvimento.                             |
-| `pnpm build`        | Build de produção.                                       |
-| `pnpm start`        | Inicia o build de produção.                              |
-| `pnpm lint`         | ESLint (falha com qualquer aviso).                       |
-| `pnpm typecheck`    | Gera os tipos de rotas do Next.js e roda `tsc --noEmit`. |
-| `pnpm format`       | Formata os arquivos com Prettier.                        |
-| `pnpm format:check` | Verifica a formatação sem alterar arquivos.              |
-| `pnpm test`         | Testes (Vitest). Sem rede e sem banco externo.           |
+| Comando             | Descrição                                                         |
+| ------------------- | ----------------------------------------------------------------- |
+| `pnpm dev`          | Servidor de desenvolvimento                                       |
+| `pnpm build`        | Build de produção (não exige credenciais)                         |
+| `pnpm start`        | Serve o build de produção                                         |
+| `pnpm lint`         | ESLint (falha com qualquer aviso)                                 |
+| `pnpm typecheck`    | Gera os tipos de rotas do Next.js e roda `tsc --noEmit`           |
+| `pnpm test`         | Testes (Vitest), sem rede; os de banco usam um MongoDB temporário |
+| `pnpm format:check` | Verifica a formatação (Prettier)                                  |
+| `pnpm env:check`    | Mostra as variáveis lidas, sem valores; `--db` testa a conexão    |
+
+Na primeira execução, os testes de banco baixam o binário do `mongod`
+([mongodb-memory-server](https://github.com/typegoose/mongodb-memory-server)).
+
+## Stack
+
+Next.js 16 (App Router, Cache Components, Server Actions), React 19,
+TypeScript strict, Tailwind CSS v4, shadcn/ui (Base UI), MongoDB (driver
+oficial), Zod e Vitest.
 
 ## Estrutura
 
 ```
 src/
-  app/                    Rotas e layouts (App Router); (app)/ contém o shell
-  components/
-    ui/                   Componentes shadcn/ui
-    layout/               Sidebar, cabeçalho e busca global
-    shared/               Badges, estados vazios, gráfico, visualizador JSON
-  db/
-    models.ts             Tipos dos dados usados pela aplicação
-    collections.ts        Coleções, documentos e índices do MongoDB
-    index.ts              Conexão com o MongoDB (somente servidor)
-  features/
-    activity/             Feed de atividade recente
-    alerts/               Central de alertas
-    companies/            Empresas (validação de CNPJ, listagem, detalhe)
-    overview/             Visão geral
-    processes/            Processos (validação de CNJ, tabela, detalhes)
-    settings/             Configurações
-    trackings/            Monitoramentos (tipos, rótulos, tabela, modal)
-    webhooks/             Diagnóstico de callbacks
+  app/
+    (app)/            Telas; o layout mostra a tela de configuração se faltar algo
+    api/webhooks/     Rota que recebe os webhooks da JUDIT
+    api/dev/          Rotas de teste manual da JUDIT (só em desenvolvimento)
+  db/                 Conexão, coleções, índices e tipos do MongoDB
   lib/
-    data.ts               Funções de consulta aos dados de demonstração
-    demo-store.tsx        Estado em memória da demonstração
-    env.ts                Variáveis de ambiente do servidor
-    format.ts             Formatação de datas, números e moeda (pt-BR)
-    judit/                Integração com a API da JUDIT (futuro)
-    mock-data.ts          Dados fictícios
-    utils.ts              Utilitários compartilhados (`cn`)
+    judit/            Cliente da JUDIT: erros, proteções de custo, schemas (ver o README da pasta)
+    data.ts           Leituras do banco usadas pelas páginas
+    app-store.tsx     Listas compartilhadas pelas telas e as ações que as mudam
+    env.ts            Variáveis de ambiente do servidor
+  features/
+    consult/          Página Consultar e catálogo de perguntas
+    subjects/         Acervo e ficha de cada assunto
+    base/             Base própria: o que as respostas da JUDIT trouxeram
+    queries/          Consultas assíncronas e histórico
+    trackings/        Monitoramentos
+    webhooks/         Recebimento, idempotência e processamento (ver o README da pasta)
+    alerts/           Alertas e menu do sino
+    parties/          Empresas e pessoas
+    search/           Busca do acervo
+    settings/         Configurações, carteira, proteção de custo, vista de suporte
 ```
-
-## Banco de dados
-
-MongoDB, acessado pelo driver oficial (`mongodb`). Cada documento usa um UUID
-em texto como `_id`; as funções de persistência o convertem para `id`. Não há
-migrations: as coleções nascem na primeira inserção e os índices são criados
-por `ensureIndexes` (`src/db/collections.ts`) na conexão.
-
-- **companies** — CNPJ único (14 caracteres, sem máscara), razão social e
-  situação cadastral opcionais.
-- **trackings** — monitoramentos; `juditTrackingId` único quando preenchido
-  (nulo até a JUDIT confirmar), tipo de pesquisa (`cnpj` | `cnj`),
-  identificador, status bruto retornado pela JUDIT e recorrência em dias. O
-  índice único parcial `trackings_active_search_key_unique` permite no máximo
-  um monitoramento não excluído por identificador. Como o MongoDB não aceita
-  "diferente de" no filtro de um índice parcial, o documento guarda um campo
-  `active` (falso quando `status` é `deleted`), que quem alterar o status
-  precisa manter coerente (`activeFor`).
-- **webhook_events** — `callbackId` único quando preenchido, para impedir
-  processamento duplicado; tipo/referência do evento, payload original e
-  status de processamento (`pending`, `processing`, `processed`, `failed`,
-  `ignored`).
-- **alerts** — alertas ligados opcionalmente a empresa e evento de origem;
-  `readAt` nulo indica não lido.
-
-Campos vindos da API são `null` sempre que a JUDIT pode não fornecê-los.
-
-Diferenças em relação a um banco SQL que importam aqui:
-
-- **Sem chaves estrangeiras.** Nada impede um `companyId` que não exista; a
-  coerência depende das funções de persistência.
-- **Sem validação de formato no banco.** A validação Zod no servidor é a única
-  barreira contra dados malformados.
-- **Transações** exigem replica set, o que o Atlas já oferece. Nenhuma função
-  usa transação por enquanto.
-
-Funções de persistência (somente servidor):
-
-- `src/features/companies/db.ts` — `listCompanies`, `getCompanyByCnpj` e
-  `ensureCompany` (cria a empresa uma única vez por CNPJ).
-- `src/features/trackings/db.ts` — `listTrackings` e `createTracking`, que
-  valida a entrada no servidor e devolve `duplicate` quando o índice único
-  recusa a inserção. Só registra localmente: não cria nada na JUDIT.
-
-Os testes dessas funções rodam contra um MongoDB real e temporário
-([mongodb-memory-server](https://github.com/typegoose/mongodb-memory-server),
-dependência só de desenvolvimento), com os mesmos índices da aplicação
-(`src/db/test-db.ts`). A primeira execução baixa o binário do `mongod` (fica em
-`~/.cache/mongodb-binaries`); depois, rodam sem rede e sem `MONGODB_URI`.
-
-## Deploy
-
-O destino previsto é a Vercel. Configure `MONGODB_URI`, `JUDIT_API_KEY` e,
-se quiser outro nome de banco, `MONGODB_DB` no projeto. No Atlas, libere o
-acesso de rede para a Vercel.

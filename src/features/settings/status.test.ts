@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { describeIntegrations, readEnvFacts, type EnvFacts } from "./status";
 
 const allSet: EnvFacts = {
-  dataSource: "db",
   mongoUri: true,
   apiKey: true,
   liveCalls: true,
@@ -26,16 +25,6 @@ describe("describeIntegrations", () => {
       "info",
       "success",
       "success",
-    ]);
-  });
-
-  it("marks every integration as unused in demo mode", () => {
-    const items = describeIntegrations({ ...allSet, dataSource: "demo" });
-    expect(items.map((i) => i.tone)).toEqual([
-      "neutral",
-      "neutral",
-      "neutral",
-      "neutral",
     ]);
   });
 
@@ -87,7 +76,6 @@ describe("readEnvFacts", () => {
   it("never carries a variable's value", () => {
     const key = "fictitious-key-value-123456";
     const token = "fictitious-webhook-token-0123456789abcdef";
-    vi.stubEnv("DATA_SOURCE", "db");
     vi.stubEnv("MONGODB_URI", "mongodb+srv://user:secret@example.invalid");
     vi.stubEnv("JUDIT_API_KEY", key);
     vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
@@ -104,7 +92,6 @@ describe("readEnvFacts", () => {
   });
 
   it("reads empty variables as not set", () => {
-    vi.stubEnv("DATA_SOURCE", "db");
     vi.stubEnv("MONGODB_URI", "");
     vi.stubEnv("JUDIT_API_KEY", "  ");
     vi.stubEnv("JUDIT_LIVE_CALLS", "yes");
@@ -112,7 +99,6 @@ describe("readEnvFacts", () => {
     vi.stubEnv("JUDIT_WEBHOOK_PUBLIC_ORIGIN", "");
 
     expect(readEnvFacts()).toEqual({
-      dataSource: "db",
       mongoUri: false,
       apiKey: false,
       liveCalls: false,

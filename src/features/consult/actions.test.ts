@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Party } from "@/db/models";
-import { ensureParty, updatePartyRegistration } from "@/features/parties/db";
+import {
+  ensureParty,
+  getPartyByDocument,
+  updatePartyRegistration,
+} from "@/features/parties/db";
 import { startAsyncQueryAction } from "@/features/queries/actions";
 import { saveBatch, saveStats } from "@/features/base/db";
 import { saveSyncQuery } from "@/features/queries/db";
-import { getDataSource, getPartyByDocument, listLawsuits } from "@/lib/data";
 import {
   entityCnpjBody,
   syntheticBody,
@@ -16,14 +19,9 @@ import { runConsultAction } from "./actions";
 // The action runs with the real JUDIT client (guard, schemas, errors) and a
 // mocked fetch. The data layer, the history record and the async flow are
 // replaced; they have their own tests.
-vi.mock("@/lib/data", () => ({
-  getDataSource: vi.fn(),
-  getPartyByDocument: vi.fn(),
-  getLawsuitByCnj: vi.fn(),
-  listLawsuits: vi.fn(),
-}));
 vi.mock("@/features/parties/db", () => ({
   ensureParty: vi.fn(),
+  getPartyByDocument: vi.fn(),
   updatePartyRegistration: vi.fn(),
 }));
 vi.mock("@/features/queries/db", () => ({ saveSyncQuery: vi.fn() }));
@@ -64,7 +62,6 @@ function mockFetch(body: unknown, status = 200) {
 
 beforeEach(() => {
   vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
-  vi.mocked(getDataSource).mockReturnValue("db");
   vi.mocked(getPartyByDocument).mockReset().mockResolvedValue(party);
   vi.mocked(saveSyncQuery).mockReset();
   vi.mocked(saveBatch).mockReset();
@@ -97,7 +94,6 @@ describe("runConsultAction", () => {
 
     expect(result).toEqual({
       ok: true,
-      demo: false,
       payload: { kind: "count", total: 12 },
     });
     expect(saveSyncQuery).toHaveBeenCalledWith(
@@ -146,7 +142,6 @@ describe("runConsultAction", () => {
 
     expect(result).toEqual({
       ok: true,
-      demo: false,
       payload: { kind: "lawsuit", lawsuits: [] },
     });
     expect(saveSyncQuery).toHaveBeenCalledWith(
@@ -286,24 +281,6 @@ describe("runConsultAction", () => {
     expect(saveSyncQuery).not.toHaveBeenCalled();
   });
 
-  it("answers from the fictitious data in demo mode, without JUDIT", async () => {
-    vi.mocked(getDataSource).mockReturnValue("demo");
-    vi.mocked(listLawsuits).mockResolvedValue([]);
-
-    const result = await runConsultAction({
-      feature: "count",
-      searchType: "cnpj",
-      searchKey: TEST_CNPJ,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      demo: true,
-      payload: { kind: "count", total: 0 },
-    });
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
   it("starts the on-demand history for a saved party (moved from the party page)", async () => {
     vi.mocked(startAsyncQueryAction).mockResolvedValue({
       ok: true,
@@ -393,17 +370,6 @@ describe("runConsultAction", () => {
         searchKey: "00000000000000000000",
       });
       expect(ensureParty).not.toHaveBeenCalled();
-    });
-
-    it("is unavailable in demo mode", async () => {
-      vi.mocked(getDataSource).mockReturnValue("demo");
-      expect(
-        await runConsultAction({
-          feature: "count",
-          searchType: "name",
-          searchKey: "Padaria de Exemplo",
-        }),
-      ).toMatchObject({ ok: false, reason: "unavailable" });
     });
   });
 });

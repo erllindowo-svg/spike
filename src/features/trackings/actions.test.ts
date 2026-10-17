@@ -93,7 +93,6 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await testDb.current!.reset();
-  vi.stubEnv("DATA_SOURCE", "db");
   vi.stubEnv("JUDIT_LIVE_CALLS", "enabled");
   vi.stubEnv("JUDIT_API_KEY", "test-key");
   // Sem webhook, salvo nos testes que o ligam (fatia 8 do círculo 3).
@@ -108,18 +107,6 @@ afterAll(async () => {
 });
 
 describe("createTrackingAction", () => {
-  it("refuses to write in demo mode, even when called directly", async () => {
-    vi.stubEnv("DATA_SOURCE", "demo");
-    const fetchMock = mockFetch();
-
-    expect(await createTrackingAction(input)).toEqual({
-      ok: false,
-      reason: "unavailable",
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(await trackingsCollection().countDocuments()).toBe(0);
-  });
-
   it("reserves, sends the documented body and confirms with the tracking_id", async () => {
     const fetchMock = mockFetch(createdCnpjTrackingBody);
 

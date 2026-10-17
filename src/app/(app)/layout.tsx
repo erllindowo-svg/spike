@@ -1,22 +1,23 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { AppHeader } from "@/components/layout/app-header";
+import { SetupScreen } from "@/components/layout/setup-screen";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SupportViewProvider } from "@/features/settings/support-view";
 import { NewTrackingDialogProvider } from "@/features/trackings/components/new-tracking-dialog";
+import { AppStoreProvider } from "@/lib/app-store";
 import {
-  getDataSource,
   getInitialState,
   getSupportViewPreference,
   listParties,
-  listLawsuits,
   listQueries,
 } from "@/lib/data";
-import { DemoStoreProvider } from "@/lib/demo-store";
+import { missingRequiredEnv } from "@/lib/env";
 
-// No modo "db", os dados só são lidos na requisição; o Suspense mostra o
-// esqueleto enquanto o MongoDB responde. No modo "demo", tudo continua
-// pré-renderizado e o esqueleto não chega a aparecer.
+// Os dados só são lidos na requisição; o Suspense mostra o esqueleto
+// enquanto o MongoDB responde. Sem o banco ou a chave da JUDIT, o app não
+// abre: a tela de configuração diz o que falta (setup-screen.tsx).
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <Suspense
@@ -32,22 +33,24 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 }
 
 async function AppData({ children }: { children: React.ReactNode }) {
-  const [initialState, parties, lawsuits, queries, supportView] =
-    await Promise.all([
-      getInitialState(),
-      listParties(),
-      listLawsuits(),
-      listQueries(),
-      getSupportViewPreference(),
-    ]);
+  // O ambiente é lido na requisição, e não no build: sem isso, a tela
+  // refletiria as variáveis da máquina onde o build rodou.
+  await connection();
+  const missing = missingRequiredEnv();
+  if (missing.length > 0) return <SetupScreen missing={missing} />;
+
+  const [initialState, parties, queries, supportView] = await Promise.all([
+    getInitialState(),
+    listParties(),
+    listQueries(),
+    getSupportViewPreference(),
+  ]);
 
   return (
     <SupportViewProvider initial={supportView}>
-      <DemoStoreProvider
-        dataSource={getDataSource()}
+      <AppStoreProvider
         initialState={initialState}
         parties={parties}
-        lawsuits={lawsuits}
         queries={queries}
       >
         <NewTrackingDialogProvider>
@@ -60,7 +63,7 @@ async function AppData({ children }: { children: React.ReactNode }) {
             </main>
           </div>
         </NewTrackingDialogProvider>
-      </DemoStoreProvider>
+      </AppStoreProvider>
     </SupportViewProvider>
   );
 }

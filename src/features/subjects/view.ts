@@ -106,18 +106,3 @@ export function toSubjectView(records: SubjectRecords): SubjectView {
     })),
   };
 }
-
-// Demonstração: os processos fictícios, sem data de consulta.
-export function demoSubjectView(lawsuits: Lawsuit[]): SubjectView {
-  return {
-    ...EMPTY_SUBJECT_VIEW,
-    lawsuits: lawsuits.map((l) => ({
-      ...l,
-      kind: "lawsuit",
-      secrecyLevel: null,
-      aiSummary: null,
-      fetchedAt: null,
-      origin: null,
-    })),
-  };
-}

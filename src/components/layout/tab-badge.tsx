@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { countUnreadAlertsAction } from "@/features/alerts/actions";
-import { useDemoStore } from "@/lib/demo-store";
+import { useAppStore } from "@/lib/app-store";
 
 // Aviso na aba do navegador (círculo 6): com alertas não lidos, o ícone da
 // aba ganha um ponto vermelho e o título começa com o número ("(2) …").
@@ -22,15 +22,14 @@ const CHECK_EVERY_MS = 60_000;
 const PREFIX = /^\(\d+\+?\) /;
 
 export function TabBadge() {
-  const { alerts, dataSource } = useDemoStore();
+  const { alerts } = useAppStore();
   const unread = alerts.filter((a) => !a.readAt).length;
   const router = useRouter();
   const pathname = usePathname();
   const original = useRef<string | null>(null);
 
-  // A contagem no servidor, só no modo banco.
+  // A contagem no servidor.
   useEffect(() => {
-    if (dataSource !== "db") return;
     let stopped = false;
     const timer = window.setInterval(async () => {
       let count: number | null = null;
@@ -45,7 +44,7 @@ export function TabBadge() {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [dataSource, unread, router]);
+  }, [unread, router]);
 
   // O número no título. O Next troca o título a cada página; o observador
   // devolve o número quando isso acontece.

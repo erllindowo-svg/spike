@@ -2,7 +2,7 @@ import "server-only";
 
 import { getDb } from "@/db";
 import { collections } from "@/db/collections";
-import { getServerEnv } from "@/lib/env";
+import { getServerEnv, hasServerEnv } from "@/lib/env";
 
 // O interruptor do modo restrito (círculo 5). Quem decide, em ordem:
 //
@@ -30,7 +30,9 @@ function envDefault(): boolean {
 
 export async function getCostProtection(): Promise<CostProtection> {
   if (allowlistLocked()) return { allowlist: true, locked: true };
-  if (getServerEnv("DATA_SOURCE") !== "db") {
+  // Sem banco configurado (testes, rotas de dev), não há interruptor gravado:
+  // vale a variável. O app em si nem abre sem MONGODB_URI (setup-screen.tsx).
+  if (!hasServerEnv("MONGODB_URI")) {
     return { allowlist: envDefault(), locked: false };
   }
   try {

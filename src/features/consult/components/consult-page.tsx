@@ -3,7 +3,6 @@
 import {
   ChevronRightIcon,
   CircleCheckIcon,
-  FlaskConicalIcon,
   LibraryBigIcon,
   PlusIcon,
   RadarIcon,
@@ -13,7 +12,6 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import { DistributionChart } from "@/components/shared/distribution-chart";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,7 +33,7 @@ import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
 import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import type { Lawsuit } from "@/features/processes/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
-import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
+import { SERVER_UNREACHABLE, useAppStore } from "@/lib/app-store";
 import {
   getTrackingDisplayState,
   trackingDisplayLabels,
@@ -54,11 +52,7 @@ import { formatDateTime, formatNumber, lowerFirst } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { runConsultAction, type ConsultResult } from "../actions";
-import {
-  demoUnavailable as isDemoUnavailable,
-  QuestionActions,
-  QuestionOption,
-} from "./question-parts";
+import { QuestionActions, QuestionOption } from "./question-parts";
 import { featuresFor, trackingFor, type ConsultFeatureId } from "../catalog";
 import {
   fieldDisplay,
@@ -84,7 +78,7 @@ const TYPE_HINT =
 
 export function ConsultPage() {
   const searchParams = useSearchParams();
-  const { parties, dataSource } = useDemoStore();
+  const { parties } = useAppStore();
   const { openNewTracking } = useNewTrackingDialog();
   const [value, setValue] = useState(searchParams.get("valor") ?? "");
   // Escolha feita em "não é isso?" (ou na URL, ?tipo=). Vale só enquanto o
@@ -117,9 +111,6 @@ export function ConsultPage() {
     features.find((f) => f.id === featureId) ?? features[0] ?? null;
   const tracking =
     target && feature ? trackingFor(feature.id, target.type) : null;
-  // Os dados fictícios só têm empresas, pessoas e processos (D7).
-  const demoUnavailable =
-    !!target && isDemoUnavailable(dataSource, target.type);
   const party =
     target && isDocumentType(target.type)
       ? parties.find(
@@ -309,7 +300,6 @@ export function ConsultPage() {
               aiSummary={aiSummary}
               onAiSummaryChange={setAiSummary}
               running={running}
-              unavailable={demoUnavailable}
               onRun={run}
               onMonitor={() => monitor(true)}
             />
@@ -322,12 +312,6 @@ export function ConsultPage() {
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center gap-2">
               {feature.question}
-              {result.ok && result.demo && (
-                <StatusBadge tone="warning">
-                  <FlaskConicalIcon className="size-3" aria-hidden />
-                  Dados fictícios
-                </StatusBadge>
-              )}
             </CardTitle>
             <CardDescription>
               {SEARCH_TYPES[target.type].label}{" "}
@@ -384,13 +368,6 @@ export function ConsultPage() {
             )}
           </CardContent>
         </Card>
-      )}
-
-      {dataSource !== "db" && (
-        <p className="text-xs text-muted-foreground">
-          Demonstração: as respostas vêm dos dados fictícios, e as consultas
-          assíncronas e por OAB, nome ou RJI não existem.
-        </p>
       )}
 
       {target && known?.known && (
@@ -470,7 +447,7 @@ function CapturedCard({
   context: SubjectContext;
   onSelect: (lawsuit: Lawsuit) => void;
 }) {
-  const { trackings } = useDemoStore();
+  const { trackings } = useAppStore();
   const { view, queries } = context;
   const lawsuits = view.lawsuits.filter((l) => l.kind === "lawsuit");
   const executions = view.lawsuits.filter((l) => l.kind === "execution");

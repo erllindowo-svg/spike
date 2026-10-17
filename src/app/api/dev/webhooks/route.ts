@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { listRecentWebhookEvents } from "@/features/webhooks/db";
 import { notFoundResponse, readQuery } from "@/lib/judit/dev-route";
-import { getServerEnv } from "@/lib/env";
 
 // Development-only: the latest webhook deliveries stored by
 // src/app/api/webhooks/judit, to check a real test without opening Atlas.
@@ -18,12 +17,7 @@ const querySchema = z.strictObject({
 export async function GET(request: Request) {
   // Read the request before anything else so this GET is never prerendered.
   const query = readQuery(request, querySchema);
-  if (
-    process.env.NODE_ENV !== "development" ||
-    getServerEnv("DATA_SOURCE") !== "db"
-  ) {
-    return notFoundResponse();
-  }
+  if (process.env.NODE_ENV !== "development") return notFoundResponse();
   if (!query.ok) return query.response;
 
   return Response.json(await listRecentWebhookEvents(query.data.limit ?? 10));

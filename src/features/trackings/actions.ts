@@ -18,7 +18,6 @@ import {
   summarizeResponses,
   type ResponsesSummary,
 } from "@/features/queries/responses";
-import { getDataSource } from "@/lib/data";
 import {
   JuditApplicationError,
   JuditGuardError,
@@ -62,25 +61,13 @@ import { formatRecurrence } from "./types";
 // ou excluído. Desligar JUDIT_LIVE_CALLS não o interrompe: só impede o nosso
 // servidor de fazer chamadas.
 //
-// Ainda não há autenticação: no modo "db", quem alcança a aplicação pode
+// Ainda não há autenticação: quem alcança a aplicação pode
 // criar e excluir monitoramentos. A aplicação não deve ficar pública.
 
-type Unavailable = {
-  ok: false;
-  reason: "unavailable" | "invalid";
-  message: string;
-};
+type Invalid = { ok: false; reason: "invalid"; message: string };
 
 // A conferência não permitiu concluir nada: o registro continua como estava.
 type Inconclusive = { ok: false; reason: "inconclusive"; message: string };
-
-function unavailable(): Unavailable {
-  return {
-    ok: false,
-    reason: "unavailable",
-    message: "Monitoramentos reais só funcionam no modo banco de dados.",
-  };
-}
 
 // --- Criação: reserva no banco + envio à JUDIT ----------------------------
 
@@ -98,14 +85,11 @@ export type CreateTrackingActionResult =
       message: string;
     })
   | Exclude<CreateTrackingResult, { ok: true }>
-  | { ok: false; reason: "unavailable" | "error" };
+  | { ok: false; reason: "error" };
 
 export async function createTrackingAction(
   input: NewTrackingRequest,
 ): Promise<CreateTrackingActionResult> {
-  // No modo de demonstração, nada pode ser gravado no banco.
-  if (getDataSource() !== "db") return { ok: false, reason: "unavailable" };
-
   try {
     // Passo 1: a reserva. O índice único recusa duplicatas aqui, antes de
     // qualquer chamada cobrada.
@@ -136,7 +120,7 @@ export async function createTrackingAction(
 
 export type TrackingActionResult =
   | { ok: true; tracking: Tracking; message: string }
-  | Unavailable
+  | Invalid
   | Inconclusive
   | JuditActionFailure;
 
@@ -145,7 +129,6 @@ export type TrackingActionResult =
 export async function sendTrackingAction(
   id: string,
 ): Promise<TrackingActionResult> {
-  if (getDataSource() !== "db") return unavailable();
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) return invalid("Identificador inválido.");
 
@@ -164,8 +147,7 @@ export async function sendTrackingAction(
 // Descarta uma reserva que nunca foi enviada. Não chama a JUDIT.
 export async function discardTrackingAction(
   id: string,
-): Promise<{ ok: true } | Unavailable> {
-  if (getDataSource() !== "db") return unavailable();
+): Promise<{ ok: true } | Invalid> {
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) return invalid("Identificador inválido.");
 
@@ -331,7 +313,6 @@ const RECONCILE_AFTER_MS = 2 * 60 * 1000;
 export async function reconcileTrackingAction(
   id: string,
 ): Promise<TrackingActionResult> {
-  if (getDataSource() !== "db") return unavailable();
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) return invalid("Identificador inválido.");
 
@@ -480,7 +461,7 @@ export async function deleteTrackingAction(
 
 export type TrackingResultsActionResult =
   | { ok: true; tracking: Tracking; results: ResponsesSummary }
-  | Unavailable
+  | Invalid
   | JuditActionFailure;
 
 // GET /responses/tracking/{tracking_id}: o que as execuções encontraram. A
@@ -489,7 +470,6 @@ export type TrackingResultsActionResult =
 export async function trackingResultsAction(
   id: string,
 ): Promise<TrackingResultsActionResult> {
-  if (getDataSource() !== "db") return unavailable();
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) return invalid("Identificador inválido.");
 
@@ -539,7 +519,6 @@ async function withConfirmedTracking(
     juditTrackingId: string,
   ) => Promise<{ tracking: Tracking; message: string }>,
 ): Promise<TrackingActionResult> {
-  if (getDataSource() !== "db") return unavailable();
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) return invalid("Identificador inválido.");
 
@@ -580,7 +559,7 @@ function dateOnly(date: Date): string {
 
 const idSchema = z.string().min(1).max(100);
 
-function invalid(message: string): Unavailable {
+function invalid(message: string): Invalid {
   return { ok: false, reason: "invalid", message };
 }
 

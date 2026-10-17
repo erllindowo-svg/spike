@@ -3,8 +3,6 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 
-import { getDataSource } from "@/lib/data";
-
 import { processWebhookEvent, type ProcessResult } from "./process";
 
 // "Reprocessar" da tela /webhooks: roda as mesmas regras do processamento
@@ -17,12 +15,6 @@ export type ReprocessResult =
 export async function reprocessWebhookEventAction(
   eventId: string,
 ): Promise<ReprocessResult> {
-  if (getDataSource() !== "db") {
-    return {
-      ok: false,
-      message: "Reprocessar só funciona no modo banco de dados.",
-    };
-  }
   const parsed = z.uuid().safeParse(eventId);
   if (!parsed.success) {
     return { ok: false, message: "Identificador de evento inválido." };

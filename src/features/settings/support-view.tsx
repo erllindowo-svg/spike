@@ -20,9 +20,7 @@ import {
 //
 // useSyncExternalStore lê o cookie sem divergir do HTML do servidor: no
 // servidor e na hidratação vale o valor que o layout leu do mesmo cookie
-// (SupportViewProvider). No modo "db", os dois coincidem e a página já nasce
-// com a vista certa. Na demonstração, as páginas são pré-renderizadas sem
-// cookie: a página nasce com a vista desligada e liga logo depois.
+// (SupportViewProvider), então a página já nasce com a vista certa.
 
 const CHANGE_EVENT = "raio-x:vista-suporte";
 
