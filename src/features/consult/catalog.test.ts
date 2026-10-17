@@ -4,6 +4,7 @@ import {
   CONSULT_FEATURES,
   consultableTypes,
   featuresFor,
+  purposeFor,
   trackingFor,
 } from "./catalog";
 
@@ -34,5 +35,14 @@ describe("consult catalog", () => {
     expect(trackingFor("registration", "cnpj")).toBeNull();
     expect(trackingFor("warrants", "cpf")).toBeNull();
     expect(trackingFor("criminal_execution", "cpf")).toBeNull();
+  });
+
+  it("explains each query for the recognized identifier (circle 3B)", () => {
+    expect(purposeFor("registration", "cpf")).toContain("pessoa");
+    expect(purposeFor("registration", "cpf")).not.toContain("empresa");
+    expect(purposeFor("registration", "cnpj")).toContain("empresa");
+    expect(purposeFor("warrants", "rji")).toContain("RJI");
+    // Without its own text, the general one of the modality.
+    expect(purposeFor("count", "oab")).toContain("total de processos");
   });
 });

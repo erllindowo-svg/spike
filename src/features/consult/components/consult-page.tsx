@@ -62,6 +62,7 @@ import { runConsultAction, type ConsultResult } from "../actions";
 import {
   featureInfo,
   featuresFor,
+  purposeFor,
   trackingFor,
   type ConsultFeatureId,
 } from "../catalog";
@@ -326,7 +327,7 @@ export function ConsultPage() {
             </div>
 
             <p className="max-w-3xl text-sm text-muted-foreground">
-              {featureInfo(feature.id).purpose}
+              {purposeFor(feature.id, target.type)}
             </p>
 
             {feature.id === "lawsuit_async" && (

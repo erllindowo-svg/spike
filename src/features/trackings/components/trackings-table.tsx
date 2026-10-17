@@ -223,7 +223,7 @@ export function TrackingsTable({
                             }
                           >
                             <Building2Icon />
-                            Ver empresa
+                            Abrir ficha
                           </DropdownMenuItem>
                         )}
                         {tracking.searchType === "cnj" && href && (

@@ -1633,6 +1633,12 @@ Coleção derivada `search_entries` (termos com índice comum, opção B), barra
 
 O círculo 3B seguiu o método dos círculos que o projeto adotou na etapa 7: cada volta implementa tudo o que foi decidido e a seguinte retoma os pormenores. É uma forma de desenvolvimento iterativo e incremental: o produto inteiro muda de forma a cada volta, em vez de ser decidido todo no papel antes. O usuário revisou as telas de cima para baixo, página por página, e o agente devolveu cada observação separada, com crítica, antes de codificar. Duas decisões vieram da conversa: o nome Acervo (em vez de "Dados", que confundiria com "dados cadastrais") e a opção B para a busca (portável, testável e barata), deixando o Atlas Search como extra. A posição do "Já capturado" foi escolhida pelo propósito: servir de referência sem interromper o fluxo de consultar.
 
+### 2026-10-17 / Círculo 3B: "empresa" no texto de um CPF
+
+**Resumo técnico**
+
+O usuário viu "dados cadastrais da empresa" ao consultar um CPF. A chamada estava certa (a mesma `POST /entities` para os dois); o texto era um só por modalidade. Agora a explicação depende do identificador (`purposeFor`), e "Papel da empresa" virou "Papel da parte". Lição: texto genérico escrito para um caso vira erro quando o caso se amplia.
+
 ---
 
 ## Perguntas e respostas

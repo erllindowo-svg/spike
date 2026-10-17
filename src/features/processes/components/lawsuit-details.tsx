@@ -91,7 +91,7 @@ export function LawsuitDetails({ lawsuit }: { lawsuit: Lawsuit }) {
         <InfoItem label="Área">{lawsuit.area}</InfoItem>
         <InfoItem label="Classe processual">{lawsuit.className}</InfoItem>
         <InfoItem label="Assunto">{lawsuit.subject}</InfoItem>
-        <InfoItem label="Papel da empresa">
+        <InfoItem label="Papel da parte">
           {lawsuit.partyRole ? partyRoleLabels[lawsuit.partyRole] : null}
         </InfoItem>
         <InfoItem label="Distribuição">

@@ -208,6 +208,35 @@ export function featureInfo(id: ConsultFeatureId) {
   return QUERY_MODES[consultFeature(id).mode];
 }
 
+// A explicação de uma consulta para o identificador reconhecido (círculo
+// 3B): a mesma chamada da JUDIT serve a CPF e CNPJ, mas o texto não pode
+// falar em "empresa" para uma pessoa. Sem texto próprio, vale o geral da
+// modalidade (QUERY_MODES).
+const PURPOSES: Partial<
+  Record<ConsultFeatureId, Partial<Record<SearchType, string>>>
+> = {
+  registration: {
+    cnpj: "Razão social, nome fantasia e situação cadastral da empresa na Receita Federal, pela base da JUDIT.",
+    cpf: "Nome e situação cadastral da pessoa na Receita Federal, pela base da JUDIT.",
+    name: "Cadastros de pessoas ou empresas com esse nome. Pode trazer homônimos.",
+  },
+  warrants: {
+    cpf: "Mandados de prisão e de recaptura ligados à pessoa, com a situação de cada um.",
+    name: "Mandados ligados a pessoas com esse nome. Pode trazer homônimos.",
+    rji: "Mandados ligados ao registro da pessoa no BNMP (RJI), com a situação de cada um.",
+  },
+  criminal_execution: {
+    cpf: "Processos de cumprimento de pena ligados à pessoa, com andamentos.",
+    cnpj: "Processos de cumprimento de pena ligados à empresa, com andamentos.",
+    name: "Processos de cumprimento de pena de pessoas com esse nome. Pode trazer homônimos.",
+    cnj: "A execução penal ligada a este processo, com andamentos.",
+  },
+};
+
+export function purposeFor(id: ConsultFeatureId, type: SearchType): string {
+  return PURPOSES[id]?.[type] ?? featureInfo(id).purpose;
+}
+
 // O monitoramento que acompanha esta consulta para este identificador, ou
 // null (dados cadastrais, mandados, execução penal, busca por nome).
 export function trackingFor(

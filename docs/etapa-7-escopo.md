@@ -1396,3 +1396,11 @@ Observações do usuário, de cima para baixo, depois do círculo 3
   por um script que digita na barra, no campo da página e no filtro do
   Acervo, com capturas de tela. No modo banco, a busca só fica completa
   depois de reiniciar o `pnpm dev` (a reconstrução roda na conexão).
+- **Texto por identificador (observação do usuário).** A explicação embaixo
+  das perguntas falava em "empresa" para um CPF. A consulta estava certa
+  (`POST /entities` serve a CPF e CNPJ); o texto vinha de um só por
+  modalidade, escrito quando o app só tinha empresas. Agora
+  `purposeFor(consulta, tipo)` (`catalog.ts`) dá o texto do identificador
+  reconhecido (dados cadastrais, mandados, execução penal), e os textos
+  gerais de `modes.ts` ficaram neutros. Pelo mesmo motivo, "Papel da
+  empresa" virou "Papel da parte" e "Ver empresa" virou "Abrir ficha".

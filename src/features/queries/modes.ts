@@ -57,7 +57,7 @@ export const QUERY_MODES = {
     flow: "sync",
     sources: "Base de dados da JUDIT (cadastro da Receita Federal).",
     purpose:
-      "Razão social e situação cadastral da empresa, na resposta da própria chamada.",
+      "Nome e situação cadastral na Receita Federal (de uma empresa ou de uma pessoa), na resposta da própria chamada.",
     cost: "Cobrada por requisição.",
     docsUrl: "https://docs.judit.io/registration-data/registration-data",
   },
@@ -127,7 +127,7 @@ export const QUERY_MODES = {
     flow: "async",
     sources: "Banco Nacional de Mandados de Prisão (BNMP).",
     purpose:
-      "Mandados de prisão e de recaptura ligados a um CPF, com a situação de cada um.",
+      "Mandados de prisão e de recaptura ligados a uma pessoa (por CPF, nome ou RJI), com a situação de cada um.",
     cost: "Cobrada por requisição.",
     docsUrl: "https://docs.judit.io/criminal-consultation/warrant",
   },
@@ -137,7 +137,7 @@ export const QUERY_MODES = {
     flow: "async",
     sources: "Processos de execução penal nos tribunais.",
     purpose:
-      "Processos de cumprimento de pena ligados ao documento, com andamentos.",
+      "Processos de cumprimento de pena ligados a uma pessoa, empresa ou processo, com andamentos.",
     cost: "Cobrada por requisição.",
     docsUrl: "https://docs.judit.io/criminal-consultation/criminal-execution",
   },

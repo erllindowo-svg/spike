@@ -120,7 +120,7 @@ export function LawsuitsTable({
               <TableHead>Número CNJ</TableHead>
               <TableHead>Tribunal</TableHead>
               <TableHead>Área / classe</TableHead>
-              <TableHead>Papel da empresa</TableHead>
+              <TableHead>Papel da parte</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Última movimentação</TableHead>
             </TableRow>
