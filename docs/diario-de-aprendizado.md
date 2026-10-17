@@ -452,6 +452,29 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Prevenção: testes das duas funções; teste no navegador que o usuário usa, não só no do agente.
 - Lição de suporte: "no meu computador funciona" não encerra um ticket de tela. Pedir a captura e o navegador de quem reclamou, e desconfiar de soluções que dependem de sobrepor elementos.
 
+**M1. A proteção de custo volta a barrar documentos mesmo desligada.** _Previsto em 2026-10-17 (círculo 5)._
+
+- Sinal: a consulta responde "fora da allowlist" logo depois de o interruptor ser desligado; no terminal, `[cost] falha ao ler o interruptor; modo restrito`.
+- Camada: banco (leitura do interruptor) ou ambiente.
+- Hipóteses: (1) o MongoDB não respondeu, e o app escolheu o modo restrito por segurança; (2) `JUDIT_ALLOWLIST=locked` no ambiente, que vence o interruptor.
+- Teste que separou: procurar `[cost]` no log; conferir a variável; no Atlas, ver o documento `cost-protection` da coleção `app_settings`.
+- Lição de suporte: na dúvida, o app prefere barrar a gastar. "Não consigo consultar" pode ser essa escolha, e não um defeito.
+
+**M2. A busca não acha um número pelo grupo do meio, nem um processo pelo estado.** _Previsto em 2026-10-17 (círculo 5)._
+
+- Sinal: "Dado não encontrado" para "982" ou "Roraima", embora o assunto esteja no Acervo.
+- Camada: aplicação (busca derivada).
+- Hipótese principal: as entradas foram montadas pelas regras antigas e a remontagem só roda na conexão com o banco; o `pnpm dev` não foi reiniciado.
+- Teste que separou: no terminal, `[search] busca montada` depois de reiniciar; no Atlas, o campo `termsVersion` das entradas de `search_entries`.
+- Lição de suporte: uma mudança nas regras da busca só vale para o que foi montado depois dela.
+
+**M3. A carteira mostra "Sem permissão" ou "Indisponível para esta conta".** _Previsto em 2026-10-17 (círculo 5)._
+
+- Sinal: ao abrir a carteira, o consumo diz "Sem permissão" e o saldo diz "Indisponível para esta conta".
+- Camada: JUDIT (conta e chave).
+- Causa provável: o consumo exige chave administrativa; o saldo é só do pré-pago (caso K1).
+- Lição de suporte: a carteira mostra o que a chave pode ler; trocar a chave resolve, não o código.
+
 ### Modelo para novos casos
 
 ```
@@ -588,6 +611,13 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 - Contexto: o círculo 3 quer reconhecer o identificador só pela digitação. O único exemplo de RJI ([warrant](https://docs.judit.io/criminal-consultation/warrant)) é `"00000000000000000000"`: 20 dígitos, como o CNJ sem máscara. Os exemplos de OAB discordam entre UF antes e depois (`SP123456`, `123456SP`, `99999RJ`; README item 47).
 - Dúvidas: o RJI do BNMP 2.0 tem letras, dígito verificador ou só números? A API aceita a OAB nas duas ordens? Com ou sem barra e zeros à esquerda?
 - Impacto: decide a regra que separa CNJ de RJI e o que normalizar na OAB antes de enviar.
+- Resposta:
+
+**IK16. Ler o saldo ou o consumo da conta é cobrado?** _Aberta desde 2026-10-17._
+
+- Contexto: a carteira (círculo 5) lê `GET /credits/balance` e `GET /billing/consumption` ao abrir. As duas páginas da documentação não têm o selo "Cobrança por requisição" nem o selo "Grátis".
+- Dúvidas: essas leituras são cobradas? Em quanto tempo uma chamada aparece no consumo?
+- Impacto: se forem grátis, a carteira pode ler sozinha a cada poucos minutos.
 - Resposta:
 
 ---
@@ -1696,6 +1726,16 @@ O usuário ligou duas pontas soltas: a vista de suporte, que só ficaria se ganh
 **Resumo técnico**
 
 Plano fechado em oito fatias: cabeçalho sem ⓘ, Consultar com campo no meio e deslize, busca pelos grupos do número, estados dos tribunais, carteira com contador, interruptor de custo no modo desenvolvedor, consulta pela ficha do Acervo e fechamento. Atlas Search, login e PIN ficam para a etapa 8.
+
+### 2026-10-17 / Círculo 5 implementado
+
+**Resumo técnico**
+
+Sete fatias, uma por commit: sem o ⓘ; Consultar com o campo no meio e o deslize; busca pelos grupos do número e pelo estado do tribunal; carteira com contador; interruptor de custo no modo desenvolvedor; consulta e monitoramento pela ficha. 385 testes; conferido no Firefox.
+
+**Como pensamos (resumo do agente)**
+
+Cada fatia seguiu a decisão do usuário, e onde ele deixou a escolha, o agente escolheu o caminho mais simples de explicar: o deslize só com CSS; o contador da carteira contando no banco do app, sem chamar a JUDIT; a ficha relendo o servidor em vez de desenhar o resultado de novo. Dois cuidados de suporte: o interruptor falha para o lado seguro (sem banco, modo restrito), e a busca se remonta sozinha quando as regras mudam.
 
 ---
 

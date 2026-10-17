@@ -1706,3 +1706,60 @@ Lista final, depois das respostas do usuário. Um commit por fatia.
 Fora do círculo 5 (etapa 8): Atlas Search; login e outras tomadas; PIN por
 conta para o suporte desligar a proteção; leitura periódica do saldo (se a
 pergunta IK disser que é grátis).
+
+## Implementação do círculo 5 (2026-10-17)
+
+Uma fatia por commit, na ordem do plano:
+
+1. **Sem o ⓘ** (`054b8b0`). Saiu o texto de ajuda de cada página
+   (`navigation.ts`); fora das duas páginas principais, o cabeçalho mostra
+   só o título.
+2. **Consultar** (`ba67559`). Título "Qual documento você quer consultar?";
+   a linha embaixo da caixa mostra os tipos (o nome no fim) e vira a
+   mensagem durante a digitação. Com a caixa vazia, o bloco ocupa a altura
+   da tela e o campo fica no meio, num cartão estreito. No primeiro
+   reconhecimento, a altura mínima encolhe e o cartão se alarga (transição
+   de CSS, 500 ms): o campo sobe; as perguntas entram deslizando, uma depois
+   da outra (`tw-animate-css`, já no projeto). Volta ao meio só com a caixa
+   vazia. `prefers-reduced-motion` desliga as animações.
+3. **Grupos do número na busca** (`6a0f29d`). `buildTerms` recebe o tipo e
+   acrescenta os grupos do número formatado de CPF, CNPJ e CNJ. Cada
+   entrada grava `termsVersion`; na conexão, entradas de versão antiga
+   fazem a busca ser remontada (`rebuildSearchEntriesIfStale`).
+4. **Estados dos tribunais** (`59347f1`). `cnj-states.ts`: segmento J.TR do
+   CNJ → estados (Justiça Estadual, Eleitoral e Militar Estadual pelo
+   código do estado; TRFs e TRTs pelas regiões; tribunais nacionais sem
+   estado). Fonte: Resolução CNJ nº 65/2008, não a JUDIT. Os termos do
+   estado entram nos processos (TERMS_VERSION 3).
+5. **Carteira** (`5e486d7`). Ícone no topo; abrir lê
+   `readJuditAccountAction` (saldo e consumo) e mostra a hora da leitura;
+   a leitura das Configurações virou um componente comum
+   (`account-reading.tsx`). Contador: de minuto em minuto, com a página
+   visível, `billedCallsSinceAction` conta no MongoDB as chamadas cobradas
+   desde o último aviso; com 10 ou mais, um aviso com "Abrir carteira". O
+   marco do último aviso fica no navegador. Na demonstração, carteira
+   fictícia.
+6. **Interruptor de custo** (`060c204`). Coleção `app_settings`
+   (`cost-protection.ts`); o `guard.ts` lê o modo restrito em vigor
+   (`assertAllowedSearchKey` ficou assíncrona). Ordem: `locked` → o
+   interruptor, se já usado → a variável. Erro ao ler o banco: modo
+   restrito. Em Configurações, com a vista de suporte ligada e sem trava, o
+   interruptor (componente novo `ui/switch.tsx`, do Base UI); desligar pede
+   confirmação. A linha "API da JUDIT" deixou de afirmar a allowlist, que é
+   assunto da linha "Proteção de custo".
+7. **Consulta pela ficha** (`4b31102`). `question-parts.tsx` (o cartão da
+   pergunta e o bloco de ação) é comum a Consultar e à ficha;
+   `ask-here.tsx` consulta na ficha, com o mesmo deslize, e relê a página
+   no servidor depois. O cartão de monitoramento abre o diálogo
+   ("Monitorar"). Na demonstração, a ficha não guarda o resultado e o aviso
+   diz isso.
+
+**Conferência:** 385 testes (novos: máscara do campo, grupos e estados na
+busca, remontagem por versão, estados do CNJ, interruptor com MongoDB
+temporário, trava `locked`); lint, typecheck, format e build. No Firefox
+(o navegador do usuário), conduzido por script: Consultar e Configurações
+no servidor do usuário (modo banco, sem chamar a JUDIT); carteira e ficha
+no build de demonstração, com capturas. **Não verificado:** a carteira e a
+consulta pela ficha com a JUDIT real; o interruptor sendo acionado (gravaria
+no banco do usuário); o aviso do contador (precisa de 10 chamadas
+cobradas); a página no celular.
