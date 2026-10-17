@@ -1134,3 +1134,24 @@ Fora do círculo 3: login e "tomadas" do back-end, o destino da vista de
 suporte e o que vai em Configurações (círculo 4); anexos, filtros avançados,
 Diário Oficial e histórico da conta (candidatos já listados). Depois do
 círculo 3 (ou do 4), o fechamento da etapa 7: os dois produtos separados.
+
+## Implementação do círculo 3 (2026-10-17)
+
+Registro por fatia, na ordem do plano. Decisões tomadas pelo agente durante a
+implementação ficam marcadas como _decisão do agente_.
+
+1. **Reconhecimento de identificadores** (`src/features/consult/identify.ts`).
+   `identify(texto)` devolve `empty`, `incomplete` (o que ainda pode estar
+   sendo digitado), `invalid` (tamanho certo, verificador errado) ou
+   `recognized` (candidatos: o primeiro é o reconhecido; os outros vão para
+   "não é isso?"). `parseSearchKey(tipo, texto)` é a mesma regra para o
+   servidor. Tipo novo `SearchType` em `src/db/models.ts` (cpf, cnpj, cnj,
+   oab, name, rji). `detectDocument` saiu; a página Consultar e a barra de
+   pesquisa usam `identify`. _Decisões do agente:_ com máscara (`/` de CNPJ,
+   `NNNNNNN-DD.` de CNJ, `NNN.NNN` de CPF), o tipo segue a máscara mesmo pela
+   metade; sem máscara, 11 dígitos que formam um CPF válido são CPF (ao
+   digitar o 12º, deixam de ser); um CNJ válido traz RJI como alternativa;
+   20 dígitos que não formam CNJ são RJI, com uma nota dizendo que, se era um
+   processo, o número está errado; OAB aceita as duas ordens e o prefixo
+   "OAB", com UF válida, e é gravada como número + UF (hipótese, README
+   item 47); nome pede ao menos 5 caracteres e traz a nota de homônimos.

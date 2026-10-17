@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatCpf, isValidCpf, maskCpf } from "./cpf";
-import {
-  detectDocument,
-  displayDocument,
-  partyHref,
-  partyRefSchema,
-} from "./documents";
+import { displayDocument, partyHref, partyRefSchema } from "./documents";
 
 // Fictitious documents: CPFs starting with zeros, the JUDIT test CNPJ.
 const CPF = "00000000191";
@@ -27,19 +22,6 @@ describe("CPF", () => {
 });
 
 describe("documents", () => {
-  it("recognizes the type by the format", () => {
-    expect(detectDocument("000.000.001-91")).toEqual({
-      type: "cpf",
-      document: CPF,
-    });
-    expect(detectDocument("A1.B2C.3D4/E5F6-68")).toEqual({
-      type: "cnpj",
-      document: CNPJ,
-    });
-    expect(detectDocument("Padaria de Exemplo")).toBeNull();
-    expect(detectDocument("000.000.001-92")).toBeNull();
-  });
-
   it("shows the whole CNPJ but masks the CPF in lists", () => {
     expect(displayDocument("cnpj", CNPJ)).toBe("A1.B2C.3D4/E5F6-68");
     expect(displayDocument("cpf", CPF)).toBe("***.000.001-**");

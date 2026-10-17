@@ -1,11 +1,11 @@
 import type { Party, QuerySearchType, Tracking } from "@/db/models";
+import { identify } from "@/features/consult/identify";
 import {
-  detectDocument,
   displayDocument,
   DOCUMENTS,
   partyHref,
 } from "@/features/parties/documents";
-import { formatCnj, isValidCnj, normalizeCnj } from "@/features/processes/cnj";
+import { formatCnj, normalizeCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
 import { isTrackingClosed } from "@/features/trackings/types";
 
@@ -114,9 +114,10 @@ export function buildSuggestions(
 function consultTarget(
   query: string,
 ): { type: QuerySearchType; key: string } | null {
-  if (isValidCnj(query) && /^[\d.\-\s]+$/.test(query)) {
-    return { type: "cnj", key: normalizeCnj(query) };
-  }
-  const document = detectDocument(query);
-  return document ? { type: document.type, key: document.document } : null;
+  const result = identify(query);
+  if (result.status !== "recognized") return null;
+  const { type, key } = result.candidates[0];
+  return type === "cnpj" || type === "cpf" || type === "cnj"
+    ? { type, key }
+    : null;
 }

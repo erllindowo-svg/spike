@@ -66,26 +66,6 @@ export function documentSchema(type: DocumentType) {
 
 export const documentTypeSchema = z.enum(DOCUMENT_TYPES);
 
-// Reconhece o tipo pelo formato: 11 dígitos com verificadores de CPF, ou 14
-// caracteres com verificadores de CNPJ. Sem reconhecer, null.
-export function detectDocument(
-  value: string,
-): { type: DocumentType; document: string } | null {
-  const cpf = normalizeCpf(value);
-  if (
-    /^[\d.\-\s]+$/.test(value.trim()) &&
-    cpf.length === 11 &&
-    isValidCpf(cpf)
-  ) {
-    return { type: "cpf", document: cpf };
-  }
-  const cnpj = normalizeCnpj(value);
-  if (cnpj.length === 14 && isValidCnpj(cnpj)) {
-    return { type: "cnpj", document: cnpj };
-  }
-  return null;
-}
-
 // Página da parte, pelo tipo e documento.
 export function partyHref(type: DocumentType, document: string): string {
   return `${DOCUMENTS[type].basePath}/${document}`;

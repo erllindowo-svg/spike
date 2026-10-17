@@ -7,6 +7,11 @@
 // nome ficam para depois (escolha R1 em docs/etapa-7-escopo.md).
 export type DocumentType = "cnpj" | "cpf";
 
+// Todos os identificadores que a página Consultar reconhece pela digitação
+// (src/features/consult/identify.ts): os da JUDIT (`search_type`: cpf, cnpj,
+// oab, name, rji, lawsuit_cnj), com "cnj" no lugar de "lawsuit_cnj".
+export type SearchType = DocumentType | "cnj" | "oab" | "name" | "rji";
+
 export type TrackingSearchType = DocumentType | "cnj";
 
 export type WebhookProcessingStatus =

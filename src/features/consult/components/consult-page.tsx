@@ -30,7 +30,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { QuerySearchType } from "@/db/models";
 import { AddPartyDialog } from "@/features/parties/components/add-party-dialog";
 import {
-  detectDocument,
   DOCUMENTS,
   isValidDocument,
   normalizeDocument,
@@ -47,6 +46,7 @@ import { cn } from "@/lib/utils";
 
 import { runConsultAction, type ConsultResult } from "../actions";
 import { featureInfo, featuresFor, type ConsultFeatureId } from "../catalog";
+import { identify } from "../identify";
 import type { ConsultPayload } from "../results";
 
 // Consultas avulsas (círculo 2 do escopo): escolher o identificador, escolher
@@ -73,10 +73,17 @@ function isValid(type: QuerySearchType, value: string): boolean {
   return type === "cnj" ? isValidCnj(value) : isValidDocument(type, value);
 }
 
+// O tipo reconhecido pela digitação (identify.ts), se a página o aceita.
+function detectType(value: string): QuerySearchType | null {
+  const result = identify(value);
+  if (result.status !== "recognized") return null;
+  const type = result.candidates[0].type;
+  return type === "cnpj" || type === "cpf" || type === "cnj" ? type : null;
+}
+
 function initialType(param: string | null, value: string): QuerySearchType {
   if (param === "cnpj" || param === "cpf" || param === "cnj") return param;
-  if (isValidCnj(value)) return "cnj";
-  return detectDocument(value)?.type ?? "cnpj";
+  return detectType(value) ?? "cnpj";
 }
 
 export function ConsultPage() {
@@ -116,7 +123,7 @@ export function ConsultPage() {
     setValue(next);
     setResult(null);
     // Reconhece o tipo pelo formato quando ele fica claro.
-    const detected = isValidCnj(next) ? "cnj" : detectDocument(next)?.type;
+    const detected = detectType(next);
     if (detected && detected !== type) changeType(detected);
   }
 
