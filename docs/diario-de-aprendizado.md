@@ -433,6 +433,15 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Correção: preencher as duas, reiniciar e enviar a reserva de novo.
 - Lição de suporte: um monitoramento criado sem `callback_url` não ganha uma depois sozinho; os resultados ficam em "Ver resultados". Quem abre o ticket "não recebo alertas" precisa ter a forma de entrega conferida antes de qualquer outra coisa (`delivery` do monitoramento).
 
+**L3. A barra de pesquisa não acha algo que já foi consultado.** _Previsto em 2026-10-17 (círculo 3B)._
+
+- Sinal: "Dado não encontrado" para um nome ou número que está no Acervo.
+- Camada: aplicação (busca derivada) ou banco.
+- Hipóteses: (1) o texto está no meio da palavra ("llan" não acha "Erllan": a busca é pelo começo, por desenho); (2) a coleção `search_entries` ainda não foi montada, porque o `pnpm dev` não foi reiniciado depois do círculo 3B (a montagem roda na conexão); (3) uma atualização falhou (`[search] falha ao atualizar a busca` no terminal) e a entrada ficou velha; (4) menos de 3 caracteres.
+- Teste que separou: procurar pelo começo da palavra; no Atlas, contar os documentos de `search_entries` e ver o índice `search_entries_terms`; procurar `[search]` no log.
+- Correção: reiniciar o `pnpm dev`; para forçar a remontagem, apagar a coleção `search_entries` (ela é derivada) e reiniciar.
+- Lição de suporte: uma busca derivada pode divergir da fonte. Antes de concluir "o dado sumiu", abrir a ficha pelo endereço (`/acervo/<tipo>/<chave>`), que lê as coleções de origem.
+
 ### Modelo para novos casos
 
 ```
@@ -1614,6 +1623,16 @@ A dúvida seguinte foi de base: "o app precisa de Mongo?". Ficou registrado que 
 
 Decisões: opção B agora, numa coleção `search_entries` (derivada, reconstruível), usada pela barra, pelo filtro do Acervo e pela página Consultar personalizada; Atlas Search como extra ligado por variável no círculo 4. A página Consultar ganha o bloco "Já capturado" abaixo das ações, porque ele serve de referência e não deve interromper o fluxo.
 
+### 2026-10-17 / Círculo 3B implementado: busca e Consultar personalizada
+
+**Resumo técnico**
+
+Coleção derivada `search_entries` (termos com índice comum, opção B), barra única como a do Google, filtro do Acervo pela mesma busca e página Consultar que se recolhe para um identificador conhecido, com "Já capturado" abaixo das ações. 369 testes; conferido com digitação simulada no navegador.
+
+**Como pensamos (resumo do agente)**
+
+O círculo 3B seguiu o método dos círculos que o projeto adotou na etapa 7: cada volta implementa tudo o que foi decidido e a seguinte retoma os pormenores. É uma forma de desenvolvimento iterativo e incremental: o produto inteiro muda de forma a cada volta, em vez de ser decidido todo no papel antes. O usuário revisou as telas de cima para baixo, página por página, e o agente devolveu cada observação separada, com crítica, antes de codificar. Duas decisões vieram da conversa: o nome Acervo (em vez de "Dados", que confundiria com "dados cadastrais") e a opção B para a busca (portável, testável e barata), deixando o Atlas Search como extra. A posição do "Já capturado" foi escolhida pelo propósito: servir de referência sem interromper o fluxo de consultar.
+
 ---
 
 ## Perguntas e respostas
@@ -2124,3 +2143,9 @@ Porque "gravar tudo" e "normalizado" puxam para lados diferentes. Os campos norm
 
 **Como a regra "o mais novo substitui" impede que um dado velho passe por cima de um novo, mesmo com duas gravações ao mesmo tempo?** _(círculo 3, 2026-10-17)_
 O `updateOne` com `upsert` procura o registro pela chave **e** com `fetchedAt` menor ou igual ao da gravação. Se o registro existente for mais novo, a busca não acha nada e o MongoDB tenta inserir um registro novo com a mesma chave; o índice único recusa, e o código trata essa recusa como "mantido". A decisão fica numa operação só do banco, então duas requisições simultâneas não conseguem ler, comparar e escrever em ordens trocadas.
+
+**Por que a coleção `search_entries` é "derivada", e o que isso muda na hora de um problema?** _(círculo 3B, 2026-10-17)_
+Derivada quer dizer que nada nela é fonte: tudo é calculado das outras coleções (partes, cadastros, processos, consultas, monitoramentos). Por isso a mesma função cria, atualiza e apaga uma entrada, e a coleção inteira pode ser apagada e remontada sem perda. Num problema, a pergunta muda de "o dado sumiu?" para "a cópia de busca está atrasada?": a ficha do Acervo lê as fontes, então, se ela mostra o dado e a barra não, a falha está na busca, não no dado.
+
+**Por que `/^erl/` usa o índice e "contém erl" não?** _(círculo 3B, 2026-10-17)_
+Um índice é uma lista ordenada, como um dicionário. Achar as palavras que começam com "erl" é ir até o "erl" do dicionário e ler em sequência. "Contém erl" pode estar no começo, no meio ou no fim de qualquer palavra, então não há lugar para pular: é preciso ler tudo. Por isso a busca aceita só o começo das palavras.

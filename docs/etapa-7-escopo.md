@@ -1353,3 +1353,46 @@ Observações do usuário, de cima para baixo, depois do círculo 3
 4. **Cores do selo de tempo.** Cinza parecia "não pode". _Feito:_ "Agora"
    (era "Na hora") em verde e "Depois" em azul; o texto de tempo e custo do
    catálogo também diz "Agora".
+
+### Círculo 3B: implementação (2026-10-17)
+
+- **Busca (3B.2), opção B.** Decidida na conversa depois de comparar três
+  jeitos de buscar no MongoDB (Atlas Search, termos próprios com índice
+  comum e `$text`): a opção B funciona em qualquer MongoDB, inclusive no
+  dos testes, e o Atlas Search fica para o círculo 4, ligado por variável.
+  - **Coleção `search_entries`** (`src/features/search/entries.ts`): uma
+    entrada por assunto e por processo guardado, com nome, uma linha de
+    contexto (situação cadastral, ou tribunal e área), quantos processos o
+    assunto encontrou, os termos e a última atividade. É derivada: cada
+    gravação (consulta, base própria, parte, monitoramento, apagar)
+    recalcula as entradas atingidas; na conexão, com a coleção vazia, ela é
+    montada com o que já existe. Um assunto sem mais nada no banco perde a
+    entrada.
+  - **Termos** (`terms.ts`): palavras em minúsculas e sem acento, mais as
+    chaves sem máscara. A busca acha as palavras que começam com o texto
+    (`/^erl/`, que usa o índice), a partir de 3 caracteres. O meio da
+    palavra não é achado (limite aceito).
+  - **Barra única** (`search-suggestions.ts`, `global-search.tsx`): melhor
+    resultado, "Fazer nova consulta", outros resultados; "Dado não
+    encontrado" sem resultado e "Busca indisponível agora" se o banco
+    falhar. Uma chamada por pausa de 300 ms (`use-known-search.ts`). Saiu o
+    comportamento especial da página Consultar; ela agora acompanha a URL
+    (`/?valor=`).
+  - **Filtro do Acervo:** com 3 caracteres ou mais, a lista vem da mesma
+    busca (até 50 resultados), achando também processos e cadastros pelo
+    que está dentro deles.
+  - Demonstração: as mesmas regras sobre os dados fictícios, em memória
+    (`hits.ts`).
+- **Página Consultar personalizada (3B.5).** Com um identificador
+  conhecido, as instruções se recolhem (animação só de CSS) e o nome
+  aparece em cima do campo. Abaixo das ações e do resultado, "Já capturado
+  deste identificador", com seções que abrem com um clique (dados
+  cadastrais, números, processos, execuções, mandados, monitoramento,
+  consultas feitas), cada uma com a data, e "Abrir no Acervo". Os blocos
+  são os mesmos da ficha (`subject-sections.tsx`). O contexto é lido de
+  novo depois de cada consulta. Saiu a frase "Já está na sua lista".
+- **Conferência:** testes num MongoDB temporário (busca, atualização,
+  apagar, reconstrução) e da lógica pura; build de demonstração conduzido
+  por um script que digita na barra, no campo da página e no filtro do
+  Acervo, com capturas de tela. No modo banco, a busca só fica completa
+  depois de reiniciar o `pnpm dev` (a reconstrução roda na conexão).
