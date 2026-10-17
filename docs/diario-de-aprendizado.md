@@ -1639,6 +1639,12 @@ O círculo 3B seguiu o método dos círculos que o projeto adotou na etapa 7: ca
 
 O usuário viu "dados cadastrais da empresa" ao consultar um CPF. A chamada estava certa (a mesma `POST /entities` para os dois); o texto era um só por modalidade. Agora a explicação depende do identificador (`purposeFor`), e "Papel da empresa" virou "Papel da parte". Lição: texto genérico escrito para um caso vira erro quando o caso se amplia.
 
+### 2026-10-17 / Círculo 3B: tipo e máscara dentro do campo
+
+**Resumo técnico**
+
+A pedido do usuário, o tipo reconhecido ("Pessoa física:", "Empresa:"…) aparece dentro do campo de Consultar, e os separadores de CPF, CNPJ e CNJ aparecem em tom claro. São só desenho por cima do campo (`IdentifierField`): o valor digitado não muda. Conferido no navegador com os seis tipos.
+
 ---
 
 ## Perguntas e respostas

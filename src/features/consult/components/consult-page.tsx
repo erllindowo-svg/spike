@@ -8,7 +8,6 @@ import {
   LibraryBigIcon,
   PlusIcon,
   RadarIcon,
-  ScanSearchIcon,
   SearchIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -231,26 +229,15 @@ export function ConsultPage() {
               </div>
             )}
           </Collapse>
-          <div className="relative max-w-2xl">
-            <ScanSearchIcon
-              className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              id="consult-value"
-              autoFocus
-              value={value}
-              placeholder="Digite o identificador"
-              onChange={(e) => changeValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && target && !running) run();
-              }}
-              aria-label="Identificador"
-              aria-invalid={identification.status === "invalid"}
-              aria-describedby="consult-status"
-              className="h-12 pl-10 font-mono text-base md:text-lg"
-            />
-          </div>
+          <IdentifierField
+            value={value}
+            target={target}
+            invalid={identification.status === "invalid"}
+            onChange={changeValue}
+            onEnter={() => {
+              if (target && !running) run();
+            }}
+          />
           <div id="consult-status" aria-live="polite" className="min-h-6">
             <RecognitionStatus
               identification={identification}
@@ -671,6 +658,97 @@ function Section({
   );
 }
 
+// Tipos que ganham os separadores ilustrativos dentro do campo.
+const MASKED_TYPES: readonly SearchType[] = ["cpf", "cnpj", "cnj"];
+
+// O que aparece antes do número, dentro do campo: para CPF e CNPJ, quem é
+// ("Pessoa física", "Empresa"); para os outros, o nome do tipo.
+function fieldPrefix(type: SearchType): string {
+  return type === "cpf" || type === "cnpj"
+    ? SEARCH_TYPES[type].description
+    : SEARCH_TYPES[type].label;
+}
+
+// O campo do identificador (círculo 3B). Reconhecido o tipo, aparece dentro
+// do próprio campo, em verde, o que ele é ("Pessoa física:") e, nos números
+// com máscara, o número formatado: os dígitos digitados em preto e os
+// separadores (pontos, barra, traço) mais claros, só de enfeite.
+//
+// O valor do campo continua sendo só o que foi digitado: o número
+// formatado é uma camada desenhada por cima, com o texto real
+// transparente. Inserir os separadores no valor quebraria a digitação de
+// um CNPJ sem máscara (os 11 primeiros dígitos podem formar um CPF válido,
+// e o 12º viraria "CPF inválido"). Apagar apaga o último dígito digitado; a
+// identificação deixa de bater e o texto cru volta a aparecer.
+function IdentifierField({
+  value,
+  target,
+  invalid,
+  onChange,
+  onEnter,
+}: {
+  value: string;
+  target: Candidate | null;
+  invalid: boolean;
+  onChange: (value: string) => void;
+  onEnter: () => void;
+}) {
+  const masked = !!target && MASKED_TYPES.includes(target.type);
+  const formatted = target ? formatSearchKey(target.type, target.key) : "";
+
+  return (
+    <div
+      aria-invalid={invalid}
+      className="flex h-12 max-w-2xl items-center gap-2 rounded-lg border border-input bg-transparent px-3 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30"
+    >
+      {target && (
+        <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-success">
+          <CircleCheckIcon className="size-4" aria-hidden />
+          {fieldPrefix(target.type)}:
+        </span>
+      )}
+      <div className="relative min-w-0 flex-1">
+        <input
+          id="consult-value"
+          autoFocus
+          value={value}
+          placeholder="Digite o identificador"
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onEnter();
+          }}
+          aria-label="Identificador"
+          aria-invalid={invalid}
+          aria-describedby="consult-status"
+          autoComplete="off"
+          spellCheck={false}
+          className={cn(
+            "w-full bg-transparent font-mono text-base outline-none placeholder:text-muted-foreground md:text-lg",
+            masked && "text-transparent caret-transparent",
+          )}
+        />
+        {masked && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 flex items-center overflow-hidden font-mono text-base whitespace-pre md:text-lg"
+          >
+            {[...formatted].map((char, index) => (
+              <span
+                key={index}
+                className={
+                  /[0-9A-Z]/.test(char) ? undefined : "text-muted-foreground/50"
+                }
+              >
+                {char}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // O que a digitação reconheceu, ou o que ainda falta.
 function RecognitionStatus({
   identification,
@@ -708,17 +786,14 @@ function RecognitionStatus({
   const alternatives = identification.candidates.filter(
     (c) => c.type !== target.type,
   );
+  // O tipo reconhecido aparece dentro do campo (IdentifierField); aqui
+  // ficam só o "Não é isso?", a nota e o aviso para o leitor de tela.
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <StatusBadge tone="success">
-          <CircleCheckIcon className="size-3" aria-hidden />
-          Reconhecido: {SEARCH_TYPES[target.type].label}
-        </StatusBadge>
-        <span className="text-muted-foreground">
-          {SEARCH_TYPES[target.type].description}
-          {target.type !== "name" &&
-            ` · ${formatSearchKey(target.type, target.key)}`}
+        <span className="sr-only">
+          Reconhecido: {SEARCH_TYPES[target.type].label}{" "}
+          {formatSearchKey(target.type, target.key)}
         </span>
         {alternatives.length > 0 && (
           <Popover>

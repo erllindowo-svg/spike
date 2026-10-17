@@ -1404,3 +1404,14 @@ Observações do usuário, de cima para baixo, depois do círculo 3
   reconhecido (dados cadastrais, mandados, execução penal), e os textos
   gerais de `modes.ts` ficaram neutros. Pelo mesmo motivo, "Papel da
   empresa" virou "Papel da parte" e "Ver empresa" virou "Abrir ficha".
+- **Tipo e máscara dentro do campo (observação do usuário).** Saiu a linha
+  embaixo do campo (selo "Reconhecido: CPF" e "Pessoa física · número").
+  Reconhecido o tipo, o próprio campo mostra, em verde, "Pessoa física:",
+  "Empresa:", "Processo (CNJ):", "OAB:", "Nome:" ou "RJI:", e, em CPF, CNPJ
+  e CNJ, o número formatado: dígitos em preto, separadores mais claros.
+  Os separadores são só desenho (`IdentifierField`, em
+  `consult-page.tsx`): uma camada por cima do campo, com o texto real
+  transparente. O valor digitado não muda, porque inserir os pontos
+  atrapalharia quem digita um CNPJ sem máscara (os 11 primeiros dígitos
+  podem formar um CPF válido). Embaixo ficam o "Não é isso?", a nota e um
+  texto só para leitor de tela.
