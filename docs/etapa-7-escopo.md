@@ -1162,8 +1162,8 @@ implementação ficam marcadas como _decisão do agente_.
    (tempo e custo) e `tracking` (o monitoramento equivalente e o que ele
    acompanha; `trackingFor` diz se vale para o identificador). Documentado:
    o monitoramento por documento aceita cpf, cnpj e oab
-   (tracking/tracking-document), então monitoramento por OAB entra na fatia
-   4. `QuerySearchType` passou a ser `SearchType` (registros antigos
+   (tracking/tracking-document), então o monitoramento por OAB entra na
+   página nova (fatia 4). `QuerySearchType` passou a ser `SearchType` (registros antigos
    continuam válidos); `isDocumentType` separa o que tem parte salva.
    `createRequest` aceita `rji`. Consultas assíncronas por OAB, nome, RJI e
    CNJ (execução penal) são criadas sem parte e acompanhadas no histórico.
