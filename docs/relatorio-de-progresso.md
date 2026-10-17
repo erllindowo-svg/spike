@@ -453,3 +453,10 @@ do círculo 7: o fechamento da etapa 7 (dois produtos).
 > resultados dos meus testes ao vivo do círculo 3 e me ajude a decidir o
 > próximo passo (círculo 6 ou fechamento da etapa 7). O círculo 5 está
 > implementado; os testes dele estão em "Próxima sessão".
+
+## Etapa 7 concluída (2026-10-17)
+
+Dois produtos: o protótipo na branch `prototipo` (tag `prototype-v1.0.0`) e
+o app real no `main`. Este relatório, o diário e o escopo ficam na tag
+`historico-etapa-7`; o `main` segue só com o produto e o README. Próximo
+passo, opcional: a etapa 8 (itens abertos, auditoria e correções).

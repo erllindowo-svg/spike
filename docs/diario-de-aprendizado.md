@@ -1813,6 +1813,16 @@ O sino abre um menu com o histórico (não lidos em azul, lidos em cinza). O Ace
 
 Escolhas pequenas feitas pelo agente, para o usuário confirmar: a marca "N alertas" em cada assunto do Acervo ficou, porque leva à ficha onde a marca azul está; o menu marca como lido só o alerta clicado, e abrir o processo na ficha marca todos os alertas daquele processo; fechar o painel tira o `?processo=` do endereço, para o F5 não reabrir. A lógica pura saiu para `src/features/alerts/links.ts`, com testes. Conferência na tela: cópia do app em modo demonstração (porta 3100), dirigida no Chromium sem janela; o Firefox sem janela não gerou a captura. Falta a conferência no Firefox do usuário.
 
+### 2026-10-17 / Fechamento da etapa 7: dois produtos
+
+**Resumo técnico**
+
+O protótipo virou a branch `prototipo` (tag `prototype-v1.0.0`): só dados fictícios, sem MongoDB, cliente da JUDIT nem rota de webhook. O `main` virou o app real: sem demonstração nem `DATA_SOURCE`; sem `MONGODB_URI` ou `JUDIT_API_KEY`, mostra o que falta (`setup-screen.tsx`). Os documentos do processo ficam na tag `historico-etapa-7`.
+
+**Como pensamos (resumo do agente)**
+
+O usuário escolheu um `main` enxuto, com os documentos numa tag, e o protótipo como branch com tag no mesmo repositório. O agente cortou primeiro os módulos de banco e JUDIT e deixou o TypeScript apontar cada dependência, removendo os desvios `dataSource` um a um, nos dois sentidos. A coluna "Alertas" da tabela de monitoramentos apontava para uma rota extinta e virou contagem.
+
 ---
 
 ## Perguntas e respostas
