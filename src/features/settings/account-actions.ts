@@ -39,7 +39,7 @@ export async function readJuditAccountAction(): Promise<AccountResult> {
     balance:
       balance.status === "fulfilled"
         ? { ok: true, value: simpleFields(balance.value) }
-        : { ok: false, message: accountError(balance.reason) },
+        : { ok: false, message: balanceError(balance.reason) },
     consumption:
       consumption.status === "fulfilled"
         ? { ok: true, value: consumption.value }
@@ -57,6 +57,17 @@ function simpleFields(value: Record<string, unknown>): [string, string][] {
     )
     .slice(0, 12)
     .map(([key, field]) => [key, String(field)]);
+}
+
+// Observado em 2026-10-16 (README da integração, item 45): numa conta
+// pós-paga, GET /credits/balance responde 422. A página da JUDIT diz que a
+// rota é do pré-pago; que o 422 signifique isso é inferência nossa.
+function balanceError(error: unknown): string {
+  if (error instanceof JuditHttpError && error.status === 422) {
+    console.info("[account] saldo de créditos: HTTP 422 (rota do pré-pago)");
+    return "Indisponível para esta conta: o saldo de créditos é do modelo pré-pago. No pós-pago, o que resta aparece no consumo do ciclo.";
+  }
+  return accountError(error);
 }
 
 function accountError(error: unknown): string {

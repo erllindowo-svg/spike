@@ -179,6 +179,7 @@ As verificações acontecem nesta ordem; a primeira que falha encerra a chamada:
 - Efeito: monitoramento diário até ser pausado. O plano já era pausar depois da primeira execução.
 - Lição de suporte: gravar o que o fornecedor devolve, e não o que pedimos, foi o que tornou a divergência visível. "Aceito" (201) não quer dizer "aceito como pedido".
 - Prevenção (2026-10-14, noite): a mensagem de criação compara o pedido com o devolvido e avisa na hora (`recurrenceWarning` em `src/features/trackings/actions.ts`), enquanto ainda dá para pausar ou excluir. Pergunta ao tech lead: "Inside knowledge", IK1.
+- Reproduzido em 2026-10-16 com outra modalidade: monitoramento por CNJ (o fictício, `plan_config_type: "simple_lawsuit_tracking"`), pedido com 30 e gravado com 1. O aviso da criação apareceu e o monitoramento foi pausado em seguida. Como acontece nas duas modalidades, a regra parece ser da conta ou do documento de teste, e não de uma modalidade.
 
 **C12. Envio incerto na criação de um monitoramento.** _Previsto (testado com fetch simulado em 2026-10-14)._
 
@@ -389,6 +390,22 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Causa: `SidebarInset` (`src/components/ui/sidebar.tsx`) já é um `<main>`, e o layout do app punha outro dentro dele, desde a etapa 1.
 - Correção: `SidebarInset` passou a ser `div`, com um comentário no arquivo.
 - Lição de suporte: erro de acessibilidade não aparece para quem enxerga a tela. O ticket viria de quem usa leitor de tela ("a página tem dois conteúdos principais") ou de uma auditoria, nunca de um print.
+
+**K1. "Saldo de créditos" falha e "Consumo do ciclo" funciona.** _Observado em 2026-10-16._
+
+- Sinal: no cartão "Conta na JUDIT" (Configurações), o saldo mostra "A JUDIT retornou um erro (http)", e o consumo mostra os valores. Log: `JUDIT respondeu HTTP 422 em GET users/credits/balance (HttpUnprocessableEntityError)`.
+- Camada: JUDIT (modelo de cobrança da conta).
+- Hipóteses: (1) a conta é pós-paga e a rota só atende ao pré-pago; (2) a chave não tem permissão (mas aí o esperado seria 401 ou 403); (3) erro do nosso pedido (é um `GET` sem corpo nem parâmetros).
+- Teste que separou: o consumo veio com `max_consumption` (teto de ciclo, o modelo pós-pago), e a [página de créditos](https://docs.judit.io/resource/consumption/credits) avisa que a rota é do pré-pago. Fica a (1), por inferência: a página não lista erros.
+- Correção: nenhuma no código. Numa conta pós-paga, o número que se procura é o `remaining` do consumo.
+- Lição de suporte: um 422 numa leitura sem parâmetros costuma dizer "esta rota não se aplica à sua conta", e não "o seu pedido está errado". O ticket seria "o saldo não aparece". A resposta é perguntar ou conferir o modelo de cobrança antes de investigar o código.
+
+**K2. "Dados cadastrais: não encontrado" para um CNPJ válido.** _Observado em 2026-10-16._
+
+- Sinal: a página Consultar mostra o cadastro como não encontrado, sem erro. A JUDIT respondeu 200 com `"response_data": []`.
+- Camada: JUDIT (dados).
+- Causa: o CNPJ fictício da documentação não tem cadastro na base de dados cadastrais; a consulta funcionou. O mesmo aparece com um CNPJ real sem dados na base.
+- Lição de suporte: HTTP 200 com lista vazia é "consultei e não há nada", e não uma falha. A confirmação vem da resposta crua (`POST /api/dev/judit/entities`) e do `resultCount: 0` em `sync_queries`. Para um CNPJ real, o próximo passo seria a consulta na Receita em tempo real (on-demand), que é mais cara.
 
 ### Modelo para novos casos
 
@@ -1481,6 +1498,18 @@ Vista de suporte num cookie, lido pelo servidor no modo `db` (a página nasce ce
 **Resumo técnico**
 
 Ao abrir o resultado de uma consulta com entrega por webhook, a vista de suporte compara as respostas listadas pela JUDIT com as entregas gravadas para o mesmo `request_id`, sem chamada nova. A relação "uma resposta, uma entrega" é hipótese nossa (catálogo G7).
+
+### 2026-10-16 / Retomada: o que o círculo 2 implementou
+
+**Resumo técnico**
+
+Retomada pela seção "Como retomar com o agente" do relatório de progresso. Revisão das 14 fatias do círculo 2 (`4d49f2f` a `f7c9028`), a partir de `docs/etapa-7-escopo.md`. Nada alterado no código; próximo passo continua sendo testar ao vivo as chamadas novas.
+
+### 2026-10-17 / Retomada: resumo da etapa 7
+
+**Resumo técnico**
+
+Resumo da etapa 7 a partir do relatório, do escopo e do diff local: uso guiado, círculo 1 (forma geral), círculo 2 (14 fatias). Sem commit: três testes ao vivo de 2026-10-16 (dados cadastrais, `step_terms`, saldo 422). Faltam três testes ao vivo, decisões do usuário e o fechamento.
 
 ---
 
