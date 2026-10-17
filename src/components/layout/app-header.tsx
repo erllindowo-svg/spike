@@ -18,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { WalletButton } from "@/features/settings/components/wallet";
 import { SupportOnly } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 
@@ -124,7 +125,7 @@ function AlertsBell() {
 
 // Barra do topo, em três zonas (círculo 3, fatia 3): à esquerda, a marca e
 // a alternância entre as duas páginas; no meio, a pesquisa; à direita,
-// alertas e Configurações. A "conta" espera o login (círculo 4). No celular,
+// carteira, alertas e Configurações. A "conta" espera o login. No celular,
 // a pesquisa vira um ícone que abre uma linha embaixo.
 export function AppHeader() {
   const { dataSource } = useDemoStore();
@@ -203,6 +204,7 @@ export function AppHeader() {
             </Tooltip>
           )}
 
+          <WalletButton />
           <AlertsBell />
 
           <Tooltip>

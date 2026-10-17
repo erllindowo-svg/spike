@@ -1,5 +1,6 @@
 "use server";
 
+import { countBilledCallsSince } from "@/features/queries/budget";
 import { juditActionFailure } from "@/features/queries/failure";
 import { getDataSource } from "@/lib/data";
 import {
@@ -78,4 +79,14 @@ function accountError(error: unknown): string {
     return "Sem permissão: esta leitura exige uma chave administrativa da conta.";
   }
   return juditActionFailure(error, "account").message;
+}
+
+// O contador da carteira (círculo 5): quantas chamadas cobradas o app fez
+// desde o último aviso, contadas no histórico do próprio app (as mesmas do
+// teto diário, budget.ts). Não chama a JUDIT. Na demonstração, nenhuma.
+export async function billedCallsSinceAction(since: string): Promise<number> {
+  if (getDataSource() !== "db") return 0;
+  const date = new Date(since);
+  if (Number.isNaN(date.getTime())) return 0;
+  return countBilledCallsSince(date);
 }
