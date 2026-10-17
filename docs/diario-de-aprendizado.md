@@ -1779,6 +1779,12 @@ O Web Push saiu; ficou o aviso na aba: número no título e ponto vermelho no í
 
 O agente expôs o custo do Web Push (dependência, chaves, um passo a mais na instalação) e explicou mal quem rodaria o comando. O usuário cortou pelo mais simples que resolve o caso principal: perceber um alerta com o app aberto em outra aba. A lição é de produto: uma etapa de instalação a mais pesa mais que uma funcionalidade a menos.
 
+### 2026-10-17 / Ícone do app e sem o indicador do Next
+
+**Resumo técnico**
+
+O ícone da aba virou a marca do app (`src/app/icon.svg`, o quadrado azul com a lupa do cabeçalho); saiu o `favicon.ico` padrão do Next. `devIndicators: false` tira a bolinha "N" do `next dev`, sem esconder erros. Segunda entrega fictícia (`0000002-43.2026.8.23.0001`) enviada para o teste do aviso na aba em segundo plano.
+
 ---
 
 ## Perguntas e respostas
