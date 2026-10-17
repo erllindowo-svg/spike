@@ -407,6 +407,14 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Causa: o CNPJ fictício da documentação não tem cadastro na base de dados cadastrais; a consulta funcionou. O mesmo aparece com um CNPJ real sem dados na base.
 - Lição de suporte: HTTP 200 com lista vazia é "consultei e não há nada", e não uma falha. A confirmação vem da resposta crua (`POST /api/dev/judit/entities`) e do `resultCount: 0` em `sync_queries`. Para um CNPJ real, o próximo passo seria a consulta na Receita em tempo real (on-demand), que é mais cara.
 
+**K3. "Na fila" desde ontem, mas concluída na JUDIT.** _Observado em 2026-10-17._
+
+- Sinal: o histórico de consultas mostra uma consulta processual completa (CNJ fictício, com resumo por IA) "Na fila" desde 16/10, 12:38. `GET /requests/{id}` responde `completed` desde 12:54 do mesmo dia, com duas respostas.
+- Camada: aplicação (por desenho). O app não verifica o status sozinho: o estado gravado só muda com "Verificar status".
+- Hipótese descartada: requisição travada na JUDIT. A leitura direta mostrou a conclusão.
+- Correção: nenhuma por enquanto. É candidata ao círculo 3: indicar há quanto tempo a consulta está na fila, ou verificar ao abrir o histórico.
+- Lição de suporte: o ticket seria "minha consulta está na fila há um dia". Antes de escalar para a JUDIT, ler o status direto na fonte (rota de dev ou vista de suporte). O nosso registro é uma foto da última verificação, não o estado atual.
+
 ### Modelo para novos casos
 
 ```
@@ -536,6 +544,13 @@ Os detalhes do contrato que uma chamada real resolve ficam no catálogo, em "Lac
 
 - Contexto: o usuário quer trocar a allowlist por proteções menos restritivas, entre elas uma contra consultas enormes (uma empresa com milhares de processos). As páginas falam em "cobrança por requisição" e o exemplo do [histórico de consumo](https://docs.judit.io/resource/consumption/history) precifica por requisição (e anexos à parte), mas não dizem se o volume devolvido muda o preço, nem se ler as páginas seguintes (`GET /responses?page=...`) é cobrado.
 - Impacto: decide se a proteção de volume serve para economizar crédito ou só para não travar a tela e o servidor.
+- Resposta:
+
+**IK15. Qual é o formato do RJI e da OAB?** _Aberta desde 2026-10-17._
+
+- Contexto: o círculo 3 quer reconhecer o identificador só pela digitação. O único exemplo de RJI ([warrant](https://docs.judit.io/criminal-consultation/warrant)) é `"00000000000000000000"`: 20 dígitos, como o CNJ sem máscara. Os exemplos de OAB discordam entre UF antes e depois (`SP123456`, `123456SP`, `99999RJ`; README item 47).
+- Dúvidas: o RJI do BNMP 2.0 tem letras, dígito verificador ou só números? A API aceita a OAB nas duas ordens? Com ou sem barra e zeros à esquerda?
+- Impacto: decide a regra que separa CNJ de RJI e o que normalizar na OAB antes de enviar.
 - Resposta:
 
 ---
@@ -1510,6 +1525,54 @@ Retomada pela seção "Como retomar com o agente" do relatório de progresso. Re
 **Resumo técnico**
 
 Resumo da etapa 7 a partir do relatório, do escopo e do diff local: uso guiado, círculo 1 (forma geral), círculo 2 (14 fatias). Sem commit: três testes ao vivo de 2026-10-16 (dados cadastrais, `step_terms`, saldo 422). Faltam três testes ao vivo, decisões do usuário e o fechamento.
+
+### 2026-10-17 / Teste ao vivo: consulta processual com resumo por IA
+
+**Resumo técnico**
+
+`lawsuit_async` com resumo por IA no CNJ fictício: aceito (`judit_ia` devolvido), segunda chamada barrada pela regra de consulta em aberto. A de ontem concluiu em cerca de 16 minutos, mas o app mostrava "Na fila" (catálogo K3, README 46). Duas leituras de status feitas, de custo desconhecido.
+
+### 2026-10-17 / Círculo 3, ponto 1: Consultar para leigos
+
+**Resumo técnico**
+
+Ditado registrado em `docs/etapa-7-escopo.md` ("Círculo 3: anotações"): reconhecer o identificador pela digitação e fazer de Consultar a entrada do leigo, com escolha entre consulta única e monitoramento. Devolução do agente: o reconhecimento já existe em parte; custo e entradas sobrepostas pesam.
+
+### 2026-10-17 / Círculo 3, ponto 2: duas páginas, uma função cada
+
+**Resumo técnico**
+
+Ditado registrado: círculo 3 define o fluxo do cliente, com Pesquisar (consultar ou monitorar) e uma página de leitura do que foi recebido. Devolução: monitoramento não devolve o retrato atual (C14), nem todo dado se monitora, webhook depende de URL pública, e a leitura exige decidir se resultados são gravados.
+
+### 2026-10-17 / Círculo 3, ponto 3: digitar uma vez e a barra de pesquisa
+
+**Resumo técnico**
+
+Ditado registrado: consultar e monitorar sem redigitar (secundário); Consultar só com o campo; a barra de pesquisa sai de Consultar e vira busca de consultas já feitas, com "criar consulta" discreto; vista de suporte fica para o círculo 4. Reabrir consulta síncrona depende de gravar resultados.
+
+### 2026-10-17 / Círculo 3: proposta consolidada
+
+**Resumo técnico**
+
+Pontos 1 a 3 reunidos em `docs/etapa-7-escopo.md`: o que foi dito por tema, crítica, decisões D0 a D7 e sete fatias. Achado na documentação: exemplos de OAB discordam e o RJI tem 20 dígitos como o CNJ (README 47). Decisão mais pesada: gravar ou não os resultados.
+
+### 2026-10-17 / Círculo 3: decisões D0 e D1, navegação no topo
+
+**Resumo técnico**
+
+Decidido: allowlist desligada pelo `.env.local` (limites por minuto e diário continuam) e gravar tudo normalizado no MongoDB, revertendo o desenho híbrido da etapa 3. Navegação vira barra no topo com duas páginas; barra de pesquisa em todas. RJI e OAB sem formato documentado (IK15).
+
+### 2026-10-17 / Allowlist desligada
+
+**Resumo técnico**
+
+O usuário pôs `JUDIT_ALLOWLIST=disabled` no `.env.local`; `pnpm env:check` confirma. Os limites ficam no padrão (30 por minuto, 50 por dia), porque as variáveis estão vazias. Falta reiniciar o `pnpm dev`, o que também roda a migração para `parties` (I1).
+
+### 2026-10-17 / Círculo 3: plano de implementação
+
+**Resumo técnico**
+
+Nove fatias em `docs/etapa-7-escopo.md`: reconhecimento de identificadores, catálogo ampliado, navegação no topo, Consultar nova, base própria, Minhas informações, barra unificada, webhook nos monitoramentos, limpeza e demonstração. Relatório de progresso atualizado com o prompt de retomada.
 
 ---
 

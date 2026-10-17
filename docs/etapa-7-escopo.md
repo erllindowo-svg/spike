@@ -587,3 +587,550 @@ plano do círculo 2, candidatos ao 3: anexos (F12, F13), filtros avançados
 (F14), Diário Oficial (F19), histórico da conta (F26), OAB e nome (R1),
 respostas além da primeira página (item 13), login e "tomadas" do
 back-end.
+
+## Círculo 3: anotações (planejamento, 2026-10-17)
+
+O círculo 3 ainda não foi aberto. Esta seção junta os pontos para implementar
+nele; nada aqui foi decidido.
+
+### Ponto 1: Consultar como página única, para leigos
+
+_Ditado do usuário:_ Gostei muito da aba nova Consultar: você digita um
+documento, escolhe o tipo de consulta que quer fazer nele, clica e recebe o
+resultado. Achei muito intuitivo; deixa muito claro que opções você tem na
+consulta de cada documento. Para essa página ficar realmente completa, a
+barra de digitação deveria identificar o documento só pelo que se digita,
+porque cada um tem a sua formatação e um número de dígitos muito
+específico. Se dois documentos tiverem o mesmo número de dígitos, a gente dá
+um jeito de diferenciar; acho que a própria documentação da JUDIT mostra
+como cada documento é digitado. No momento em que o site reconhece o
+documento, aparecem embaixo todas as opções de consulta que se pode fazer.
+Monitoramento é outra coisa: essa aba é para consultas imediatas. Mas daria
+para usar a página como uma página unificada para um leigo: você escolhe a
+opção que quer consultar e marca se é monitoramento ou não, ou seja, se é um
+resultado que sempre vai voltar ou uma consulta única. Seria uma grande aba
+para leigo; era o que eu imaginei que o dashboard poderia ser.
+
+_Devolução do agente (o que entendi, com crítica):_
+
+1. **Duas ideias, não uma.** (a) Reconhecer o identificador só pela
+   digitação, sem o usuário escolher o tipo, e só então mostrar as opções;
+   (b) fazer da página o ponto de entrada único do leigo: "o que você quer
+   saber sobre este documento?", com a escolha entre resposta única e
+   acompanhamento (monitoramento).
+2. **O reconhecimento já existe em parte.** `changeValue` em
+   `src/features/consult/components/consult-page.tsx` troca o tipo quando o
+   que foi digitado é um CPF, CNPJ ou CNJ válido (`detectDocument` em
+   `src/features/parties/documents.ts`). Ele não aparece porque a tela
+   começa com o seletor CNPJ/CPF/CNJ marcado em CNPJ e já mostra as opções de
+   CNPJ antes de qualquer digitação. A mudança seria tirar o seletor da
+   frente (no máximo um "não é isso?" para corrigir), mostrar um selo
+   "Reconhecido: CPF" e só listar as opções depois do reconhecimento.
+3. **Os três tipos de hoje não colidem.** CPF tem 11 dígitos, CNPJ 14
+   caracteres (o alfanumérico também, como o fictício `A1B2C3D4/E5F6-68`) e
+   CNJ 20 dígitos. A ambiguidade real aparece em outros dois lugares: no meio
+   da digitação (os 11 primeiros dígitos de um CNPJ podem formar um CPF
+   válido por acaso, e as opções pulariam de CPF para CNPJ) e nos tipos que
+   ficaram fora (OAB, RJI, nome; R1). Para OAB e RJI, `src/lib/judit/guard.ts`
+   já registra que a documentação não especifica o formato: antes de
+   reconhecê-los, conferir a doc de novo; nome seria o que sobra quando nada
+   é reconhecido, com o risco de homônimos.
+4. **Consulta e monitoramento não são a mesma escolha com um interruptor.**
+   O monitoramento é cobrado a cada verificação, pede a parte salva no app,
+   tem recorrência (que a JUDIT gravou diferente do pedido, caso C11) e não
+   existe para todas as consultas (dados cadastrais e mandados não se
+   monitoram no app). Para o leigo, a diferença de custo precisa estar
+   escrita na escolha ("uma vez" contra "a cada verificação"), e a opção
+   "acompanhar" só deve aparecer nas consultas que têm monitoramento. Hoje o
+   resultado já oferece "Monitorar" depois da consulta, o que é um começo.
+5. **Sobreposição de entradas.** Hoje há quatro caminhos para começar algo:
+   a barra de pesquisa do topo (que já abre Consultar preenchida),
+   Consultar, "Adicionar empresa/pessoa" e "Novo monitoramento". Se
+   Consultar virar a entrada do leigo, vale decidir o que acontece com os
+   outros (manter como atalhos ou levar para ela).
+6. **Dashboard e Consultar têm papéis diferentes.** O Dashboard mostra o que
+   já existe (números, alertas); Consultar é a ação "quero saber algo". Uma
+   saída é a página inicial do leigo começar pelo campo de Consultar, com o
+   resumo do Dashboard embaixo, em vez de juntar as duas telas.
+7. **Linguagem das opções.** Os nomes atuais ("na base", "no tribunal",
+   "consulta processual completa") ainda são da JUDIT. Para o leigo, as
+   opções poderiam ser perguntas ("Quantos processos?", "Quais processos?",
+   "Dados da empresa", "O processo atualizado agora"), com o tempo esperado
+   (o resumo por IA levou cerca de 16 minutos, README item 46).
+
+Escolhas para quando o círculo 3 abrir: o seletor de tipo some ou fica como
+correção; a página vira a inicial ou fica no menu; quais entradas continuam.
+
+### Ponto 2: o fluxo do cliente, em duas páginas
+
+_Ditado do usuário:_ Acho que o círculo 3 pode ser o círculo em que a gente
+realmente estabelece o fluxo do cliente. Imagino um produto que mostre todas
+as funcionalidades, mas de uma forma muito unificada. Na consulta, o Raio-X
+Jurídico reconheceria todos os identificadores que a API da JUDIT reconhece.
+O fluxo: você digita o identificador, escolhe que tipo de dado quer coletar,
+como já está determinado na página Consultar, e no final clica em "fazer
+consulta" ou em "fazer monitoramento". Em "fazer consulta", você recebe os
+dados imediatos. Em "fazer monitoramento", você recebe os dados e deixa um
+monitoramento, escolhendo as opções que a gente já dá ao cliente, como de
+quanto em quanto tempo; o webhook já fica como padrão, para ser algo
+realmente otimizado. Com essa página de consulta unificada, as outras abas
+(empresas, pessoas físicas, histórico de consultas) podem ser recolhidas para
+outro canto, mais voltado a entender o que você está fazendo no aplicativo do
+que a fazer. O Dashboard também se recolhe, e a gente delibera: se há uma
+página unificada para fazer as consultas, qual é a página unificada para
+verificar os resultados, o que você sabe, o que não sabe, o que pediu, o que
+não pediu, as informações que você recebeu. É um fluxo duplo: uma página
+muito simples para consultar e colocar um monitoramento, e uma página para
+verificar todos os dados, com um bom fluxo. O que não podemos fazer é o que
+já foi feito: muitas coisas que acumulam funções. No Dashboard dá para criar
+um monitoramento, mas não faz sentido, porque ele é para dar informação. Há
+abas de empresas e pessoas físicas, de monitoramentos e de histórico de
+consultas, e todas têm informações que se sobrepõem; às vezes, para
+consultar uma coisa, dá para fazer de três maneiras diferentes. O aplicativo
+já tem poucas funcionalidades; se continuarmos sobrepondo, vai ficar muito
+feio. Então proponho uma página unificada de pesquisa, com as consultas, e
+uma página unificada para ler as informações que você já pesquisou e
+entender o que você fez na aplicação até hoje.
+
+_Devolução do agente (o que entendi, com crítica):_
+
+1. **A proposta.** O app passa a ter duas páginas principais: **Pesquisar**
+   (fazer: identificador → tipo de dado → "consultar" ou "monitorar") e
+   **Acompanhar** (ler: tudo o que foi pedido e recebido). Empresas, Pessoas,
+   Histórico de consultas e Dashboard deixam de ser portas de entrada e vão
+   para um canto secundário. A regra que o ditado estabelece: **cada página
+   tem uma função**, e nenhuma ação aparece em página de leitura. Isso
+   substitui o ponto 1, item 5 (as quatro entradas).
+2. **Ambiguidade a resolver.** O "outro canto" (empresas, pessoas,
+   histórico) e a página de "verificar os resultados" são a mesma coisa ou
+   duas? Leitura do agente: são a mesma página, com níveis. Por exemplo, em
+   cima as novidades (alertas), embaixo a lista de assuntos (cada pessoa,
+   empresa ou processo), e cada assunto abre uma ficha com tudo o que se
+   sabe dele: consultas feitas, resultados, monitoramentos ativos, alertas. O
+   "o que você não sabe" poderia ser, na ficha, as consultas que ainda não
+   foram feitas para aquele assunto. Isso é interpretação, não ditado.
+3. **"Fazer monitoramento" não devolve os dados de agora.** Fato observado na
+   etapa 4 (catálogo C14, README item 37): o monitoramento por documento só
+   avisa processos distribuídos **depois** da criação, e a primeira execução
+   pode levar até um dia. "Receber os dados e deixar um monitoramento" são,
+   então, duas chamadas cobradas: uma consulta agora e um monitoramento
+   daqui para frente. A tela precisa dizer isso, ou o cliente vai esperar o
+   retrato atual vindo do monitoramento.
+4. **Nem todo tipo de dado tem monitoramento.** A JUDIT monitora quatro
+   coisas (mapa de funcionalidades, F17 a F20): movimentações de um processo
+   (CNJ), processos novos de um documento (CPF, CNPJ, OAB), Diário Oficial e
+   filtros sem documento. Dados cadastrais, contagem, mandados e execução
+   penal não se monitoram. O botão "monitorar" só aparece onde existe, e o
+   texto diz o que será acompanhado (que não é o mesmo dado da consulta).
+5. **Recorrência como opção.** A JUDIT gravou recorrência 1 nas duas vezes em
+   que pedimos 30 (caso C11, pergunta IK1). Oferecer "de quanto em quanto
+   tempo" pode prometer o que a conta não cumpre. Até a IK1 ter resposta, a
+   tela mostra o que a JUDIT gravou, como já faz o aviso da criação.
+6. **Webhook como padrão.** Faz sentido e resolve o caso K3 (o status só
+   muda quando alguém clica). Depende de uma URL pública
+   (`JUDIT_WEBHOOK_PUBLIC_ORIGIN`): na máquina local, sem túnel, não há como
+   receber. Então o padrão é "webhook quando há URL pública, consulta
+   periódica quando não há", com a tela dizendo qual está valendo.
+7. **Todos os identificadores.** Entram OAB, nome e RJI (número do BNMP, só
+   para mandados), além de CPF, CNPJ e CNJ. Três cuidados: a documentação
+   não especifica o formato de OAB nem de RJI (`src/lib/judit/guard.ts`),
+   então o reconhecimento pela digitação precisa de fonte antes; nome não
+   tem formato (é o que sobra quando nada é reconhecido) e traz homônimos;
+   não há documento de teste para OAB, nome e RJI, então o teste ao vivo
+   depende de dados reais seus e da allowlist por variável de ambiente.
+8. **A página de leitura esbarra numa decisão de banco.** Hoje as consultas
+   síncronas guardam **só metadados** (`sync_queries`): o resultado aparece e
+   não é gravado, por minimização de dados. Os resultados assíncronos são
+   lidos de novo na JUDIT ao abrir (custo não documentado). "Ver tudo o que
+   recebi" pede uma escolha: gravar os resultados (mais dado pessoal e
+   processual no banco) ou buscar de novo quando abrir (mais chamadas, talvez
+   cobradas). É decisão de desenho de dados, para discutir antes do código.
+9. **Custo para o fechamento.** É uma reestruturação de navegação, não um
+   pormenor. Até a separação dos dois produtos, o modo de demonstração
+   também precisa funcionar nas páginas novas. Uma saída é fazer o círculo 3
+   só no modo `db` e adaptar o protótipo na separação; decidir quando o
+   círculo abrir.
+
+Escolhas para quando o círculo 3 abrir, somadas às do ponto 1: o "canto
+secundário" e a página de leitura são uma página ou duas; gravar resultados
+ou buscar de novo; o que acontece com o Dashboard (vira o topo da página de
+leitura ou some); o modo de demonstração acompanha agora ou na separação.
+
+### Ponto 3: digitar uma vez, a barra de pesquisa e o círculo 4
+
+_Ditado do usuário:_ Sim, quando digo monitorar e trazer os dados ao mesmo
+tempo, estou falando de duas chamadas. Isso a gente pode deliberar. Às vezes
+o que interessa é ver os dados e deixar o monitoramento. Na aba Consultar
+poderíamos deixar só "consultar" e "novo monitoramento"; ou, ao clicar em
+"novo monitoramento", aparece uma janelinha perguntando se você quer receber
+também os dados de agora. Penso no fluxo: a pessoa escreve o CPF e consulta,
+mas ao mesmo tempo queria monitorar, para saber se houver alguma alteração;
+hoje ela teria que digitar o CPF de novo. Queria que a pessoa só precisasse
+digitar uma vez. Mas isso é secundário, deliberamos depois.
+
+O botão "monitorar" só aparece onde existe, e é por isso que acho importante
+a consulta entender o que pode fazer por você a partir do momento em que
+você digita o documento. Na aba Consultar, só há a janelinha para escrever o
+documento, e ela reconhece o que pode te dar a partir dele. Gostei da
+interpretação do agente sobre a ambiguidade (o canto secundário e a página
+de leitura são uma página só, em níveis).
+
+Na aba Consultar não haveria a barrinha de pesquisa que existe no site todo;
+ela só aparece nas suas informações de dados. O que ela procura é, por
+exemplo, se aquele CPF você já consultou: é um jeito fácil de acessar as
+suas consultas. Você digita um CPF e aparece primeiro a consulta que você já
+fez sobre ele, com a data, para reacessar; e, em segundo, com pouca
+opacidade, "criar consulta", porque às vezes a pessoa está na aba errada.
+Essa barrinha poderia ser realmente funcional. Todas essas mudanças
+deixariam o fluxo do site bem melhor, e conseguiríamos terminar o front do
+cliente rapidinho: um produto simples para quem acessa, mas com todas as
+funcionalidades que se poderia pedir de algo que usa a API da JUDIT.
+
+No círculo 4, entenderíamos as funções de suporte do aplicativo, quais
+informações precisam estar nas Configurações e o que queremos dizer com
+integração com a conta. Não sei se a vista de suporte é tão útil, dado que
+não tem tantas funções: há a página de diagnóstico de webhooks, aparece o
+banco de dados, umas legendas a mais. Se for para ter um modo desenvolvedor,
+que tenha coisas novas a fazer; se não tiver, tudo bem apagá-lo e deixar o
+diagnóstico de webhooks no lugar. Isso fica para o círculo 4; antes, vamos
+nos manter no que queremos dizer com o círculo 3.
+
+_Devolução do agente (o que entendi, com crítica):_
+
+1. **Direção aceita:** a interpretação do ponto 2, item 2, vale como rumo:
+   a página de leitura e o canto secundário são uma página só, em níveis
+   (novidades, assuntos, ficha de cada assunto).
+2. **Digitar uma vez (secundário, a deliberar).** As duas saídas do ditado
+   servem, e nenhuma pede redigitar: (a) o resultado da consulta oferece
+   "Monitorar" já preenchido (hoje existe, depois da consulta); (b) o
+   diálogo de monitorar tem "receber também os dados de agora", deixando
+   escrito que são duas cobranças. A (b) cobre o caso "quero os dois" num
+   clique só; a (a) cobre "vi o resultado e decidi acompanhar". Podem
+   conviver.
+3. **Consultar só com o campo.** Coerente com o ponto 1: sem seletor de
+   tipo, sem opções antes do reconhecimento.
+4. **A barra de pesquisa muda de papel.** Hoje (fatia 5,
+   `src/components/layout/search-suggestions.ts`) ela procura partes
+   salvas, monitoramentos e processos conhecidos, e oferece "Consultar na
+   JUDIT". No ditado, ela vira a busca da página de leitura: procura
+   **consultas já feitas** pelo identificador (com a data) e, por último e
+   discreta, "criar consulta", que leva a Consultar já preenchida. Duas
+   consequências: ela some da página Consultar (a barra está no cabeçalho,
+   comum a todas as páginas, então a visibilidade passa a depender da rota);
+   e "reacessar a consulta" esbarra na decisão do ponto 2, item 8: hoje uma
+   consulta síncrona reaberta mostra só os metadados (data, tipo,
+   quantidade), porque o resultado não é gravado.
+5. **"Terminar rapidinho".** O desenho é simples para quem usa, mas três
+   pontos pesam no tamanho: a decisão de gravar resultados (ponto 2, item
+   8), os formatos de OAB e RJI sem fonte (ponto 2, item 7) e o modo de
+   demonstração nas páginas novas (ponto 2, item 9). Resolver os três antes
+   do código deixa o círculo 3 curto.
+6. **Círculo 4 (só registrado).** Fato para a discussão: a vista de suporte
+   hoje mostra o item Diagnóstico no menu, identificadores técnicos
+   (`request_id`, status da JUDIT), a conferência de entregas por webhook e
+   textos a mais; ela é lida em 11 arquivos de `src`. Pesa a favor de
+   mantê-la que o catálogo de falhas é um objetivo do projeto, e a vista é
+   onde o suporte enxerga a falha; pesa contra que ela tem pouca coisa
+   própria.
+
+## Círculo 3: proposta consolidada (2026-10-17)
+
+Junta os pontos 1 a 3 (acima), a pedido do usuário: primeiro o que ele disse,
+por tema e em texto do agente; depois a crítica; depois as decisões que vêm
+antes do código; por fim, as fatias. Nada aqui foi decidido.
+
+### A. O que foi dito, por tema
+
+1. **Objetivo do círculo.** Estabelecer o fluxo do cliente: um produto
+   simples para quem usa, que mostre todas as funcionalidades da API da
+   JUDIT de forma unificada, e permita terminar rápido o front do cliente.
+2. **Regra geral.** Cada página tem uma função. Nada de páginas que acumulam
+   funções nem de três caminhos para a mesma coisa (exemplo citado: criar
+   monitoramento a partir do Dashboard, que é uma página de informação).
+3. **Página de pesquisa (fazer).** Só um campo. O app reconhece, pelo que foi
+   digitado, qualquer identificador que a API da JUDIT aceita, e diferencia
+   os que tiverem o mesmo número de dígitos. Reconhecido o identificador,
+   aparecem as consultas possíveis para ele. A pessoa escolhe o tipo de dado
+   e clica em "consultar" (dados imediatos) ou "monitorar" (acompanhamento
+   com as opções que o app já oferece, como a frequência, e webhook como
+   padrão). "Monitorar" só aparece onde existe.
+4. **Consultar e monitorar juntos.** São duas chamadas, de propósito: muitas
+   vezes a pessoa quer ver os dados agora e deixar o acompanhamento. Ela não
+   deve precisar digitar o identificador duas vezes. Duas formas possíveis:
+   botões separados, ou o diálogo de monitorar perguntando se ela quer os
+   dados de agora também. Secundário; decidir depois.
+5. **Página de leitura (ver).** Uma página para verificar tudo o que se
+   sabe: o que foi pedido, o que foi recebido, o que ainda não se sabe, e
+   entender o que se fez no app até hoje. Empresas, Pessoas, Histórico de
+   consultas e o Dashboard deixam de ser páginas próprias e se recolhem
+   nela. Aceita a leitura do agente: uma página só, em níveis (novidades,
+   assuntos, ficha de cada assunto).
+6. **Barra de pesquisa.** Some da página de pesquisa e fica só na de leitura.
+   Ela procura o que já foi consultado: digitado um CPF, aparece primeiro a
+   consulta já feita sobre ele, com a data, para reabrir; por último, em
+   destaque menor, "criar consulta", para quem está na página errada.
+7. **Fora do círculo 3 (círculo 4).** Funções de suporte, o que vai nas
+   Configurações, o que significa "integração com a conta" e se a vista de
+   suporte continua (se não ganhar funções próprias, pode sair, deixando o
+   diagnóstico de webhooks no lugar).
+
+### B. Crítica
+
+1. **A proposta é boa e resolve o problema certo.** O app tem poucas
+   funções e já tem entradas sobrepostas (barra do topo, Consultar,
+   "Adicionar empresa/pessoa", "Novo monitoramento", ações no Dashboard).
+   Duas páginas com funções separadas reduzem a navegação a uma pergunta:
+   "quero saber algo novo" ou "quero ver o que já sei".
+2. **O "assunto" deixa de ser só empresa ou pessoa.** Com OAB, nome, CNJ e
+   RJI, a página de leitura precisa agrupar por identificador, não pela
+   coleção `parties` (que só tem CPF e CNPJ). Isso muda o modelo mental do
+   app: a unidade passa a ser "o que eu pesquisei", não "quem eu cadastrei".
+3. **Ver o que já recebi exige guardar ou buscar de novo.** Hoje a consulta
+   síncrona grava só metadados (`SyncQuery` em `src/db/models.ts`: tipo,
+   chave, resultado, quantidade, erro). A assíncrona é relida na JUDIT a
+   cada abertura (`listResponses` em `src/features/queries/actions.ts`,
+   custo não documentado). A página de leitura só cumpre a promessa se essa
+   escolha for feita (decisão D1). É a decisão mais pesada do círculo.
+4. **Reconhecer todos os identificadores tem um caso real de colisão.** CPF
+   (11 dígitos), CNPJ (14 caracteres) e OAB (número e UF, com letras e
+   curta) se separam pelo formato. Mas o único exemplo de RJI tem 20
+   dígitos, como o CNJ (README item 47). O CNJ tem dígito verificador; o
+   RJI, até onde a documentação diz, não. Regra possível: 20 dígitos com
+   verificador de CNJ válido = CNJ; inválido = RJI, com um "não é isso?"
+   para corrigir. O formato da OAB também não é definido (UF antes ou
+   depois, README item 47): aceitar as duas formas e normalizar fica como
+   hipótese a testar. Nome é o que sobra quando nada é reconhecido.
+5. **Monitorar não devolve o retrato atual** (catálogo C14): por isso as
+   duas chamadas do tema 4 são necessárias, e a tela deve dizer que são
+   duas cobranças. Nem todo dado tem monitoramento: a JUDIT monitora
+   processo (CNJ), processos novos de documento (CPF, CNPJ, OAB), Diário
+   Oficial e filtros sem documento (mapa, F17 a F20). Contagem, cadastro,
+   mandados e execução penal, não.
+6. **Webhook como padrão tem um pré-requisito e uma lacuna.** Precisa de
+   URL pública (`JUDIT_WEBHOOK_PUBLIC_ORIGIN`); sem ela, a verificação
+   periódica continua. E o monitoramento criado pelo app hoje não envia
+   `callback_url`: o client só tem o `PATCH` depois da criação
+   (`updateTrackingCallbackUrl` em `src/lib/judit/tracking.ts`). Ligar o
+   webhook nos monitoramentos é trabalho novo, e a entrega real precisa ser
+   testada.
+7. **Frequência como opção.** A JUDIT gravou 1 nas duas vezes em que
+   pedimos 30 (C11). Até a IK1 ter resposta, oferecer a escolha promete o
+   que talvez não aconteça; a tela pode mostrar o que a JUDIT gravou.
+8. **"Terminar rápido" depende das decisões, não do código.** Com D1 a D7
+   resolvidas, as fatias são diretas; sem elas, o círculo vira idas e
+   voltas.
+
+### C. Decisões antes do código
+
+| #   | Decisão                                           | Opções                                                                                                                                        | Recomendação do agente                                                                                                                                                                                              |
+| --- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D0  | Documentos reais nos testes                       | (A) allowlist extra no `.env.local`; (B) `JUDIT_ALLOWLIST=disabled`                                                                           | A: o documento fica fora do Git e o modo restrito continua                                                                                                                                                          |
+| D1  | O que a página de leitura mostra de cada consulta | (a) só metadados, reabrir = consultar de novo; (b) gravar o resultado já tratado (o que a tela mostra), sem o payload cru; (c) reler na JUDIT | b, com campos listados por tipo de consulta, botão "apagar este assunto" e o cadastro (endereços, contatos) fora do que se grava. Muda a regra de minimização de dados: decisão sua                                 |
+| D2  | O que é um "assunto"                              | (a) só partes (CPF, CNPJ); (b) qualquer identificador pesquisado (tipo e chave), com o nome da parte quando houver                            | b: agrupar pelo histórico, sem coleção nova; `parties` continua dando nome às empresas e pessoas                                                                                                                    |
+| D3  | Identificadores novos                             | OAB, nome, RJI: todos, alguns ou nenhum agora                                                                                                 | OAB e nome, com aviso de homônimo no nome; RJI só nos mandados. Teste ao vivo com dados seus (depende de D0)                                                                                                        |
+| D4  | Consultar e monitorar sem redigitar               | (a) "Monitorar" no resultado; (b) "receber também os dados de agora" no diálogo; (c) as duas                                                  | c, com as duas cobranças escritas. Secundário, como o usuário disse                                                                                                                                                 |
+| D5  | Página inicial e páginas antigas                  | "/" = pesquisa ou leitura; antigas somem ou redirecionam                                                                                      | "/" = pesquisa (é a ação do leigo), com uma linha "N novidades" levando à leitura; Dashboard, Empresas, Pessoas, Histórico e Monitoramentos viram partes da leitura, e as rotas antigas redirecionam                |
+| D6  | Webhook nos monitoramentos                        | (a) agora; (b) no círculo 4                                                                                                                   | a, só quando houver URL pública, com a tela dizendo como o resultado chega                                                                                                                                          |
+| D7  | Modo de demonstração                              | (a) acompanha cada fatia; (b) só o modo `db` agora, demonstração na separação                                                                 | a, com o mínimo: as consultas que já têm dados fictícios funcionam, as novas (OAB, nome, RJI) dizem "indisponível na demonstração". Sem isso, o app quebra no modo `demo` até a separação, e o protótipo nasce dele |
+
+### D. Como implementar (fatias, depois das decisões)
+
+1. **Reconhecimento de identificadores.** Uma função pura (perto de
+   `detectDocument` em `src/features/parties/documents.ts`) que recebe o
+   texto e devolve o tipo reconhecido, ou a lista de candidatos quando há
+   dúvida (CNJ ou RJI). Testes com cada formato, com a colisão e com a
+   digitação pela metade (os 11 primeiros dígitos de um CNPJ). Sem
+   chamada à JUDIT.
+2. **Catálogo ampliado.** Cada consulta de `src/features/consult/catalog.ts`
+   passa a dizer os identificadores aceitos (com OAB, nome e RJI onde a
+   JUDIT aceita), se tem monitoramento equivalente e o que ele acompanha, e
+   um texto curto de tempo e custo. As opções viram perguntas ("Quantos
+   processos?", "Dados da empresa").
+3. **Página de pesquisa.** Só o campo; selo "Reconhecido: …" com "não é
+   isso?"; opções depois do reconhecimento; "Consultar" e, onde existe,
+   "Monitorar"; resultado com "Monitorar" já preenchido (D4). Sem a barra
+   do cabeçalho.
+4. **Gravar o que a leitura vai mostrar (conforme D1).** Mudança no modelo
+   de dados, com índice e testes, separada da tela.
+5. **Página de leitura.** Topo: novidades (alertas) e os números do
+   Dashboard. Meio: assuntos (D2), com filtro por tipo e "monitorado".
+   Ficha do assunto: consultas feitas com data, resultados (D1),
+   monitoramentos, alertas e as consultas ainda não feitas. A barra de
+   pesquisa vive aqui: consultas já feitas primeiro, "criar consulta"
+   discreto por último.
+6. **Webhook nos monitoramentos (D6)** e o texto de como cada resultado
+   chega.
+7. **Limpeza.** Menu com duas entradas (mais Configurações e, enquanto a
+   vista de suporte existir, Diagnóstico); rotas antigas redirecionam (D5);
+   ações retiradas das páginas de leitura; textos de ajuda revistos.
+
+Ordem pensada para que cada fatia funcione sozinha: 1 e 2 não mudam a tela;
+3 troca a página de pesquisa; 4 e 5 trocam a leitura; 6 e 7 fecham.
+
+### Respostas do usuário à proposta (2026-10-17)
+
+_Ditado do usuário:_ Lembro que, num momento antigo do projeto, eu disse que
+não fazia muito sentido ter um banco de dados próprio, já que existia o
+datalake da JUDIT. Hoje acho que faz total sentido ter banco próprio; tem que
+ter. A consulta que a gente faz tem que ir para dentro do MongoDB.
+
+Sobre a colisão entre CNJ e RJI, faz sentido a forma de decidir se é um ou
+outro. Mas penso também que, mesmo com 20 dígitos, às vezes há letras e
+números numa ordem diferente; acho muito difícil terem feito 20 dígitos
+exatamente na mesma formatação de outro documento.
+
+Quero conseguir abrir o aplicativo neste momento de teste e fazer consultas
+com documentos reais. Não quero a allowlist ativada agora: se já temos uma
+medida de segurança que impede que eu gaste todos os meus créditos e fique
+sem conseguir testar, não faz sentido a allowlist me impedir de consultar.
+
+E não podemos mais guardar só o mínimo de dados. Temos que guardar tudo, já
+normalizado, como se o nosso banco pudesse pegar o dado que recebeu da JUDIT
+e usá-lo para si próprio, e só mudá-lo quando houver alguma atualização
+naquele dado. Fora esses comentários, gostei das recomendações e do
+seccionamento das fatias.
+
+Para ser explícito sobre como imagino o site: com duas páginas principais,
+não faz sentido a barra vertical da esquerda com todas as telas, porque
+nunca vamos preenchê-la; serão pouquíssimas páginas. Ela vira uma barra
+horizontal no topo da tela. No canto superior esquerdo, o logo, o nome da
+página em que você está e os dois botões para trocar entre as páginas: um
+leva a "consultas", o outro a "informações das consultas", e você só
+alterna entre uma e outra, como quando se troca de workspace no Linux (1,
+2), mas com o nome mudando junto. No meio, a barra de pesquisa. No canto
+direito, os alertas, as configurações e a conta.
+
+A barra de pesquisa pode ficar em todas as telas, como uma pesquisa simples
+e unificada. Há dois fluxos que exigem procurar com atenção: ir à página de
+fazer consulta ou à página de pesquisar as informações do seu banco. Na
+barra, você só digita e tem um acesso muito fácil, para quem está com
+pressa.
+
+_Devolução do agente (o que entendi, com crítica):_
+
+1. **D1 decidido: gravar tudo, normalizado.** Isso **reverte uma decisão
+   registrada**: na etapa 3 (diário, "Desenho da fatia 3: híbrido",
+   2026-10-14) o usuário decidiu não copiar processos para o MongoDB, e a
+   IK0 reforçou o desenho híbrido. A razão de então era não replicar a
+   JUDIT; a de agora é que o app passa a ter uma base própria, que a página
+   de leitura usa. Consequências a desenhar na fatia 4: (a) "normalizado"
+   quer dizer coleções do nosso formato, uma por coisa (processos por CNJ,
+   cadastros por documento, mandados, execuções), e não o corpo cru da
+   resposta; (b) "só mudar quando houver atualização" pede regra de
+   atualização: substituir pelo dado mais novo, guardando de onde veio
+   (`request_id`, data, base ou tribunal), já que a JUDIT não manda uma
+   versão; (c) sem monitoramento, o dado só envelhece, então a tela mostra
+   "consultado em"; (d) mais dado pessoal e processual de terceiros no
+   banco: o botão "apagar este assunto" e o cuidado com processos em
+   segredo de justiça continuam.
+2. **D0 decidido: allowlist desligada agora.** Não pede código:
+   `JUDIT_ALLOWLIST=disabled` no `.env.local` (`allowlistEnabled` em
+   `src/lib/judit/guard.ts`), que o usuário edita. Ficam valendo o limite
+   por minuto (30) e o teto diário (50), contados por nós. Um cuidado
+   concreto: o teto conta a criação de um monitoramento, não as execuções;
+   um monitoramento real de CPF é cobrado pela JUDIT a cada execução até ser
+   pausado.
+3. **RJI e letras.** A hipótese do usuário (o RJI teria letras e números
+   numa ordem própria) é plausível, mas a documentação só mostra 20 zeros
+   (README item 47). Sem fonte, a regra do reconhecimento fica: CNJ válido
+   = CNJ; 20 caracteres que não são CNJ = candidato a RJI, com "não é
+   isso?". Se o RJI tiver letras, ele se separa sozinho do CNJ, que é só
+   número. Pergunta registrada no diário (IK15).
+4. **Navegação no topo, sem a barra lateral.** Três zonas: esquerda (logo,
+   nome da página, alternância 1 e 2 entre "Consultar" e "Minhas
+   informações"), meio (barra de pesquisa), direita (alertas,
+   configurações, conta). Observações: (a) o nome da página e a alternância
+   dizem a mesma coisa; a alternância com o nome destacado já resolve; (b)
+   "conta" ainda não existe: não há login (círculos 3 ou 4) e "Conta na
+   JUDIT" está nas Configurações; até lá, o canto direito pode ter só
+   alertas e configurações; (c) no celular, as três zonas não cabem: a
+   barra de pesquisa vira um ícone; (d) Diagnóstico, enquanto existir, fica
+   dentro de Configurações (decisão do círculo 4).
+5. **Barra de pesquisa em todas as páginas** (substitui o tema 6 da
+   proposta consolidada). Ela vira o atalho para as duas páginas: digitado
+   um identificador, mostra primeiro o que já está no banco e, em seguida,
+   "consultar", que leva à página de pesquisa já preenchida. Um conflito: na
+   página Consultar haveria dois campos para a mesma coisa (o da barra e o
+   da página). Saída proposta: nessa página, digitar na barra preenche o
+   campo da página, em vez de abrir sugestões.
+
+Decisões atualizadas: D0 = B (allowlist desligada, pelo `.env.local`); D1 =
+gravar tudo, normalizado; D2 a D7 seguem a recomendação. Fatias como na
+proposta consolidada, com a navegação no topo dentro da fatia 7 (ou antes,
+se for melhor ver a forma nova cedo).
+
+## Círculo 3: plano de implementação (2026-10-17)
+
+Decisões em vigor: D0 = allowlist desligada pelo `.env.local` (feito pelo
+usuário; limites de 30 por minuto e 50 por dia continuam); D1 = gravar tudo,
+normalizado, no MongoDB; D2 a D7 pela recomendação da proposta consolidada.
+Cada fatia termina com testes, lint, typecheck, format e build, e um commit
+próprio. Os testes ao vivo são do usuário, com documento próprio; o agente
+registra os resultados sem o número do documento.
+
+1. **Reconhecimento de identificadores.** Função pura, sem tela e sem
+   JUDIT, que recebe o texto digitado e devolve o tipo reconhecido, um
+   estado "incompleto" ou a lista de candidatos quando há dúvida. Tipos:
+   CPF (11 dígitos com verificador), CNPJ (14 caracteres, numérico ou
+   alfanumérico, com verificador), CNJ (20 dígitos com verificador), RJI
+   (20 caracteres que não formam um CNJ válido; IK15), OAB (número e UF,
+   nas duas ordens; README item 47) e nome (o que sobra, com tamanho
+   mínimo). Testes de cada formato, da colisão CNJ/RJI e da digitação pela
+   metade. Substitui `detectDocument` onde ele decide o tipo.
+2. **Catálogo ampliado.** Cada consulta de `src/features/consult/catalog.ts`
+   passa a declarar os identificadores que a JUDIT aceita para ela (com
+   OAB, nome e RJI onde a documentação diz), o monitoramento equivalente
+   (se existe e o que acompanha), a pergunta que a representa para o leigo
+   ("Quantos processos?") e um texto curto de tempo e custo. Os tipos novos
+   entram nos tipos de busca do app e no client, conferidos página a página
+   na documentação antes de cada chamada nova.
+3. **Navegação no topo.** Sai a barra lateral. Barra horizontal com três
+   zonas: à esquerda, logo e a alternância "Consultar" / "Minhas
+   informações" (a ativa com o nome destacado); no meio, a barra de
+   pesquisa; à direita, alertas e Configurações (a "conta" espera o login).
+   Diagnóstico entra em Configurações enquanto a vista de suporte existir
+   (círculo 4). No celular, a pesquisa vira ícone. Até a fatia 6, "Minhas
+   informações" leva às páginas atuais.
+4. **Página Consultar nova** ("/" passa a ser ela, D5). Só o campo; selo
+   "Reconhecido: …" com "não é isso?"; as perguntas possíveis para aquele
+   identificador; botões "Consultar" e, onde existe, "Monitorar". O
+   diálogo de monitorar tem "receber também os dados de agora", com as duas
+   cobranças escritas; o resultado da consulta tem "Monitorar" já
+   preenchido (D4). Monitoramento por OAB entra se a fatia 2 confirmar na
+   documentação.
+5. **Base própria (D1).** Coleções novas no nosso formato, uma por coisa:
+   processos (chave CNJ), dados cadastrais (chave tipo e documento),
+   mandados e execuções penais, com a ligação "encontrado ao pesquisar tal
+   identificador". Gravadas a partir das consultas síncronas, dos
+   resultados assíncronos e das entregas de webhook. Regra de atualização:
+   o dado mais novo substitui o anterior, guardando a origem (`request_id`,
+   data, base ou tribunal). Índices únicos para não duplicar; testes num
+   MongoDB temporário. Processos em segredo de justiça e contatos do
+   cadastro: o desenho da fatia diz o que se grava e por quê, antes do
+   código.
+6. **Página Minhas informações** (D2). Topo: novidades (alertas) e os
+   números do Dashboard. Meio: assuntos (cada identificador pesquisado,
+   com o nome quando houver), com filtros por tipo e "monitorado". Ficha do
+   assunto: consultas com data, dados da base própria com "consultado em",
+   monitoramentos, alertas, consultas ainda não feitas e "apagar este
+   assunto". As rotas antigas (Dashboard, Empresas, Pessoas, Histórico,
+   Monitoramentos, Alertas, Processo) redirecionam ou viram a ficha.
+7. **Barra de pesquisa unificada.** Em todas as páginas: primeiro o que já
+   está no banco (assuntos e consultas, com data), por último "Consultar",
+   que abre a página Consultar preenchida. Na página Consultar, digitar na
+   barra preenche o campo da página.
+8. **Webhook nos monitoramentos (D6).** Quando houver URL pública
+   (`JUDIT_WEBHOOK_PUBLIC_ORIGIN`), o monitoramento criado pelo app recebe
+   o `callback_url` (conferir na documentação se vai na criação ou só pelo
+   `PATCH`); a tela diz como cada resultado chega. A entrega real depende
+   de túnel e do usuário.
+9. **Limpeza e demonstração (D7).** Componentes e ações que ficaram sem
+   uso saem; textos de ajuda revistos; modo de demonstração funcionando
+   nas páginas novas com os dados fictícios que já existem, e "indisponível
+   na demonstração" para OAB, nome e RJI. Conferência de todas as páginas
+   nos dois modos.
+
+Fora do círculo 3: login e "tomadas" do back-end, o destino da vista de
+suporte e o que vai em Configurações (círculo 4); anexos, filtros avançados,
+Diário Oficial e histórico da conta (candidatos já listados). Depois do
+círculo 3 (ou do 4), o fechamento da etapa 7: os dois produtos separados.

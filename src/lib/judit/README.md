@@ -422,3 +422,21 @@ Registradas em vez de escolhidas em silêncio.
     a rota atende ao modelo pré-pago e que, no pós-pago, o número
     equivalente é o `remaining` do consumo. Que o 422 é a resposta para
     conta pós-paga é inferência nossa: a página não lista erros.
+46. **Resumo por IA (`judit_ia: ["summary"]`) demora.** _Observado em
+    2026-10-16 e 2026-10-17:_ `POST /requests` por CNJ (o fictício) com
+    `judit_ia: ["summary"]` foi aceito, e `GET /requests/{id}` devolve o
+    campo como enviado. A requisição de 2026-10-16 ficou `pending` por cerca
+    de 16 minutos (12:38 a 12:54 UTC) e terminou com `responses_count: 2`;
+    sem o resumo, a mesma consulta terminou em segundos na etapa 6. Que a
+    demora venha do resumo é hipótese nossa: uma amostra só. A documentação
+    não informa o tempo esperado.
+47. **Formato da OAB e do RJI sem definição.** Os exemplos de OAB não
+    concordam: `"SP123456"` (UF antes) em
+    [tracking-communication](https://docs.judit.io/tracking/tracking-communication),
+    `"123456SP"` em [count](https://docs.judit.io/cache-judit/count) e
+    `"99999RJ"` em [cache-grouped](https://docs.judit.io/cache-judit/cache-grouped)
+    (UF depois). Nenhuma página diz qual a API aceita, nem se aceita as duas.
+    O único exemplo de RJI, em
+    [warrant](https://docs.judit.io/criminal-consultation/warrant), é
+    `"00000000000000000000"`: 20 dígitos, o mesmo tamanho de um CNJ sem
+    máscara. Lido em 2026-10-17; não testado ao vivo.

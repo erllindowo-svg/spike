@@ -6,18 +6,18 @@
 
 ## Onde estamos
 
-| Etapa (AGENTS.md, seção 6)                  | Estado                                                                                   |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                                      |
-| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                                            |
-| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                                    |
-| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                                |
-| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.                 |
-| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                                          |
-| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real.                |
-| 7. Produto: revisão visual e dois produtos  | Em andamento: uso guiado feito, círculos 1 e 2 implementados (`docs/etapa-7-escopo.md`). |
-| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                                |
-| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").                              |
+| Etapa (AGENTS.md, seção 6)                  | Estado                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1. Fundação e interface com dados fictícios | Concluída (tag `prototype-v0.1.0`).                                                         |
+| Client JUDIT (fases 0–3)                    | Concluído, em `main` (PR #1).                                                               |
+| 2. Modelo de dados e persistência           | Concluída, em `main` (PR #2), testada contra o Atlas.                                       |
+| 3. Consultas reais à JUDIT pelo servidor    | **Concluída** (fatias 3a e 3b), testada com a JUDIT real.                                   |
+| 4. Monitoramento real                       | **Concluída** em 2026-10-15: primeira execução conferida, teste pausado.                    |
+| 5. Receber e gravar um webhook              | **Concluída** em 2026-10-15, em `main` (PR #5).                                             |
+| 6. Processamento, alertas e diagnóstico     | **Concluída** em 2026-10-15, em `main` (PR #6), testada com entrega real.                   |
+| 7. Produto: revisão visual e dois produtos  | Em andamento: círculos 1 e 2 implementados; círculo 3 planejado (`docs/etapa-7-escopo.md`). |
+| 8. Opcional: itens abertos, auditoria       | Para depois (8A, 8B, 8C).                                                                   |
+| 8. Auditoria completa do código             | No fim do projeto (`AGENTS.md`, seção 6, "Modo auditoria").                                 |
 
 ### Estado do Git
 
@@ -34,8 +34,9 @@
 - Etapa 7 na branch `feat/product-review` (a partir de `b3b727d`). Primeiro
   commit: as decisões de 2026-10-15 sobre as etapas 7 e 8 (`AGENTS.md`,
   plano e diário). Depois, o círculo 1 (`c8c94d6`, `379e2e4`) e as 14
-  fatias do círculo 2 (último commit `f7c9028`), uma por commit. **Não
-  enviada** ao GitHub; sem merge, por decisão do usuário.
+  fatias do círculo 2 (último commit `f7c9028`), uma por commit. Enviada
+  pelo usuário em `fcc9918` (2026-10-16); sem PR. Depois: testes ao vivo do
+  círculo 2 (`c22e1da`) e o planejamento do círculo 3 (2026-10-17).
 
 ## Etapa 3: o que existe
 
@@ -335,14 +336,15 @@ produto.
 
 ## Pendências conhecidas
 
-- **Reiniciar o `pnpm dev`** antes de usar o app: a migração de
-  `companies` para `parties` e os índices novos só rodam ao conectar
-  (catálogo I1 e G4).
-- Nada do círculo 2 que chama a JUDIT pela primeira vez foi testado ao
-  vivo: dados cadastrais (`POST /entities`), `step_terms`, saldo e consumo,
-  consulta processual por CNJ com resumo por IA, mandados, execução penal.
-- Decisões suas: destino do evento de saída, textos de ajuda, liberar
-  documentos reais (S5; a allowlist continua ligada).
+- **Allowlist desligada** desde 2026-10-17 (`JUDIT_ALLOWLIST=disabled` no
+  `.env.local`, decisão D0 do círculo 3). Valem só o limite por minuto (30)
+  e o teto diário (50). O teto conta a criação de um monitoramento, não as
+  execuções: um monitoramento real é cobrado até ser pausado.
+- Testes ao vivo do círculo 2: feitos dados cadastrais (K2), `step_terms`
+  (README 44), saldo e consumo (K1) e consulta processual com resumo por IA
+  (README 46, K3; falta ver o resumo na tela). Faltam mandados e execução
+  penal, agora possíveis com documento real.
+- Decisões suas: destino do evento de saída, textos de ajuda.
 - "Conferir na JUDIT" (envio incerto) só foi testada com `fetch` simulado.
   Os filtros de `GET /tracking` não são usados; a comparação é feita no
   nosso código (caso C12).
@@ -357,11 +359,12 @@ produto.
 
 ## Próxima sessão, em ordem
 
-1. **Etapa 7 (produto),** na branch `feat/product-review`: reiniciar o
-   `pnpm dev`; testar ao vivo, uma por vez, as chamadas novas do círculo 2
-   (começando por "Consultar dados cadastrais" com o CNPJ de teste); usar o
-   app e anotar os pontos do círculo 3. Candidatos já listados no fim de
-   [`docs/etapa-7-escopo.md`](etapa-7-escopo.md).
+1. **Etapa 7, círculo 3,** na branch `feat/product-review`: implementar as
+   nove fatias de "Círculo 3: plano de implementação" em
+   [`docs/etapa-7-escopo.md`](etapa-7-escopo.md), uma por commit. O desenho
+   e as decisões estão nas seções anteriores do mesmo documento ("Círculo
+   3: anotações", "proposta consolidada" e "Respostas do usuário"). Círculo
+   4 (suporte, Configurações, login) só se o usuário quiser.
 2. **Fechamento da etapa 7:** dois produtos separados. O protótipo fica só
    com dados fictícios; o `main` vira o app real, só com banco e chave, sem
    código de demonstração. Depois, README e teste do clone limpo. Aí o
@@ -371,6 +374,8 @@ produto.
 ## Como retomar com o agente
 
 > Leia `docs/relatorio-de-progresso.md`, a seção 6 do `AGENTS.md` e
-> `docs/etapa-7-escopo.md` (do "Círculo 2: plano" até o fim). O círculo 2
-> está implementado na branch `feat/product-review`. Vamos fazer os testes
-> ao vivo das chamadas novas e depois abrir o círculo 3.
+> `docs/etapa-7-escopo.md` (de "Círculo 3: anotações" até o fim). O círculo
+> 3 está planejado e decidido, na branch `feat/product-review`. Implemente as
+> nove fatias de "Círculo 3: plano de implementação", em ordem, com testes e
+> um commit por fatia, sem parar para perguntar, salvo decisão nova de banco,
+> segurança ou contrato com a JUDIT.
