@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  ChevronRightIcon,
   CircleCheckIcon,
   ExternalLinkIcon,
   FlaskConicalIcon,
+  LibraryBigIcon,
   PlusIcon,
   RadarIcon,
   ScanSearchIcon,
@@ -11,13 +13,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { DistributionChart } from "@/components/shared/distribution-chart";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -38,7 +41,21 @@ import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import type { Lawsuit } from "@/features/processes/types";
 import { useNewTrackingDialog } from "@/features/trackings/components/new-tracking-dialog";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
-import { formatNumber, lowerFirst } from "@/lib/format";
+import {
+  getTrackingDisplayState,
+  trackingDisplayLabels,
+} from "@/features/trackings/types";
+import { getSubjectContextAction } from "@/features/subjects/actions";
+import {
+  lastFetch,
+  LawsuitsBody,
+  QueriesTable,
+  RegistrationsList,
+  StatsBody,
+  WarrantsList,
+} from "@/features/subjects/components/subject-sections";
+import type { SubjectContext } from "@/lib/data";
+import { formatDateTime, formatNumber, lowerFirst } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { runConsultAction, type ConsultResult } from "../actions";
@@ -85,6 +102,13 @@ export function ConsultPage() {
   // Só na consulta processual completa: pedir também o resumo por IA (beta).
   const [aiSummary, setAiSummary] = useState(false);
   const [running, startRun] = useTransition();
+  // O que já se sabe do identificador reconhecido (círculo 3B), guardado
+  // com a chave a que se refere: uma resposta de outro identificador não
+  // aparece.
+  const [context, setContext] = useState<{
+    key: string;
+    data: SubjectContext | null;
+  } | null>(null);
 
   const identification = identify(value);
   const candidates =
@@ -123,6 +147,27 @@ export function ConsultPage() {
     setResult(null);
   }
 
+  const targetKey = target ? `${target.type}:${target.key}` : null;
+  const known = context?.key === targetKey ? context.data : null;
+  const isKnown = !!known?.known;
+
+  // Lê o banco quando um identificador é reconhecido, e de novo depois de
+  // cada consulta (o "Já capturado" ganha o que acabou de chegar). Uma
+  // resposta que chega depois de outro identificador ser digitado é
+  // descartada.
+  const targetType = target?.type ?? null;
+  const targetValue = target?.key ?? null;
+  useEffect(() => {
+    if (!targetType || !targetValue) return;
+    let current = true;
+    void fetchContext(targetType, targetValue).then((next) => {
+      if (current) setContext(next);
+    });
+    return () => {
+      current = false;
+    };
+  }, [targetType, targetValue]);
+
   function changeValue(next: string) {
     setValue(next);
     setResult(null);
@@ -136,12 +181,14 @@ export function ConsultPage() {
       searchKey: target.key,
       aiSummary: feature.id === "lawsuit_async" ? aiSummary : undefined,
     };
+    const subject = { type: target.type, key: target.key };
     startRun(async () => {
       try {
         setResult(await runConsultAction(input));
       } catch {
         setResult({ ok: false, reason: "error", message: SERVER_UNREACHABLE });
       }
+      setContext(await fetchContext(subject.type, subject.key));
     });
   }
 
@@ -160,11 +207,29 @@ export function ConsultPage() {
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">O que você quer consultar?</CardTitle>
-          <CardDescription>{TYPE_HINT}</CardDescription>
-        </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {/* Com um identificador conhecido, as instruções se recolhem e o
+              nome aparece em cima do campo; apagando um dígito, voltam. */}
+          <Collapse open={!isKnown}>
+            <div className="flex flex-col gap-1.5 pb-1">
+              <h2 className="font-heading text-lg font-medium">
+                O que você quer consultar?
+              </h2>
+              <p className="text-sm text-muted-foreground">{TYPE_HINT}</p>
+            </div>
+          </Collapse>
+          <Collapse open={isKnown}>
+            {target && known && (
+              <div className="flex flex-col gap-0.5 pb-1">
+                <span className="text-xs text-muted-foreground">
+                  {SEARCH_TYPES[target.type].description}
+                </span>
+                <h2 className="font-heading text-xl font-semibold tracking-tight">
+                  {known.name ?? formatSearchKey(target.type, target.key)}
+                </h2>
+              </div>
+            )}
+          </Collapse>
           <div className="relative max-w-2xl">
             <ScanSearchIcon
               className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
@@ -193,7 +258,6 @@ export function ConsultPage() {
                 setChosenType(type);
                 setResult(null);
               }}
-              partyName={party ? (party.name ?? "nome não consultado") : null}
             />
           </div>
         </CardContent>
@@ -398,6 +462,15 @@ export function ConsultPage() {
         </p>
       )}
 
+      {target && known?.known && (
+        <CapturedCard
+          searchType={target.type}
+          searchKey={target.key}
+          context={known}
+          onSelect={setSelected}
+        />
+      )}
+
       <LawsuitSheet
         lawsuit={selected}
         onOpenChange={(open) => !open && setSelected(null)}
@@ -414,17 +487,198 @@ export function ConsultPage() {
   );
 }
 
+async function fetchContext(
+  type: SearchType,
+  key: string,
+): Promise<{ key: string; data: SubjectContext | null }> {
+  try {
+    const data = await getSubjectContextAction({
+      searchType: type,
+      searchKey: key,
+    });
+    return { key: `${type}:${key}`, data };
+  } catch {
+    return { key: `${type}:${key}`, data: null };
+  }
+}
+
+// Abre e fecha com animação só de CSS: a linha da grade vai de 0 à altura
+// do conteúdo. Fechado, o conteúdo fica inerte (fora do foco e do leitor de
+// tela).
+function Collapse({
+  open,
+  children,
+}: {
+  open: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      inert={!open}
+      className={cn(
+        "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+        open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+      )}
+    >
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  );
+}
+
+// "Já capturado deste identificador" (círculo 3B): abaixo das ações, porque
+// serve de referência ("já fiz esta consulta?") e não deve interromper o
+// fluxo. Cada seção abre com um clique e diz de quando é o dado.
+function CapturedCard({
+  searchType,
+  searchKey,
+  context,
+  onSelect,
+}: {
+  searchType: SearchType;
+  searchKey: string;
+  context: SubjectContext;
+  onSelect: (lawsuit: Lawsuit) => void;
+}) {
+  const { trackings } = useDemoStore();
+  const { view, queries } = context;
+  const lawsuits = view.lawsuits.filter((l) => l.kind === "lawsuit");
+  const executions = view.lawsuits.filter((l) => l.kind === "execution");
+  const count = view.stats.find((s) => s.mode === "datalake_count");
+  const synthetic = view.stats.find((s) => s.mode === "datalake_synthetic");
+  const ownTrackings = trackings.filter(
+    (t) =>
+      t.searchType === searchType &&
+      t.searchKey === searchKey &&
+      t.status !== "deleted",
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Já capturado deste identificador</CardTitle>
+        <CardDescription>
+          O que já está no seu acervo. Abra uma seção para ver.
+        </CardDescription>
+        <CardAction>
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={subjectHref(searchType, searchKey)} />}
+          >
+            <LibraryBigIcon data-icon="inline-start" />
+            Abrir no Acervo
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex flex-col">
+        {view.registrations.length > 0 && (
+          <Section
+            title="Dados cadastrais"
+            when={view.registrations[0].fetchedAt}
+          >
+            <RegistrationsList registrations={view.registrations} />
+          </Section>
+        )}
+        {(count || synthetic) && (
+          <Section
+            title="Números"
+            when={(synthetic ?? count)?.fetchedAt ?? null}
+          >
+            <StatsBody count={count} synthetic={synthetic} />
+          </Section>
+        )}
+        {lawsuits.length > 0 && (
+          <Section
+            title={`Processos (${formatNumber(lawsuits.length)})`}
+            when={lastFetch(lawsuits) ?? null}
+          >
+            <LawsuitsBody lawsuits={lawsuits} onSelect={onSelect} />
+          </Section>
+        )}
+        {executions.length > 0 && (
+          <Section
+            title={`Execuções penais (${formatNumber(executions.length)})`}
+            when={lastFetch(executions) ?? null}
+          >
+            <LawsuitsBody lawsuits={executions} onSelect={onSelect} />
+          </Section>
+        )}
+        {view.warrants.length > 0 && (
+          <Section
+            title={`Mandados de prisão (${formatNumber(view.warrants.length)})`}
+            when={view.warrants[0].fetchedAt}
+          >
+            <WarrantsList warrants={view.warrants} />
+          </Section>
+        )}
+        {ownTrackings.length > 0 && (
+          <Section title="Monitoramento" when={null}>
+            <ul className="flex flex-col gap-1 text-sm">
+              {ownTrackings.map((t) => (
+                <li key={t.id}>
+                  {trackingDisplayLabels[getTrackingDisplayState(t)]}
+                  {t.delivery === "webhook"
+                    ? " · resultados chegam por webhook"
+                    : " · resultados em “Ver resultados”, no Acervo"}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+        {queries.length > 0 && (
+          <Section
+            title={`Consultas feitas (${formatNumber(queries.length)})`}
+            when={queries[0].createdAt}
+            whenLabel="a última em"
+          >
+            <QueriesTable queries={queries} />
+          </Section>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Section({
+  title,
+  when,
+  whenLabel = "consultado em",
+  children,
+}: {
+  title: string;
+  when: Date | null;
+  whenLabel?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group border-t py-3 first:border-t-0 first:pt-0">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+        <ChevronRightIcon
+          className="size-4 text-muted-foreground transition-transform group-open:rotate-90"
+          aria-hidden
+        />
+        {title}
+        {when && (
+          <span className="ml-auto text-xs font-normal text-muted-foreground">
+            {whenLabel} {formatDateTime(when)}
+          </span>
+        )}
+      </summary>
+      <div className="pt-3">{children}</div>
+    </details>
+  );
+}
+
 // O que a digitação reconheceu, ou o que ainda falta.
 function RecognitionStatus({
   identification,
   target,
   onChoose,
-  partyName,
 }: {
   identification: ReturnType<typeof identify>;
   target: Candidate | null;
   onChoose: (type: SearchType) => void;
-  partyName: string | null;
 }) {
   if (identification.status === "empty") {
     return (
@@ -500,11 +754,6 @@ function RecognitionStatus({
       </div>
       {identification.note && (
         <p className="text-xs text-muted-foreground">{identification.note}</p>
-      )}
-      {partyName && (
-        <p className="text-xs text-muted-foreground">
-          Já está na sua lista: {partyName}.
-        </p>
       )}
     </div>
   );

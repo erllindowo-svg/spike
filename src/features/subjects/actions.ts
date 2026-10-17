@@ -3,7 +3,11 @@
 import { refresh } from "next/cache";
 
 import { parseSearchKey } from "@/features/consult/identify";
-import { getDataSource } from "@/lib/data";
+import {
+  getDataSource,
+  getSubjectContext,
+  type SubjectContext,
+} from "@/lib/data";
 
 import { deleteSubject } from "./db";
 import { isSearchType } from "./subjects";
@@ -55,5 +59,28 @@ export async function deleteSubjectAction(input: {
       ok: false,
       message: "O banco não respondeu. Nada foi confirmado; tente de novo.",
     };
+  }
+}
+
+// O "Já capturado" da página Consultar: lê o banco quando um identificador é
+// reconhecido. Não chama a JUDIT. Null quando a chave não é válida ou o
+// banco não respondeu (a página segue sem o bloco).
+export async function getSubjectContextAction(input: {
+  searchType: string;
+  searchKey: string;
+}): Promise<SubjectContext | null> {
+  const searchType = isSearchType(input.searchType) ? input.searchType : null;
+  const searchKey = searchType
+    ? parseSearchKey(searchType, input.searchKey)
+    : null;
+  if (!searchType || !searchKey) return null;
+  try {
+    return await getSubjectContext(searchType, searchKey);
+  } catch (error) {
+    console.error(
+      "[subjects] falha ao ler o que se sabe do identificador:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
   }
 }

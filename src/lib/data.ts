@@ -129,6 +129,47 @@ export async function getLawsuitByCnj(cnj: string): Promise<Lawsuit | null> {
   return mock.lawsuits.find((l) => l.cnj === normalized) ?? null;
 }
 
+// O que já se sabe de um identificador, para a página Consultar (círculo
+// 3B): o nome (search_entries), os dados guardados e as consultas feitas.
+// `known` diz se há alguma coisa: só então a página se recolhe e mostra o
+// "Já capturado".
+export type SubjectContext = {
+  known: boolean;
+  name: string | null;
+  view: SubjectView;
+  queries: QueryView[];
+};
+
+export async function getSubjectContext(
+  searchType: SearchType,
+  searchKey: string,
+): Promise<SubjectContext> {
+  const [view, allQueries] = await Promise.all([
+    getSubjectView(searchType, searchKey),
+    listQueries(),
+  ]);
+  const queries = allQueries.filter(
+    (q) => q.searchType === searchType && q.searchKey === searchKey,
+  );
+  if (await usingDatabase()) {
+    const entry = await getSearchEntry(await getDb(), {
+      searchType,
+      searchKey,
+    });
+    return { known: !!entry, name: entry?.name ?? null, view, queries };
+  }
+  const party =
+    searchType === "cpf" || searchType === "cnpj"
+      ? await getPartyByDocument(searchType, searchKey)
+      : null;
+  return {
+    known: !!party || view.lawsuits.length > 0 || queries.length > 0,
+    name: party?.name ?? (searchType === "name" ? searchKey : null),
+    view,
+    queries,
+  };
+}
+
 // Busca da barra e do Acervo (círculo 3B): palavras que começam com o texto,
 // em `search_entries` (banco) ou nas entradas montadas com os dados
 // fictícios (demonstração). O identificador digitado vem primeiro.

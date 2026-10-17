@@ -1,20 +1,11 @@
 "use client";
 
-import {
-  CheckIcon,
-  LockIcon,
-  RadarIcon,
-  SearchIcon,
-  SparklesIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { CheckIcon, RadarIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { DistributionChart } from "@/components/shared/distribution-chart";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,70 +24,35 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import type { RecordOrigin, SearchType } from "@/db/models";
+import type { SearchType } from "@/db/models";
 import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
 import { featuresFor, trackingFor } from "@/features/consult/catalog";
 import { formatSearchKey, SEARCH_TYPES } from "@/features/consult/identify";
 import { LawsuitSheet } from "@/features/processes/components/lawsuit-sheet";
-import { LawsuitsTable } from "@/features/processes/components/lawsuits-table";
 import type { Lawsuit } from "@/features/processes/types";
-import { QUERY_MODES } from "@/features/queries/modes";
-import {
-  QueryResult,
-  RequestIdCell,
-} from "@/features/queries/components/query-cells";
 import type { QueryView } from "@/features/queries/types";
-import { SupportOnly } from "@/features/settings/support-view";
 import { TrackingsTable } from "@/features/trackings/components/trackings-table";
 import { SERVER_UNREACHABLE, useDemoStore } from "@/lib/demo-store";
-import {
-  formatDateTime,
-  formatNumber,
-  formatShortDateTime,
-} from "@/lib/format";
+import { formatNumber, formatShortDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { deleteSubjectAction } from "../actions";
 import type { SubjectView } from "../view";
+import {
+  Known,
+  lastFetch,
+  LawsuitsBody,
+  QueriesTable,
+  RegistrationsList,
+  StatsBody,
+  WarrantsList,
+} from "./subject-sections";
 
 // Ficha de um assunto (círculo 3, fatia 6): tudo o que o app sabe de um
 // identificador. Lê o banco (base própria, histórico, monitoramentos,
 // alertas); não consulta a JUDIT ao abrir. As ações que ficam aqui cuidam
 // do que já existe (monitoramento, alerta lido, apagar); pedir algo novo é
 // na página Consultar, por link.
-
-const originLabels: Record<RecordOrigin, string> = {
-  sync: "consulta síncrona",
-  async: "consulta assíncrona",
-  tracking: "monitoramento",
-  webhook: "entrega por webhook",
-};
-
-function Known({
-  fetchedAt,
-  origin,
-}: {
-  fetchedAt: Date | null;
-  origin: RecordOrigin | null;
-}) {
-  if (!fetchedAt) {
-    return <span>Dados fictícios da demonstração.</span>;
-  }
-  return (
-    <span>
-      Consultado em {formatDateTime(fetchedAt)}
-      {origin && ` (${originLabels[origin]})`}.
-    </span>
-  );
-}
 
 // Como os resultados do monitoramento chegam (círculo 3, fatia 8).
 function deliveryText(trackings: { delivery: "polling" | "webhook" }[]) {
@@ -162,14 +118,9 @@ export function SubjectPage({
 
   const lawsuits = view.lawsuits.filter((l) => l.kind === "lawsuit");
   const executions = view.lawsuits.filter((l) => l.kind === "execution");
-  const secret = view.lawsuits.filter((l) => (l.secrecyLevel ?? 0) > 0).length;
-  const aiSummary = view.lawsuits.find((l) => l.aiSummary)?.aiSummary ?? null;
   const count = view.stats.find((s) => s.mode === "datalake_count");
   const synthetic = view.stats.find((s) => s.mode === "datalake_synthetic");
-  const lastLawsuitFetch = view.lawsuits
-    .map((l) => l.fetchedAt)
-    .filter((d): d is Date => !!d)
-    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const lastLawsuitFetch = lastFetch(view.lawsuits);
 
   const askedModes = new Set(queries.map((q) => q.mode));
   const notAsked = featuresFor(searchType).filter(
@@ -358,38 +309,7 @@ export function SubjectPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {view.registrations.map((r) => (
-              <dl
-                key={`${r.documentType}:${r.document}`}
-                className="grid grid-cols-[10rem_1fr] gap-x-3 gap-y-1.5 text-sm"
-              >
-                <dt className="text-muted-foreground">Nome</dt>
-                <dd>{r.name ?? "Não informado"}</dd>
-                <dt className="text-muted-foreground">
-                  {SEARCH_TYPES[r.documentType].label}
-                </dt>
-                <dd className="font-mono">
-                  {formatSearchKey(r.documentType, r.document)}
-                </dd>
-                {r.tradeName && (
-                  <>
-                    <dt className="text-muted-foreground">Nome fantasia</dt>
-                    <dd>{r.tradeName}</dd>
-                  </>
-                )}
-                <dt className="text-muted-foreground">Situação</dt>
-                <dd>{r.registrationStatus ?? "Não informada"}</dd>
-                {r.specialStatus && (
-                  <>
-                    <dt className="text-muted-foreground">Situação especial</dt>
-                    <dd>{r.specialStatus}</dd>
-                  </>
-                )}
-                <dd className="col-span-2 text-xs text-muted-foreground">
-                  <Known fetchedAt={r.fetchedAt} origin={r.origin} />
-                </dd>
-              </dl>
-            ))}
+            <RegistrationsList registrations={view.registrations} />
           </CardContent>
         </Card>
       )}
@@ -412,26 +332,7 @@ export function SubjectPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {(synthetic?.total ?? count?.total) !== null && (
-              <p className="flex items-baseline gap-2">
-                <span className="font-heading text-3xl font-semibold tabular-nums">
-                  {formatNumber((synthetic?.total ?? count?.total) as number)}
-                </span>
-                <span className="text-muted-foreground">
-                  processos na base da JUDIT
-                </span>
-              </p>
-            )}
-            {synthetic && synthetic.groups.length > 0 && (
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {synthetic.groups.map((group) => (
-                  <section key={group.title} className="flex flex-col gap-2">
-                    <h3 className="text-sm font-medium">{group.title}</h3>
-                    <DistributionChart data={group.data} label={group.title} />
-                  </section>
-                ))}
-              </div>
-            )}
+            <StatsBody count={count} synthetic={synthetic} />
           </CardContent>
         </Card>
       )}
@@ -455,28 +356,7 @@ export function SubjectPage({
           </CardHeader>
           {lawsuits.length > 0 && (
             <CardContent className="flex flex-col gap-3">
-              {secret > 0 && (
-                <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <LockIcon className="size-3.5" aria-hidden />
-                  {secret === 1
-                    ? "1 processo em segredo de justiça: a JUDIT devolve quase tudo vazio."
-                    : `${secret} processos em segredo de justiça: a JUDIT devolve quase tudo vazio.`}
-                </p>
-              )}
-              {aiSummary && (
-                <section className="flex flex-col gap-1.5 rounded-lg border bg-muted/30 p-3">
-                  <h3 className="flex items-center gap-1.5 text-sm font-medium">
-                    <SparklesIcon className="size-4" aria-hidden />
-                    Resumo escrito pela IA da JUDIT (beta)
-                  </h3>
-                  <p className="text-sm whitespace-pre-line">{aiSummary}</p>
-                </section>
-              )}
-              <LawsuitsTable
-                lawsuits={lawsuits}
-                onSelect={setSelected}
-                emptyDescription="Nenhum processo guardado."
-              />
+              <LawsuitsBody lawsuits={lawsuits} onSelect={setSelected} />
             </CardContent>
           )}
         </Card>
@@ -488,11 +368,7 @@ export function SubjectPage({
             <CardTitle>Execuções penais</CardTitle>
           </CardHeader>
           <CardContent>
-            <LawsuitsTable
-              lawsuits={executions}
-              onSelect={setSelected}
-              emptyDescription="Nenhuma execução penal guardada."
-            />
+            <LawsuitsBody lawsuits={executions} onSelect={setSelected} />
           </CardContent>
         </Card>
       )}
@@ -503,34 +379,7 @@ export function SubjectPage({
             <CardTitle>Mandados de prisão</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="flex flex-col divide-y text-sm">
-              {view.warrants.map((w) => (
-                <li
-                  key={w.code ?? w.number}
-                  className="flex flex-col gap-0.5 py-2.5"
-                >
-                  <span className="font-medium">
-                    {w.warrantType ?? "Mandado"}
-                    {w.status && (
-                      <StatusBadge tone="warning" className="ml-2">
-                        {w.status}
-                      </StatusBadge>
-                    )}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {[w.number, w.issueDate && `expedido em ${w.issueDate}`]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                  {w.judgementSummary && (
-                    <span className="text-xs">{w.judgementSummary}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    <Known fetchedAt={w.fetchedAt} origin={w.origin} />
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <WarrantsList warrants={view.warrants} />
           </CardContent>
         </Card>
       )}
@@ -544,38 +393,7 @@ export function SubjectPage({
               : "Do mais novo para o mais antigo. As assíncronas se acompanham daqui."}
           </CardDescription>
         </CardHeader>
-        {queries.length > 0 && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-4">Quando</TableHead>
-                <TableHead>Consulta</TableHead>
-                <TableHead>Resultado</TableHead>
-                <SupportOnly>
-                  <TableHead>request_id</TableHead>
-                </SupportOnly>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {queries.map((q) => (
-                <TableRow key={q.id}>
-                  <TableCell className="pl-4 whitespace-nowrap tabular-nums">
-                    {formatDateTime(q.createdAt)}
-                  </TableCell>
-                  <TableCell>{QUERY_MODES[q.mode].label}</TableCell>
-                  <TableCell>
-                    <QueryResult query={q} />
-                  </TableCell>
-                  <SupportOnly>
-                    <TableCell>
-                      <RequestIdCell query={q} />
-                    </TableCell>
-                  </SupportOnly>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+        {queries.length > 0 && <QueriesTable queries={queries} />}
       </Card>
 
       {notAsked.length > 0 && (
