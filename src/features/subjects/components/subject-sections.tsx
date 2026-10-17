@@ -140,9 +140,12 @@ export function StatsBody({
 export function LawsuitsBody({
   lawsuits,
   onSelect,
+  highlighted,
 }: {
   lawsuits: SubjectLawsuit[];
   onSelect: (lawsuit: Lawsuit) => void;
+  // CNJs com alerta não lido (só a ficha passa).
+  highlighted?: ReadonlySet<string>;
 }) {
   const secret = lawsuits.filter((l) => (l.secrecyLevel ?? 0) > 0).length;
   const aiSummary = lawsuits.find((l) => l.aiSummary)?.aiSummary ?? null;
@@ -169,6 +172,7 @@ export function LawsuitsBody({
         lawsuits={lawsuits}
         onSelect={onSelect}
         emptyDescription="Nenhum processo guardado."
+        highlighted={highlighted}
       />
     </div>
   );
