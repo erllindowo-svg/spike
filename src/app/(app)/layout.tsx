@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 
 import { AppHeader } from "@/components/layout/app-header";
-import { InfoSubnav } from "@/components/layout/info-subnav";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SupportViewProvider } from "@/features/settings/support-view";
 import { NewTrackingDialogProvider } from "@/features/trackings/components/new-tracking-dialog";
@@ -52,7 +51,6 @@ async function AppData({ children }: { children: React.ReactNode }) {
               principais não precisam de um menu lateral. */}
           <div className="flex min-h-svh flex-col">
             <AppHeader />
-            <InfoSubnav />
             <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">
               {children}
             </main>

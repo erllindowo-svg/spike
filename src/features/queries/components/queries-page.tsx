@@ -230,7 +230,7 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
                             processo (CNJ) sempre tem a sua. */}
                           {q.searchType === "cnj" ? (
                             <Link
-                              href={`/processos/${q.searchKey}`}
+                              href={`/informacoes/cnj/${q.searchKey}`}
                               className="block truncate rounded-sm font-mono text-xs underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
                             >
                               {formatSearchKey(q.searchType, q.searchKey)}
@@ -296,9 +296,9 @@ export function QueriesPage({ queries }: { queries: QueryView[] }) {
   );
 }
 
-// O que a consulta trouxe, em palavras. Os dados em si não ficam guardados:
-// a assíncrona é lida na JUDIT pela página da empresa.
-function QueryResult({ query }: { query: QueryView }) {
+// O que a consulta trouxe, em palavras. Usado também na ficha do assunto
+// (src/features/subjects). Os dados ficam na base própria (círculo 3).
+export function QueryResult({ query }: { query: QueryView }) {
   if (query.flow === "async") {
     if (query.asyncStatus === "completed" && query.requestId) {
       return <ViewResultButton query={query} requestId={query.requestId} />;
@@ -327,7 +327,7 @@ function QueryResult({ query }: { query: QueryView }) {
     : `${formatNumber(query.resultCount)} processos`;
 }
 
-function RequestIdCell({ query }: { query: QueryView }) {
+export function RequestIdCell({ query }: { query: QueryView }) {
   if (!query.requestId) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
@@ -375,7 +375,7 @@ function CheckStatusButton({ requestId }: { requestId: string }) {
               });
             } else if (result.request.status === "completed") {
               toast.success("Consulta concluída", {
-                description: "O resultado está na página da parte.",
+                description: "Use “Ver resultado” para abrir.",
               });
             } else {
               toast.info(

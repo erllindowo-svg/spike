@@ -192,7 +192,7 @@ export function WebhookEventSheet({
                             {generatedAlerts.map((a) => (
                               <li key={a.id}>
                                 <Link
-                                  href="/monitoramentos/alertas"
+                                  href="/informacoes"
                                   className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
                                 >
                                   <BellIcon className="size-3" aria-hidden />
@@ -223,7 +223,7 @@ export function WebhookEventSheet({
                             <>
                               Monitoramento local:{" "}
                               <Link
-                                href="/monitoramentos"
+                                href="/informacoes?monitorado=1"
                                 className="text-primary underline-offset-4 hover:underline"
                               >
                                 {formatSearchKey(

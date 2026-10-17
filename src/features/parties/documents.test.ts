@@ -28,8 +28,8 @@ describe("documents", () => {
   });
 
   it("builds the page of each party type", () => {
-    expect(partyHref("cnpj", CNPJ)).toBe(`/empresas/${CNPJ}`);
-    expect(partyHref("cpf", CPF)).toBe(`/pessoas/${CPF}`);
+    expect(partyHref("cnpj", CNPJ)).toBe(`/informacoes/cnpj/${CNPJ}`);
+    expect(partyHref("cpf", CPF)).toBe(`/informacoes/cpf/${CPF}`);
   });
 
   it("validates type and document together and strips the mask", () => {

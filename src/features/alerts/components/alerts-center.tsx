@@ -4,12 +4,8 @@ import {
   BellOffIcon,
   CheckCheckIcon,
   CheckIcon,
-  FilePlus2Icon,
-  RadarIcon,
-  ScrollTextIcon,
   WebhookIcon,
   XIcon,
-  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -36,6 +32,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
 import {
   alertTypeLabels,
   type AlertType,
@@ -49,16 +46,6 @@ import { useDemoStore } from "@/lib/demo-store";
 import { LIST_LIMITS } from "@/lib/list-limits";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-// Ícone e cor de cada tipo de alerta (também usados no Dashboard).
-export const alertTypeStyles: Record<
-  AlertType,
-  { icon: LucideIcon; className: string }
-> = {
-  new_lawsuit: { icon: FilePlus2Icon, className: "bg-primary/10 text-primary" },
-  lawsuit_movement: { icon: ScrollTextIcon, className: "bg-info/10 text-info" },
-  tracking_notice: { icon: RadarIcon, className: "bg-warning/10 text-warning" },
-};
 
 type ReadFilter = "all" | "unread" | "read";
 

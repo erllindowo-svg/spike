@@ -83,7 +83,7 @@ function ActiveMainSwitch() {
 function PageHeading() {
   const pathname = usePathname();
   const { title, help } = getPageInfo(pathname);
-  const isMain = mainNav.some((item) => item.href === pathname);
+  const isMain = mainNav.some((item) => isNavItemActive(pathname, item));
   return (
     <div className="hidden min-w-0 items-center gap-1 md:flex">
       {!isMain && (
@@ -130,7 +130,7 @@ function AlertsBell() {
             size="icon"
             className="relative"
             nativeButton={false}
-            render={<Link href="/monitoramentos/alertas" />}
+            render={<Link href="/informacoes" />}
             aria-label={
               unread > 0
                 ? `Alertas: ${unread} não lidos`

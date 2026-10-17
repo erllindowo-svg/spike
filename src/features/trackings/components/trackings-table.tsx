@@ -43,6 +43,7 @@ import {
 } from "@/features/trackings/types";
 import { useSupportView } from "@/features/settings/support-view";
 import { partyHref } from "@/features/parties/documents";
+import { subjectHref } from "@/features/subjects/subjects";
 import { useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -62,14 +63,8 @@ export function TrackingsTable({
   trackings: Tracking[];
   variant?: "full" | "compact";
 }) {
-  const {
-    getParty,
-    lawsuits,
-    alerts,
-    webhookEvents,
-    setTrackingPaused,
-    dataSource,
-  } = useDemoStore();
+  const { getParty, alerts, webhookEvents, setTrackingPaused, dataSource } =
+    useDemoStore();
   const [supportView] = useSupportView();
   const lastEvents = getLastEventByReference(webhookEvents);
   const alertCounts = countAlertsByTracking(alerts);
@@ -82,16 +77,9 @@ export function TrackingsTable({
     `${trackings.length}:${trackings[0]?.id ?? ""}`,
   );
 
-  function identifierHref(tracking: Tracking): string | null {
-    if (tracking.searchType === "oab") return null;
-    if (tracking.searchType !== "cnj") {
-      return tracking.partyId
-        ? partyHref(tracking.searchType, tracking.searchKey)
-        : null;
-    }
-    return lawsuits.some((l) => l.cnj === tracking.searchKey)
-      ? `/processos/${tracking.searchKey}`
-      : null;
+  // A ficha do assunto (círculo 3): todo identificador monitorado tem uma.
+  function identifierHref(tracking: Tracking): string {
+    return subjectHref(tracking.searchType, tracking.searchKey);
   }
 
   function togglePause(tracking: Tracking, paused: boolean) {
@@ -247,7 +235,10 @@ export function TrackingsTable({
                         <DropdownMenuItem
                           render={
                             <Link
-                              href={`/monitoramentos/alertas?monitoramento=${tracking.id}`}
+                              href={subjectHref(
+                                tracking.searchType,
+                                tracking.searchKey,
+                              )}
                             />
                           }
                         >

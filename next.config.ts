@@ -6,7 +6,26 @@ const nextConfig: NextConfig = {
   // Endereços antigos (círculo 3): Consultar virou a página inicial. A
   // query (?valor=) passa adiante sozinha.
   async redirects() {
-    return [{ source: "/consultar", destination: "/", permanent: false }];
+    return [
+      { source: "/consultar", destination: "/", permanent: false },
+      // As páginas de leitura viraram Minhas informações e a ficha de cada
+      // assunto (fatia 6).
+      ...[
+        ["/empresas", "/informacoes?tipo=cnpj"],
+        ["/pessoas", "/informacoes?tipo=cpf"],
+        ["/empresas/:cnpj", "/informacoes/cnpj/:cnpj"],
+        ["/pessoas/:cpf", "/informacoes/cpf/:cpf"],
+        ["/processos/:cnj", "/informacoes/cnj/:cnj"],
+        ["/consultas", "/informacoes"],
+        ["/monitoramentos", "/informacoes?monitorado=1"],
+        ["/monitoramentos/alertas", "/informacoes"],
+        ["/alertas", "/informacoes"],
+      ].map(([source, destination]) => ({
+        source,
+        destination,
+        permanent: false,
+      })),
+    ];
   },
   partialPrefetching: true,
   logging: {

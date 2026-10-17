@@ -304,6 +304,26 @@ describe("runConsultAction", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("starts the on-demand history for a saved party (moved from the party page)", async () => {
+    vi.mocked(startAsyncQueryAction).mockResolvedValue({
+      ok: true,
+      request: { requestId: "req-2" } as never,
+    });
+
+    await runConsultAction({
+      feature: "history_on_demand",
+      searchType: "cnpj",
+      searchKey: TEST_CNPJ,
+    });
+
+    expect(ensureParty).toHaveBeenCalledWith("cnpj", TEST_CNPJ);
+    expect(startAsyncQueryAction).toHaveBeenCalledWith({
+      mode: "historical_on_demand",
+      documentType: "cnpj",
+      document: TEST_CNPJ,
+    });
+  });
+
   describe("OAB, name and RJI (circle 3)", () => {
     beforeEach(() => vi.stubEnv("JUDIT_ALLOWLIST", "disabled"));
 

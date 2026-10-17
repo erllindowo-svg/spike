@@ -15,11 +15,19 @@ import { connection } from "next/server";
 import type {
   Alert,
   DocumentType,
+  SearchType,
   JuditRequest,
   WebhookEvent,
 } from "@/db/models";
 import type { ActivityItem } from "@/features/activity/types";
 import * as alertsDb from "@/features/alerts/db";
+import * as baseDb from "@/features/base/db";
+import {
+  demoSubjectView,
+  EMPTY_SUBJECT_VIEW,
+  toSubjectView,
+  type SubjectView,
+} from "@/features/subjects/view";
 import { isAlertType, type AlertView } from "@/features/alerts/types";
 import { normalizeDocument } from "@/features/parties/documents";
 import * as partiesDb from "@/features/parties/db";
@@ -108,6 +116,30 @@ export async function getLawsuitByCnj(cnj: string): Promise<Lawsuit | null> {
   if (await usingDatabase()) return null;
   const normalized = normalizeCnj(cnj);
   return mock.lawsuits.find((l) => l.cnj === normalized) ?? null;
+}
+
+// O que a base própria sabe de um assunto (círculo 3, fatias 5 e 6). Na
+// demonstração, os processos fictícios da parte ou do número.
+export async function getSubjectView(
+  searchType: SearchType,
+  searchKey: string,
+): Promise<SubjectView> {
+  if (await usingDatabase()) {
+    return toSubjectView(
+      await baseDb.getSubjectRecords({ searchType, searchKey }),
+    );
+  }
+  if (searchType === "cnj") {
+    const lawsuit = await getLawsuitByCnj(searchKey);
+    return demoSubjectView(lawsuit ? [lawsuit] : []);
+  }
+  if (searchType === "cpf" || searchType === "cnpj") {
+    const party = await getPartyByDocument(searchType, searchKey);
+    return demoSubjectView(
+      party ? await listLawsuits({ partyId: party.id }) : [],
+    );
+  }
+  return EMPTY_SUBJECT_VIEW;
 }
 
 // Consultas assíncronas criadas na JUDIT (coleção judit_requests). Só existem
@@ -214,4 +246,8 @@ export const staticParamSamples = {
       .filter((p) => p.documentType === "cpf")
       .map((p) => ({ cpf: p.document })),
   lawsuits: () => mock.lawsuits.map((l) => ({ cnj: l.cnj })),
+  subjects: () => [
+    ...mock.parties.map((p) => ({ tipo: p.documentType, chave: p.document })),
+    ...mock.lawsuits.map((l) => ({ tipo: "cnj", chave: l.cnj })),
+  ],
 };

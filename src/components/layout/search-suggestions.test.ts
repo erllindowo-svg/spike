@@ -53,14 +53,14 @@ describe("buildSuggestions", () => {
       kind: "party",
       label: "Padaria de Exemplo Ltda.",
       description: "Empresa · A1.B2C.3D4/E5F6-68 · monitorada",
-      href: "/empresas/A1B2C3D4E5F668",
+      href: "/informacoes/cnpj/A1B2C3D4E5F668",
     });
   });
 
   it("masks the CPF of a person found by name", () => {
     const [first] = buildSuggestions("joana", data);
     expect(first.description).toBe("Pessoa física · ***.000.001-**");
-    expect(first.href).toBe("/pessoas/00000000191");
+    expect(first.href).toBe("/informacoes/cpf/00000000191");
   });
 
   it("offers a JUDIT query only for a complete, valid identifier", () => {

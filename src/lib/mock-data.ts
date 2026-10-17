@@ -805,7 +805,7 @@ export const activity: ActivityItem[] = [
     "Aurora Logística Integrada Ltda. · TJSP",
     "2026-10-10T07:05:13",
     "aurora",
-    "/empresas/10101010000177",
+    "/informacoes/cnpj/10101010000177",
   ),
   act(
     2,
@@ -823,7 +823,7 @@ export const activity: ActivityItem[] = [
     "CNPJ 30.303.030/0001-38 · Cedro Alimentos do Brasil Ltda.",
     "2026-10-09T16:40:00",
     "cedro",
-    "/monitoramentos",
+    "/informacoes?monitorado=1",
   ),
   act(
     4,
@@ -832,7 +832,7 @@ export const activity: ActivityItem[] = [
     "Juntada de petição intermediária · TJSP",
     "2026-10-09T15:24:04",
     "aurora",
-    "/empresas/10101010000177",
+    "/informacoes/cnpj/10101010000177",
   ),
   act(
     5,
@@ -841,7 +841,7 @@ export const activity: ActivityItem[] = [
     "Juntada de laudo pericial · TRT-15",
     "2026-10-09T10:34:52",
     "bravo",
-    "/empresas/20202020000152",
+    "/informacoes/cnpj/20202020000152",
   ),
   act(
     6,
@@ -859,7 +859,7 @@ export const activity: ActivityItem[] = [
     "Decisão interlocutória publicada · TJSP",
     "2026-10-08T17:35:28",
     null,
-    "/monitoramentos/alertas",
+    "/informacoes",
   ),
   act(
     8,
@@ -877,7 +877,7 @@ export const activity: ActivityItem[] = [
     "Aurora Logística Integrada Ltda. · TJSP",
     "2026-10-06T08:12:31",
     "aurora",
-    "/empresas/10101010000177",
+    "/informacoes/cnpj/10101010000177",
   ),
   act(
     10,
@@ -886,7 +886,7 @@ export const activity: ActivityItem[] = [
     "CNPJ 70.707.070/0010-50",
     "2026-10-02T17:20:00",
     "semNome",
-    "/monitoramentos",
+    "/informacoes?monitorado=1",
   ),
 ];
 

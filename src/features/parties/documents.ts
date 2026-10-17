@@ -74,7 +74,8 @@ export function isDocumentType(type: string): type is DocumentType {
 
 // Página da parte, pelo tipo e documento.
 export function partyHref(type: DocumentType, document: string): string {
-  return `${DOCUMENTS[type].basePath}/${document}`;
+  // Desde o círculo 3, a página de uma parte é a ficha do assunto.
+  return `/informacoes/${type}/${document}`;
 }
 
 // Uma parte identificada pelo documento, como chega do navegador às actions.

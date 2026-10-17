@@ -359,6 +359,7 @@ async function callJudit(
       };
     }
     case "history_async":
+    case "history_on_demand":
     case "lawsuit_async":
     case "warrants":
     case "criminal_execution":
@@ -377,7 +378,9 @@ async function startAsync(query: ParsedQuery): Promise<ConsultResult> {
       ? "warrant"
       : query.feature === "criminal_execution"
         ? "criminal_execution"
-        : "historical_async";
+        : query.feature === "history_on_demand"
+          ? "historical_on_demand"
+          : "historical_async";
   let result;
   if (query.feature === "lawsuit_async") {
     result = await startAsyncQueryAction({
@@ -386,6 +389,15 @@ async function startAsync(query: ParsedQuery): Promise<ConsultResult> {
       aiSummary: query.aiSummary,
     });
   } else if (!isDocumentType(query.searchType)) {
+    // O catálogo só oferece a on-demand para CPF e CNPJ; a action recusa o
+    // resto de novo.
+    if (mode === "historical_on_demand") {
+      return {
+        ok: false,
+        reason: "invalid",
+        message: "Esta consulta não aceita esse tipo de identificador.",
+      };
+    }
     result = await startAsyncQueryAction({
       mode,
       searchType: query.searchType,

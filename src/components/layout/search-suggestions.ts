@@ -76,7 +76,7 @@ export function buildSuggestions(
         kind: "tracking",
         label: formatCnj(tracking.searchKey),
         description: "Monitoramento processual",
-        href: `/monitoramentos/alertas?monitoramento=${tracking.id}`,
+        href: `/informacoes/cnj/${tracking.searchKey}`,
       });
     }
     for (const lawsuit of data.lawsuits) {
@@ -86,7 +86,7 @@ export function buildSuggestions(
         kind: "lawsuit",
         label: formatCnj(lawsuit.cnj),
         description: `Processo · ${lawsuit.tribunal}`,
-        href: `/processos/${lawsuit.cnj}`,
+        href: `/informacoes/cnj/${lawsuit.cnj}`,
       });
     }
   }

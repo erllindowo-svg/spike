@@ -27,7 +27,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { alertTypeStyles } from "@/features/alerts/components/alerts-center";
+import { alertTypeStyles } from "@/features/alerts/components/alert-type-styles";
 import {
   DistributionCard,
   type DistributionData,

@@ -23,6 +23,7 @@ export type ConsultFeatureId =
   | "registration"
   | "registration_on_demand"
   | "history_async"
+  | "history_on_demand"
   | "lawsuit_datalake"
   | "lawsuit_on_demand"
   | "lawsuit_async"
@@ -126,6 +127,17 @@ export const CONSULT_FEATURES: readonly ConsultFeature[] = [
     tracking: DOCUMENT_TRACKING,
   },
   {
+    id: "history_on_demand",
+    mode: "historical_on_demand",
+    // Antes no card da página da parte (removida no círculo 3). Só CPF e
+    // CNPJ: a consulta on-demand precisa da parte salva (startAsyncQueryAction).
+    searchTypes: ["cpf", "cnpj"],
+    question: "Qual é o histórico completo, buscado agora nos tribunais?",
+    timing:
+      "Minutos; o resultado chega depois · mais cara que a assíncrona comum",
+    tracking: DOCUMENT_TRACKING,
+  },
+  {
     id: "lawsuit_datalake",
     mode: "lawsuit_datalake",
     searchTypes: ["cnj"],
@@ -173,6 +185,7 @@ export const CONSULT_FEATURES: readonly ConsultFeature[] = [
 // Consultas criadas na JUDIT e acompanhadas depois (status e resultado).
 export const ASYNC_CONSULT_FEATURES: readonly ConsultFeatureId[] = [
   "history_async",
+  "history_on_demand",
   "lawsuit_async",
   "warrants",
   "criminal_execution",

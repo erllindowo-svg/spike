@@ -20,6 +20,7 @@ import type { Party } from "@/features/parties/types";
 import { formatCnj } from "@/features/processes/cnj";
 import type { Lawsuit } from "@/features/processes/types";
 import { trackingModeFor } from "@/features/queries/modes";
+import { subjectHref } from "@/features/subjects/subjects";
 import { formatSearchKey } from "@/features/trackings/format";
 import {
   getTrackingDisplayState,
@@ -185,7 +186,7 @@ function trackingActivity(
     description: company?.name ? `${identifier} · ${company.name}` : identifier,
     occurredAt: tracking.createdAt,
     partyId: tracking.partyId,
-    href: "/monitoramentos",
+    href: subjectHref(tracking.searchType, tracking.searchKey),
   };
 }
 
@@ -598,7 +599,7 @@ export function DemoStoreProvider({
               : "Processo não identificado",
             occurredAt: processedAt,
             partyId: tracking.partyId,
-            href: "/monitoramentos/alertas",
+            href: "/informacoes",
           },
         });
       }, PROCESSING_DELAY_MS);

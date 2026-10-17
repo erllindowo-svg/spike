@@ -52,6 +52,7 @@ import {
   searchTypeDescriptions,
   type TrackingSearchType,
 } from "@/features/trackings/types";
+import { subjectHref } from "@/features/subjects/subjects";
 import { useDemoStore } from "@/lib/demo-store";
 
 type Defaults = {
@@ -252,8 +253,8 @@ function NewTrackingForm({
     // pessoa não pediu os dados sozinhos.
     if (alsoConsult) defaults.alsoConsult?.run();
     const action = {
-      label: "Ver lista",
-      onClick: () => router.push("/monitoramentos"),
+      label: "Abrir ficha",
+      onClick: () => router.push(subjectHref(searchType, searchKey)),
     };
     if (result.notice) {
       // Modo "db": a reserva foi gravada; o envio à JUDIT pode ter dado certo

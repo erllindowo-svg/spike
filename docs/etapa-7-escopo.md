@@ -1242,3 +1242,39 @@ implementação ficam marcadas como _decisão do agente_.
      o assunto e não grava (o resultado volta à base ao abrir a consulta);
      os registros antigos do histórico (`sync_queries`) não foram
      reprocessados.
+6. **Página Minhas informações** (D2), em `src/features/subjects/`.
+   - **Assunto** (`subjects.ts`): cada identificador pesquisado, monitorado
+     ou salvo, montado do histórico de consultas, dos monitoramentos, das
+     partes e dos alertas, sem coleção nova. "Monitorado" quer dizer algum
+     monitoramento vigiando (pausado não conta).
+   - **`/informacoes`**: no topo, os números (assuntos, monitoramentos
+     ativos, alertas não lidos, consultas em andamento) e "O que chegou"
+     (alertas não lidos, cada um levando à ficha); no meio, a lista de
+     assuntos, com os que têm alerta primeiro, filtros por tipo, "Só
+     monitorados" e texto.
+   - **Ficha `/informacoes/[tipo]/[chave]`**: alertas (com "marcar como
+     lido"), monitoramento (a tabela de sempre, com o menu de ações),
+     dados cadastrais, números (contagem e resumo agrupado), processos
+     (com aviso de segredo de justiça e o resumo por IA), execuções penais,
+     mandados, cada um com "consultado em"; consultas feitas (as
+     assíncronas com "Verificar status" e "Ver resultado"); "O que ainda
+     não se sabe" (perguntas do catálogo ainda não feitas, como links para
+     Consultar) e "Apagar este assunto".
+   - **Apagar** (`subjects/db.ts`): recusa com monitoramento não excluído
+     (cobrança recorrente) ou consulta assíncrona aberta; apaga a base
+     própria do assunto (o que só ele encontrou), o histórico de consultas
+     dele e a parte salva, se nenhum monitoramento aponta para ela.
+   - **Rotas antigas** redirecionam pelo `next.config.ts`: `/empresas` e
+     `/pessoas` para a lista filtrada, `/empresas/:cnpj`, `/pessoas/:cpf` e
+     `/processos/:cnj` para a ficha, `/consultas`, `/alertas` e
+     `/monitoramentos/alertas` para `/informacoes`, `/monitoramentos` para a
+     lista "Só monitorados". As abas provisórias da fatia 3 saíram; os links
+     internos apontam direto para os endereços novos (`partyHref` leva à
+     ficha).
+   - A consulta assíncrona on-demand, que só existia no card da página da
+     parte, entrou no catálogo da página Consultar ("Qual é o histórico
+     completo, buscado agora nos tribunais?", CPF e CNPJ).
+   - Conferido com capturas de tela no modo banco. _Decisões do agente:_
+     a ficha cuida do que já existe (pausar, marcar como lido, apagar); pedir
+     algo novo é sempre um link para Consultar. Os componentes das páginas
+     removidas saem na fatia 9.

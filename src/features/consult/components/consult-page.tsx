@@ -56,6 +56,7 @@ import {
   type SearchType,
 } from "../identify";
 import type { ConsultPayload } from "../results";
+import { subjectHref } from "@/features/subjects/subjects";
 
 // Página Consultar, a inicial (círculo 3, fatia 4): só um campo. O tipo do
 // identificador é reconhecido pela digitação (identify.ts); reconhecido,
@@ -349,11 +350,7 @@ export function ConsultPage() {
               <PayloadView
                 payload={result.payload}
                 onSelect={setSelected}
-                partyLink={
-                  isDocumentType(target.type)
-                    ? partyHref(target.type, target.key)
-                    : null
-                }
+                subjectLink={subjectHref(target.type, target.key)}
               />
             ) : (
               <p className="text-sm text-destructive">{result.message}</p>
@@ -489,11 +486,11 @@ function RecognitionStatus({
 function PayloadView({
   payload,
   onSelect,
-  partyLink,
+  subjectLink,
 }: {
   payload: ConsultPayload;
   onSelect: (lawsuit: Lawsuit) => void;
-  partyLink: string | null;
+  subjectLink: string;
 }) {
   switch (payload.kind) {
     case "count":
@@ -587,15 +584,14 @@ function PayloadView({
         <div className="flex flex-col items-start gap-3 text-sm">
           <p className="flex items-center gap-2">
             <CircleCheckIcon className="size-4 text-success" aria-hidden />
-            {partyLink
-              ? "Consulta criada na JUDIT. O resultado chega depois: acompanhe na página da parte, que foi adicionada à sua lista."
-              : "Consulta criada na JUDIT. O resultado chega depois: acompanhe no histórico de consultas."}
+            Consulta criada na JUDIT. O resultado chega depois: acompanhe na
+            ficha do assunto, em Minhas informações.
           </p>
           <Button
             variant="outline"
             size="sm"
             nativeButton={false}
-            render={<Link href={partyLink ?? "/consultas"} />}
+            render={<Link href={subjectLink} />}
           >
             Acompanhar
           </Button>
