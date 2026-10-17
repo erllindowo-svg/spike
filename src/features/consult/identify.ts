@@ -258,6 +258,33 @@ export function formatSearchKey(type: SearchType, key: string): string {
   }
 }
 
+// O campo de Consultar (círculo 3B) mostra CPF, CNPJ e CNJ reconhecidos com
+// os separadores como caracteres de verdade na caixa de texto. O estado do
+// campo guarda só o que foi digitado, sem os separadores que o app inseriu:
+// o reconhecimento segue a máscara digitada pela pessoa ("529.982.…" é CPF),
+// e um dígito a mais depois de um CPF formatado viraria "CPF inválido" para
+// quem está digitando um CNPJ.
+const FIELD_MASKED: ReadonlySet<SearchType> = new Set(["cpf", "cnpj", "cnj"]);
+
+// O que a caixa mostra no lugar do valor guardado, ou null se mostra o valor
+// como está. Só formata o que foi digitado sem máscara (valor igual à
+// chave): uma máscara digitada pela pessoa fica como ela escreveu.
+export function fieldDisplay(
+  value: string,
+  target: Candidate | null,
+): string | null {
+  if (!target || !FIELD_MASKED.has(target.type) || value !== target.key) {
+    return null;
+  }
+  return formatSearchKey(target.type, target.key);
+}
+
+// O valor a guardar depois de uma tecla numa caixa formatada: tira os
+// separadores que o app inseriu.
+export function stripFieldMask(typed: string): string {
+  return typed.replace(/[.\-/]/g, "");
+}
+
 // Como a chave aparece em listas: o CPF mascarado (dado pessoal).
 export function displaySearchKey(type: SearchType, key: string): string {
   return type === "cpf" ? maskCpf(key) : formatSearchKey(type, key);

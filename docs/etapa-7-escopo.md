@@ -1415,3 +1415,9 @@ Observações do usuário, de cima para baixo, depois do círculo 3
   atrapalharia quem digita um CNPJ sem máscara (os 11 primeiros dígitos
   podem formar um CPF válido). Embaixo ficam o "Não é isso?", a nota e um
   texto só para leitor de tela.
+- **Separadores como caracteres (observação do usuário).** A camada
+  desenhada por cima deixava, no Firefox do usuário, os dois números
+  sobrepostos (catálogo L4). Agora a caixa mostra o número formatado como
+  texto de verdade (`fieldDisplay`), e cada tecla tira os separadores
+  inseridos pelo app antes de guardar (`stripFieldMask`). Os separadores
+  não têm mais tom diferente: são caracteres comuns.

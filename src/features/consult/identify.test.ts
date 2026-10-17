@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   displaySearchKey,
+  fieldDisplay,
   formatSearchKey,
   identify,
   parseSearchKey,
+  stripFieldMask,
   type Identification,
 } from "./identify";
 
@@ -181,5 +183,35 @@ describe("formatting", () => {
     expect(formatSearchKey("oab", "123456SP")).toBe("OAB 123456/SP");
     expect(displaySearchKey("cpf", CPF)).toBe("***.000.001-**");
     expect(displaySearchKey("cnpj", CNPJ)).toBe("A1.B2C.3D4/E5F6-68");
+  });
+});
+
+describe("identifier field mask", () => {
+  function display(value: string) {
+    return fieldDisplay(value, first(identify(value)));
+  }
+
+  it("formats a recognized CPF, CNPJ or CNJ typed without a mask", () => {
+    expect(display(CPF)).toBe("000.000.001-91");
+    expect(display(NUMERIC_CNPJ)).toBe("11.222.333/0001-81");
+    expect(display(CNJ)).toBe("0000000-39.2026.8.26.0050");
+  });
+
+  it("leaves other types, incomplete values and typed masks as they are", () => {
+    expect(display("123456SP")).toBeNull();
+    expect(display("Maria Silva")).toBeNull();
+    expect(display("0000000019")).toBeNull();
+    expect(display("000.000.001-91")).toBeNull();
+    expect(fieldDisplay(CNJ, { type: "rji", key: CNJ })).toBeNull();
+  });
+
+  it("keeps typing past a CPF on the way to a CNPJ", () => {
+    const next = stripFieldMask("000.000.001-910");
+    expect(next).toBe("000000001910");
+    expect(identify(next).status).toBe("incomplete");
+  });
+
+  it("backspace on a formatted CPF removes the last digit", () => {
+    expect(stripFieldMask("000.000.001-9")).toBe("0000000019");
   });
 });

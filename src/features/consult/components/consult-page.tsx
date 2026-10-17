@@ -65,9 +65,11 @@ import {
   type ConsultFeatureId,
 } from "../catalog";
 import {
+  fieldDisplay,
   formatSearchKey,
   identify,
   SEARCH_TYPES,
+  stripFieldMask,
   type Candidate,
   type SearchType,
 } from "../identify";
@@ -658,9 +660,6 @@ function Section({
   );
 }
 
-// Tipos que ganham os separadores ilustrativos dentro do campo.
-const MASKED_TYPES: readonly SearchType[] = ["cpf", "cnpj", "cnj"];
-
 // O que aparece antes do número, dentro do campo: para CPF e CNPJ, quem é
 // ("Pessoa física", "Empresa"); para os outros, o nome do tipo.
 function fieldPrefix(type: SearchType): string {
@@ -670,16 +669,10 @@ function fieldPrefix(type: SearchType): string {
 }
 
 // O campo do identificador (círculo 3B). Reconhecido o tipo, aparece dentro
-// do próprio campo, em verde, o que ele é ("Pessoa física:") e, nos números
-// com máscara, o número formatado: os dígitos digitados em preto e os
-// separadores (pontos, barra, traço) mais claros, só de enfeite.
-//
-// O valor do campo continua sendo só o que foi digitado: o número
-// formatado é uma camada desenhada por cima, com o texto real
-// transparente. Inserir os separadores no valor quebraria a digitação de
-// um CNPJ sem máscara (os 11 primeiros dígitos podem formar um CPF válido,
-// e o 12º viraria "CPF inválido"). Apagar apaga o último dígito digitado; a
-// identificação deixa de bater e o texto cru volta a aparecer.
+// do próprio campo, em verde, o que ele é ("Pessoa física:") e, em CPF, CNPJ
+// e CNJ, os separadores como caracteres da caixa (`fieldDisplay`). O estado
+// guarda o valor sem eles (`stripFieldMask`): um dígito a mais ou um apagar
+// voltam a mostrar só os números até o tipo ser reconhecido de novo.
 function IdentifierField({
   value,
   target,
@@ -693,8 +686,7 @@ function IdentifierField({
   onChange: (value: string) => void;
   onEnter: () => void;
 }) {
-  const masked = !!target && MASKED_TYPES.includes(target.type);
-  const formatted = target ? formatSearchKey(target.type, target.key) : "";
+  const display = fieldDisplay(value, target);
 
   return (
     <div
@@ -707,44 +699,24 @@ function IdentifierField({
           {fieldPrefix(target.type)}:
         </span>
       )}
-      <div className="relative min-w-0 flex-1">
-        <input
-          id="consult-value"
-          autoFocus
-          value={value}
-          placeholder="Digite o identificador"
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onEnter();
-          }}
-          aria-label="Identificador"
-          aria-invalid={invalid}
-          aria-describedby="consult-status"
-          autoComplete="off"
-          spellCheck={false}
-          className={cn(
-            "w-full bg-transparent font-mono text-base outline-none placeholder:text-muted-foreground md:text-lg",
-            masked && "text-transparent caret-transparent",
-          )}
-        />
-        {masked && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 flex items-center overflow-hidden font-mono text-base whitespace-pre md:text-lg"
-          >
-            {[...formatted].map((char, index) => (
-              <span
-                key={index}
-                className={
-                  /[0-9A-Z]/.test(char) ? undefined : "text-muted-foreground/50"
-                }
-              >
-                {char}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      <input
+        id="consult-value"
+        autoFocus
+        value={display ?? value}
+        placeholder="Digite o identificador"
+        onChange={(e) =>
+          onChange(display ? stripFieldMask(e.target.value) : e.target.value)
+        }
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onEnter();
+        }}
+        aria-label="Identificador"
+        aria-invalid={invalid}
+        aria-describedby="consult-status"
+        autoComplete="off"
+        spellCheck={false}
+        className="min-w-0 flex-1 bg-transparent font-mono text-base outline-none placeholder:text-muted-foreground md:text-lg"
+      />
     </div>
   );
 }

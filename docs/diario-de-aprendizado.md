@@ -442,6 +442,16 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Correção: reiniciar o `pnpm dev`; para forçar a remontagem, apagar a coleção `search_entries` (ela é derivada) e reiniciar.
 - Lição de suporte: uma busca derivada pode divergir da fonte. Antes de concluir "o dado sumiu", abrir a ficha pelo endereço (`/acervo/<tipo>/<chave>`), que lê as coleções de origem.
 
+**L4. O número no campo de Consultar aparece embaralhado, com dígitos sobrepostos.** _Observado em 2026-10-17 (círculo 3B)._
+
+- Sinal: ao digitar um CPF no Firefox do usuário, o número formatado aparecia por cima do número digitado, os dois visíveis ao mesmo tempo.
+- Camada: aplicação (interface) e navegador.
+- Causa: a primeira versão desenhava o número formatado numa camada por cima da caixa e deixava o texto real transparente. No navegador do usuário, o texto de baixo continuou visível. No Firefox e no Chromium de teste, sem janela, o problema não apareceu: uma técnica que depende de duas camadas alinhadas quebra com qualquer diferença de cor ou fonte do navegador.
+- Teste que separou: o mesmo CPF fictício no Firefox de teste (limpo) e no do usuário; a captura de tela do teste saiu limpa, a do usuário não.
+- Correção: os separadores passaram a ser caracteres da própria caixa (`fieldDisplay` e `stripFieldMask`, em `identify.ts`), uma camada só.
+- Prevenção: testes das duas funções; teste no navegador que o usuário usa, não só no do agente.
+- Lição de suporte: "no meu computador funciona" não encerra um ticket de tela. Pedir a captura e o navegador de quem reclamou, e desconfiar de soluções que dependem de sobrepor elementos.
+
 ### Modelo para novos casos
 
 ```
@@ -1644,6 +1654,16 @@ O usuário viu "dados cadastrais da empresa" ao consultar um CPF. A chamada esta
 **Resumo técnico**
 
 A pedido do usuário, o tipo reconhecido ("Pessoa física:", "Empresa:"…) aparece dentro do campo de Consultar, e os separadores de CPF, CNPJ e CNJ aparecem em tom claro. São só desenho por cima do campo (`IdentifierField`): o valor digitado não muda. Conferido no navegador com os seis tipos.
+
+### 2026-10-17 / Círculo 3B: separadores como caracteres da caixa
+
+**Resumo técnico**
+
+No Firefox do usuário, a camada desenhada por cima mostrava os dois números sobrepostos (catálogo L4). Agora os pontos, a barra e o traço são caracteres da caixa, inseridos quando CPF, CNPJ ou CNJ é reconhecido. O estado guarda só os dígitos: um dígito a mais ou um apagar voltam ao número cru. Conferido no Firefox com CPF, dígito extra, apagar e CNPJ.
+
+**Como pensamos (resumo do agente)**
+
+O usuário descreveu o que queria: os separadores "falsos" dentro da caixa, como nos formulários de CPF, mas só depois de reconhecer o documento, porque o campo aceita qualquer tipo. O cuidado foi não gravar a máscara no estado: o reconhecimento usa a máscara digitada para decidir o tipo, e um CPF formatado seguido de mais um dígito viraria "CPF inválido" para quem digita um CNPJ. Limitação aceita: os caracteres da caixa não podem ter outra cor, e editar no meio do número leva o cursor para o fim.
 
 ---
 
