@@ -1172,3 +1172,16 @@ implementação ficam marcadas como _decisão do agente_.
    mandados); dados cadastrais on-demand só por CPF e CNPJ (a página não diz
    se o on_demand vale para nome); por nome, a tela mostra o primeiro
    cadastro devolvido.
+3. **Navegação no topo.** A barra lateral saiu (`app-sidebar.tsx` removido).
+   `AppHeader` tem três zonas: marca e a alternância "1 Consultar / 2 Minhas
+   informações" (a ativa destacada; no celular, sem os números e com
+   "Informações"); a barra de pesquisa no meio; alertas e Configurações à
+   direita. O título da página e o "i" de ajuda aparecem ao lado da
+   alternância fora das duas páginas principais. Diagnóstico de webhooks
+   virou um botão no card "Vista de suporte" das Configurações. Até a fatia
+   6, "Minhas informações" leva ao Dashboard, com abas provisórias
+   (`info-subnav.tsx`: Resumo, Empresas e pessoas, Monitoramentos,
+   Histórico). No celular, a pesquisa é um ícone que abre uma linha embaixo
+   do cabeçalho. Conferido com capturas de tela (1400 px e 390 px).
+   _Decisão do agente:_ o menu de perfil ("Sem login") saiu; volta com o
+   login (círculo 4).

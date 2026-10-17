@@ -1,10 +1,8 @@
 import { Suspense } from "react";
 
 import { AppHeader } from "@/components/layout/app-header";
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { GlobalSearch } from "@/components/layout/global-search";
+import { InfoSubnav } from "@/components/layout/info-subnav";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { SupportViewProvider } from "@/features/settings/support-view";
 import { NewTrackingDialogProvider } from "@/features/trackings/components/new-tracking-dialog";
 import {
@@ -50,19 +48,15 @@ async function AppData({ children }: { children: React.ReactNode }) {
         lawsuits={lawsuits}
       >
         <NewTrackingDialogProvider>
-          {/* Recolhido por padrão: só os ícones (app-sidebar.tsx). */}
-          <SidebarProvider defaultOpen={false}>
-            <AppSidebar />
-            <SidebarInset className="min-w-0">
-              <AppHeader />
-              <div className="border-b bg-background px-4 py-2 md:hidden">
-                <GlobalSearch />
-              </div>
-              <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">
-                {children}
-              </main>
-            </SidebarInset>
-          </SidebarProvider>
+          {/* Navegação só no topo (círculo 3, fatia 3): duas páginas
+              principais não precisam de um menu lateral. */}
+          <div className="flex min-h-svh flex-col">
+            <AppHeader />
+            <InfoSubnav />
+            <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">
+              {children}
+            </main>
+          </div>
         </NewTrackingDialogProvider>
       </DemoStoreProvider>
     </SupportViewProvider>

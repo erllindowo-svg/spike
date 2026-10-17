@@ -29,7 +29,12 @@ const kindIcons: Record<SearchSuggestion["kind"], LucideIcon> = {
 // já tem (empresas, pessoas, monitoramentos, processos) enquanto se digita, e
 // oferece "Consultar na JUDIT" para um identificador completo. Teclado:
 // "/" foca, setas escolhem, Enter abre, Esc fecha.
-export function GlobalSearch() {
+export function GlobalSearch({
+  onNavigate,
+}: {
+  // Chamado ao abrir uma sugestão (no celular, fecha a linha da pesquisa).
+  onNavigate?: () => void;
+} = {}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
@@ -60,6 +65,7 @@ export function GlobalSearch() {
     setQuery("");
     setOpen(false);
     inputRef.current?.blur();
+    onNavigate?.();
     router.push(suggestion.href);
   }
 

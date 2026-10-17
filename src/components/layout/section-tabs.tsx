@@ -13,12 +13,15 @@ export type SectionTab = {
   badge?: number;
   // Ativa só no endereço exato; sem isto, também nas páginas filhas.
   exact?: boolean;
+  // Outros caminhos que também marcam a aba como ativa.
+  matches?: string[];
 };
 
 function isActive(pathname: string, tab: SectionTab): boolean {
-  return tab.exact
-    ? pathname === tab.href
-    : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+  if (tab.exact) return pathname === tab.href;
+  return [tab.href, ...(tab.matches ?? [])].some(
+    (href) => pathname === href || pathname.startsWith(`${href}/`),
+  );
 }
 
 function Tabs({ tabs, pathname }: { tabs: SectionTab[]; pathname: string }) {

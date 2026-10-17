@@ -9,9 +9,11 @@ import {
   WalletIcon,
   WebhookIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { Fragment, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { supportNav } from "@/components/layout/navigation";
 import { PageIntro } from "@/components/shared/page-intro";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -140,8 +142,8 @@ function SupportViewCard() {
         <CardDescription>
           Mostra o que só interessa a quem dá suporte: identificadores técnicos
           (request_id, callback_id), o canal de entrega das consultas e o
-          Diagnóstico de webhooks no menu. Fica salva neste navegador. Não é uma
-          proteção: quem tem o endereço abre qualquer página.
+          Diagnóstico de webhooks, aqui embaixo. Fica salva neste navegador. Não
+          é uma proteção: quem tem o endereço abre qualquer página.
         </CardDescription>
         <CardAction>
           <Button
@@ -154,7 +156,33 @@ function SupportViewCard() {
           </Button>
         </CardAction>
       </CardHeader>
+      {enabled && <DiagnosticsLink />}
     </Card>
+  );
+}
+
+// O Diagnóstico de webhooks mora aqui desde que a barra lateral saiu
+// (círculo 3, fatia 3), com o número de entregas pendentes ou com falha.
+function DiagnosticsLink() {
+  const { webhookEvents } = useDemoStore();
+  const pending = webhookEvents.filter(
+    (e) => e.processingStatus === "failed" || e.processingStatus === "pending",
+  ).length;
+
+  return (
+    <CardContent>
+      <Button
+        variant="outline"
+        nativeButton={false}
+        render={<Link href={supportNav.href} />}
+      >
+        <WebhookIcon data-icon="inline-start" />
+        {supportNav.title}
+        {pending > 0 && (
+          <StatusBadge tone="warning">{pending} a conferir</StatusBadge>
+        )}
+      </Button>
+    </CardContent>
   );
 }
 

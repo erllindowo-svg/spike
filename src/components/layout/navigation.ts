@@ -1,39 +1,64 @@
 import {
-  Building2Icon,
-  FileSearchIcon,
   LayoutDashboardIcon,
-  RadarIcon,
   SearchIcon,
   SettingsIcon,
   WebhookIcon,
   type LucideIcon,
 } from "lucide-react";
 
+import type { SectionTab } from "./section-tabs";
+
 export type NavItem = {
   title: string;
+  // Rótulo curto, para o celular.
+  shortTitle?: string;
   href: string;
   icon: LucideIcon;
   // Outros caminhos que também marcam o item como ativo.
   matches?: string[];
 };
 
-// Menu organizado pelas tarefas de quem usa o app (círculo 1 do escopo,
-// docs/etapa-7-escopo.md). Os alertas ficam dentro de Monitoramentos.
-export const productNav: NavItem[] = [
-  { title: "Dashboard", href: "/", icon: LayoutDashboardIcon },
-  { title: "Consultar", href: "/consultar", icon: SearchIcon },
+// Duas páginas principais, uma por função (círculo 3 do escopo,
+// docs/etapa-7-escopo.md): Consultar (fazer) e Minhas informações (ver). A
+// barra do topo alterna entre as duas, como dois espaços de trabalho.
+export const consultNav: NavItem = {
+  title: "Consultar",
+  href: "/consultar",
+  icon: SearchIcon,
+};
+
+export const infoNav: NavItem = {
+  title: "Minhas informações",
+  shortTitle: "Informações",
+  href: "/",
+  icon: LayoutDashboardIcon,
+  matches: [
+    "/empresas",
+    "/pessoas",
+    "/monitoramentos",
+    "/consultas",
+    "/processos",
+    "/alertas",
+  ],
+};
+
+export const mainNav: NavItem[] = [consultNav, infoNav];
+
+// Até a página Minhas informações existir (fatia 6), ela leva às páginas
+// atuais, por estas abas.
+export const infoSections: SectionTab[] = [
+  { href: "/", label: "Resumo", exact: true },
+  { href: "/empresas", label: "Empresas e pessoas", matches: ["/pessoas"] },
   {
-    title: "Empresas e pessoas",
-    href: "/empresas",
-    icon: Building2Icon,
-    matches: ["/pessoas"],
+    href: "/monitoramentos",
+    label: "Monitoramentos",
+    matches: ["/alertas", "/processos"],
   },
-  { title: "Monitoramentos", href: "/monitoramentos", icon: RadarIcon },
-  { title: "Histórico de consultas", href: "/consultas", icon: FileSearchIcon },
+  { href: "/consultas", label: "Histórico de consultas" },
 ];
 
-// Itens pequenos do rodapé do menu. O Diagnóstico só aparece com a vista de
-// suporte ligada (src/features/settings/support-view.tsx).
+// O Diagnóstico de webhooks fica dentro de Configurações, e só com a vista
+// de suporte ligada (src/features/settings/support-view.tsx).
 export const supportNav: NavItem = {
   title: "Diagnóstico de webhooks",
   href: "/webhooks",

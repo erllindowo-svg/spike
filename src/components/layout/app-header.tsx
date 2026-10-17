@@ -5,24 +5,15 @@ import {
   DatabaseIcon,
   FlaskConicalIcon,
   InfoIcon,
+  SearchIcon,
   SettingsIcon,
-  UserIcon,
+  XIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
@@ -30,8 +21,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
@@ -40,17 +29,68 @@ import {
 import { SupportOnly } from "@/features/settings/support-view";
 import { useDemoStore } from "@/lib/demo-store";
 
-import { GlobalSearch } from "./global-search";
-import { getPageInfo } from "./navigation";
+import { cn } from "@/lib/utils";
 
-// Título da página e o "i" com a explicação dela (navigation.ts).
-function PageHeading() {
-  const { title, help } = getPageInfo(usePathname());
+import { BrandMark } from "./brand";
+import { GlobalSearch } from "./global-search";
+import {
+  getPageInfo,
+  isNavItemActive,
+  mainNav,
+  settingsNav,
+  type NavItem,
+} from "./navigation";
+
+// Alternância entre as duas páginas principais, como dois espaços de
+// trabalho: a ativa fica destacada, com o nome.
+function MainSwitch({ pathname }: { pathname: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-1 md:min-w-40">
-      <h1 className="truncate font-heading text-base font-semibold tracking-tight">
-        {title}
-      </h1>
+    <nav
+      aria-label="Páginas principais"
+      className="inline-flex h-8 items-center rounded-lg bg-muted p-[3px]"
+    >
+      {mainNav.map((item: NavItem, index) => {
+        const active = isNavItemActive(pathname, item);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              active && "bg-background text-foreground shadow-sm",
+            )}
+          >
+            <span className="hidden size-4 items-center justify-center rounded-sm border text-[10px] text-muted-foreground tabular-nums sm:flex">
+              {index + 1}
+            </span>
+            <span className="hidden sm:inline">{item.title}</span>
+            <span className="sm:hidden">{item.shortTitle ?? item.title}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function ActiveMainSwitch() {
+  return <MainSwitch pathname={usePathname()} />;
+}
+
+// Título da página e o "i" com a explicação dela (navigation.ts). O título
+// só aparece fora das duas páginas principais (a alternância já diz o nome
+// delas).
+function PageHeading() {
+  const pathname = usePathname();
+  const { title, help } = getPageInfo(pathname);
+  const isMain = mainNav.some((item) => item.href === pathname);
+  return (
+    <div className="hidden min-w-0 items-center gap-1 md:flex">
+      {!isMain && (
+        <h1 className="truncate font-heading text-base font-semibold tracking-tight">
+          {title}
+        </h1>
+      )}
       {help && (
         <Popover>
           <PopoverTrigger
@@ -113,102 +153,112 @@ function AlertsBell() {
   );
 }
 
+// Barra do topo, em três zonas (círculo 3, fatia 3): à esquerda, a marca e
+// a alternância entre as duas páginas; no meio, a pesquisa; à direita,
+// alertas e Configurações. A "conta" espera o login (círculo 4). No celular,
+// a pesquisa vira um ícone que abre uma linha embaixo.
 export function AppHeader() {
   const { dataSource } = useDemoStore();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/80 md:px-6">
-      {/* Só no celular, onde o menu é uma gaveta. No computador, o botão de
-          expandir fica no rodapé do próprio menu. */}
-      <SidebarTrigger className="-ml-1.5 md:hidden" />
-      <Separator orientation="vertical" className="h-5! md:hidden" />
-      <Suspense fallback={<div className="md:min-w-40" />}>
-        <PageHeading />
-      </Suspense>
+    <header className="sticky top-0 z-20 shrink-0 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
+      <div className="flex h-14 items-center gap-2 px-4 sm:gap-3 md:px-6">
+        <Link
+          href="/consultar"
+          className="flex shrink-0 items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          aria-label="Raio-X Jurídico: Consultar"
+        >
+          <BrandMark />
+          <span className="hidden font-heading text-sm font-semibold tracking-tight lg:inline">
+            Raio-X Jurídico
+          </span>
+        </Link>
+        <Suspense fallback={<MainSwitch pathname="" />}>
+          <ActiveMainSwitch />
+        </Suspense>
+        <Suspense fallback={null}>
+          <PageHeading />
+        </Suspense>
 
-      <div className="ml-auto flex flex-1 items-center justify-end gap-2 md:gap-3">
         <div className="hidden flex-1 justify-center md:flex">
           <GlobalSearch />
         </div>
 
-        {/* Dados fictícios sempre se anunciam; a origem real dos dados só
-            interessa ao suporte. */}
-        {dataSource === "db" ? (
-          <SupportOnly>
+        <div className="ml-auto flex shrink-0 items-center md:ml-0 md:gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            aria-label={searchOpen ? "Fechar pesquisa" : "Pesquisar"}
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen((open) => !open)}
+          >
+            {searchOpen ? <XIcon /> : <SearchIcon />}
+          </Button>
+
+          {/* Dados fictícios sempre se anunciam; a origem real dos dados só
+              interessa ao suporte. */}
+          {dataSource === "db" ? (
+            <SupportOnly>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="hidden h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border bg-muted px-2.5 text-xs font-medium text-muted-foreground sm:inline-flex" />
+                  }
+                >
+                  <DatabaseIcon className="size-3.5" aria-hidden />
+                  Banco
+                </TooltipTrigger>
+                <TooltipContent className="max-w-64">
+                  Empresas, monitoramentos, consultas, webhooks e alertas ficam
+                  no MongoDB. Situação de cada integração em Configurações.
+                </TooltipContent>
+              </Tooltip>
+            </SupportOnly>
+          ) : (
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border bg-muted px-2.5 text-xs font-medium text-muted-foreground" />
+                  <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 text-xs font-medium text-warning" />
                 }
               >
-                <DatabaseIcon className="size-3.5" aria-hidden />
-                <span className="hidden sm:inline">Banco de dados</span>
-                <span className="sm:hidden">Banco</span>
+                <FlaskConicalIcon className="size-3.5" aria-hidden />
+                <span className="hidden sm:inline">Demonstração</span>
+                <span className="sm:hidden">Demo</span>
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
-                Empresas, monitoramentos, consultas, webhooks e alertas ficam no
-                MongoDB. Processos não são copiados: são lidos da JUDIT quando
-                você consulta. Situação de cada integração em Configurações.
+                Todas as informações são fictícias e ficam apenas em memória.
+                Nenhuma consulta é feita à JUDIT nem ao banco de dados.
               </TooltipContent>
             </Tooltip>
-          </SupportOnly>
-        ) : (
+          )}
+
+          <AlertsBell />
+
           <Tooltip>
             <TooltipTrigger
               render={
-                <span className="inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 text-xs font-medium text-warning" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  nativeButton={false}
+                  render={<Link href={settingsNav.href} />}
+                  aria-label={settingsNav.title}
+                />
               }
             >
-              <FlaskConicalIcon className="size-3.5" aria-hidden />
-              <span className="hidden sm:inline">Dados de demonstração</span>
-              <span className="sm:hidden">Demo</span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-64">
-              Todas as informações são fictícias e ficam apenas em memória.
-              Nenhuma consulta é feita à JUDIT nem ao banco de dados.
-            </TooltipContent>
-          </Tooltip>
-        )}
-
-        <AlertsBell />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full"
-                aria-label="Menu do perfil"
-              />
-            }
-          >
-            <Avatar className="size-7">
-              <AvatarFallback className="bg-primary/10 text-primary">
-                <UserIcon className="size-4" aria-hidden />
-              </AvatarFallback>
-            </Avatar>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">
-                  Sem login
-                </span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  O app ainda não tem contas de usuário: quem abre este endereço
-                  vê tudo.
-                </span>
-              </DropdownMenuLabel>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/configuracoes" />}>
               <SettingsIcon />
-              Configurações
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </TooltipTrigger>
+            <TooltipContent>{settingsNav.title}</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
+      {searchOpen && (
+        <div className="border-t px-4 py-2 md:hidden">
+          <GlobalSearch onNavigate={() => setSearchOpen(false)} />
+        </div>
+      )}
     </header>
   );
 }
