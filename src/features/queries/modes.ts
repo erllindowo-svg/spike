@@ -1,10 +1,4 @@
-import type {
-  AsyncQueryMode,
-  DocumentType,
-  QueryMode,
-  TrackingMode,
-  TrackingSearchType,
-} from "@/db/models";
+import type { QueryMode, TrackingMode, TrackingSearchType } from "@/db/models";
 
 // Catálogo das modalidades de consulta à JUDIT usadas pela aplicação. Cada
 // consulta declara a sua modalidade pelo identificador (`QueryMode`), que é
@@ -148,19 +142,6 @@ export const QUERY_MODES = {
     docsUrl: "https://docs.judit.io/criminal-consultation/criminal-execution",
   },
 } as const satisfies Record<QueryMode, QueryModeInfo>;
-
-// Consultas assíncronas que se criam a partir da página de uma parte. Os
-// mandados de prisão só existem para pessoa física (CPF).
-export type PartyAsyncMode = Exclude<AsyncQueryMode, "lawsuit_async">;
-
-export function partyAsyncModes(documentType: DocumentType): PartyAsyncMode[] {
-  return [
-    "historical_async",
-    "historical_on_demand",
-    "criminal_execution",
-    ...(documentType === "cpf" ? (["warrant"] as const) : []),
-  ];
-}
 
 export const TRACKING_MODES = {
   tracking_document: {

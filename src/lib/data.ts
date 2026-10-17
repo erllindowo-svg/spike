@@ -16,7 +16,6 @@ import type {
   Alert,
   DocumentType,
   SearchType,
-  JuditRequest,
   WebhookEvent,
 } from "@/db/models";
 import type { ActivityItem } from "@/features/activity/types";
@@ -142,16 +141,8 @@ export async function getSubjectView(
   return EMPTY_SUBJECT_VIEW;
 }
 
-// Consultas assíncronas criadas na JUDIT (coleção judit_requests). Só existem
-// no modo "db": a demonstração não chama a JUDIT.
-export async function listAsyncQueries(
-  partyId: string,
-): Promise<JuditRequest[]> {
-  if (await usingDatabase()) return queriesDb.listJuditRequests(partyId);
-  return [];
-}
-
-// Todas as consultas, síncronas e assíncronas, para a página Consultas. Na
+// Todas as consultas, síncronas e assíncronas (Minhas informações, barra de
+// pesquisa e ficha do assunto). Na
 // demonstração, linhas fictícias no mesmo formato.
 export async function listQueries(): Promise<QueryView[]> {
   if (await usingDatabase()) {
@@ -165,14 +156,6 @@ export async function listQueries(): Promise<QueryView[]> {
     );
   }
   return mergeQueries(mock.queries);
-}
-
-// "Agora" para as contagens por período do Dashboard. Na demonstração, a data
-// fixa dos dados fictícios (senão os gráficos ficariam vazios com o passar
-// dos dias); no modo "db", a hora da requisição.
-export async function getReferenceDate(): Promise<Date> {
-  if (await usingDatabase()) return new Date();
-  return mock.DEMO_NOW;
 }
 
 const byDateDesc =

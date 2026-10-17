@@ -662,6 +662,28 @@ export const webhookEvents: WebhookEventView[] = [
 
 // Alertas
 
+// Como no processamento real (src/features/webhooks/process.ts), todo
+// alerta vem de um monitoramento: a movimentação, do monitoramento do
+// processo; o resto, do monitoramento por documento da parte.
+function demoTrackingFor(
+  company: CompanyKey | null,
+  lawsuitCnj: string | null,
+  type: AlertView["type"],
+): string | null {
+  const byLawsuit =
+    type === "lawsuit_movement" && lawsuitCnj
+      ? trackings.find(
+          (t) => t.searchType === "cnj" && t.searchKey === lawsuitCnj,
+        )
+      : undefined;
+  const byParty = company
+    ? trackings.find(
+        (t) => t.searchType !== "cnj" && t.partyId === partyId(company),
+      )
+    : undefined;
+  return (byLawsuit ?? byParty)?.id ?? null;
+}
+
 const A = (
   n: number,
   type: AlertView["type"],
@@ -677,7 +699,7 @@ const A = (
   type,
   partyId: company ? partyId(company) : null,
   webhookEventId: eventN ? mockId(4, eventN) : null,
-  trackingId: null,
+  trackingId: demoTrackingFor(company, lawsuitCnj, type),
   lawsuitCnj,
   dedupeKey: `demo:${n}`,
   title,

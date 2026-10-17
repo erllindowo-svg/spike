@@ -1302,3 +1302,29 @@ implementação ficam marcadas como _decisão do agente_.
    sem token) devolve a reserva a pendente sem chamar a JUDIT. A mensagem
    de criação, o diálogo e a ficha dizem como os resultados chegam. A
    entrega real depende de túnel e de um teste do usuário (não feito).
+9. **Limpeza e demonstração (D7).**
+   - **Saíram** (sem uso depois das fatias 3 a 8): barra lateral (`ui/sidebar`,
+     `use-mobile`, `avatar`), abas (`section-tabs` e as das partes e dos
+     monitoramentos), Dashboard (`overview-dashboard`, `stats`,
+     `column-chart`, `activity-feed`), página e lista de partes
+     (`party-pages`, `party-detail`, `parties-list`, `demo-party-page`,
+     `party-lawsuits-card`, `registration-status-badge`), central de alertas
+     (`alerts-center`; os estilos foram para `alert-type-styles.ts`), página
+     de monitoramentos, página do histórico (as células reaproveitadas pela
+     ficha foram para `query-cells.tsx`), card de consultas assíncronas da
+     parte, `remote-lawsuit`, `distribution-card`, as actions
+     `searchPartyLawsuitsAction` e `refreshRegistrationDataAction` (com os
+     testes delas) e funções de dados sem uso. A suíte foi de 372 para 356
+     testes por isso.
+   - **Coerência com "cada página tem uma função":** na ficha, a folha do
+     processo não tem "Monitorar" (`readOnly`); "Marcar todos como lidos"
+     entrou nos alertas da ficha.
+   - **Demonstração:** os alertas fictícios passaram a apontar para o
+     monitoramento de onde vieram (como no banco), para aparecerem na ficha e
+     na contagem dos assuntos. Na página Consultar, OAB, nome e RJI mostram
+     "Indisponível na demonstração" e os botões ficam desligados.
+   - **Conferência:** build de demonstração (`DATA_SOURCE=demo`, porta 3124) e o servidor do usuário em modo banco: `/`, `/informacoes`, as
+     fichas, `/configuracoes` e `/webhooks` respondem 200 nos dois modos; as
+     rotas antigas redirecionam; capturas de tela de Minhas informações, da
+     ficha e de Consultar com OAB. Não conferido: digitar na barra e clicar
+     nos botões (sem navegador interativo).

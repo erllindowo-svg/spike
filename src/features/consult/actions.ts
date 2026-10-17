@@ -367,11 +367,11 @@ async function callJudit(
   }
 }
 
-// As consultas assíncronas são acompanhadas depois: as por CPF ou CNPJ na
-// página da parte (por isso a parte é salva antes, sem consultar dados
-// cadastrais), as por CNJ, OAB, nome ou RJI no histórico de consultas. O
-// resto é a mesma action do card da parte (teto diário, consulta igual em
-// aberto, webhook).
+// As consultas assíncronas são acompanhadas depois, na ficha do assunto
+// (Minhas informações). As por CPF ou CNPJ salvam a parte antes, sem
+// consultar dados cadastrais, porque a action as liga a ela; as por CNJ,
+// OAB, nome ou RJI não têm parte. O resto é a mesma action de sempre (teto
+// diário, consulta igual em aberto, webhook).
 async function startAsync(query: ParsedQuery): Promise<ConsultResult> {
   const mode =
     query.feature === "warrants"

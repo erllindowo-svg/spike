@@ -14,7 +14,7 @@ import { saveBatch, saveQuietly } from "@/features/base/db";
 import { registrationRecords } from "@/features/base/records";
 import { getEntity } from "@/lib/judit/lawsuits";
 
-import { ensureParty, getPartyByDocument, updatePartyRegistration } from "./db";
+import { ensureParty, updatePartyRegistration } from "./db";
 import { partyRefSchema, type PartyRef } from "./documents";
 import { fromJuditEntities, type RegistrationData } from "./registration";
 
@@ -25,8 +25,6 @@ import { fromJuditEntities, type RegistrationData } from "./registration";
 //                                    `lookup`, consulta antes os dados
 //                                    cadastrais (POST /entities, cobrada); se
 //                                    a JUDIT recusar, nada é salvo.
-//   refreshRegistrationDataAction    consulta de novo os dados cadastrais de
-//                                    uma parte já salva.
 //
 // Como as outras actions que chamam a JUDIT, nada aqui confia no navegador:
 // modo "db", documento validado de novo, teto diário e as proteções do
@@ -84,48 +82,6 @@ export async function addPartyAction(
       party: { documentType: party.documentType, document: party.document },
       registration,
     };
-  } catch (error) {
-    return juditActionFailure(error, "parties");
-  }
-}
-
-export type RefreshRegistrationResult =
-  | { ok: true; registration: RegistrationData }
-  | Unavailable
-  | JuditActionFailure;
-
-export async function refreshRegistrationDataAction(
-  ref: PartyRef,
-): Promise<RefreshRegistrationResult> {
-  if (getDataSource() !== "db") return unavailable();
-
-  const parsed = partyRefSchema.safeParse(ref);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      reason: "invalid",
-      message: parsed.error.issues[0]?.message ?? "Documento inválido.",
-    };
-  }
-
-  try {
-    const party = await getPartyByDocument(
-      parsed.data.documentType,
-      parsed.data.document,
-    );
-    if (!party) {
-      return {
-        ok: false,
-        reason: "invalid",
-        message: "Parte não cadastrada na aplicação.",
-      };
-    }
-    const registration = await lookupRegistration(party, party.id);
-    if (registration.found) {
-      await updatePartyRegistration(party.id, registration);
-    }
-    refresh();
-    return { ok: true, registration };
   } catch (error) {
     return juditActionFailure(error, "parties");
   }

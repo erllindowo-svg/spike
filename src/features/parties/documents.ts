@@ -19,9 +19,6 @@ export type DocumentInfo = {
   label: string;
   // Como a parte é chamada na interface.
   partyLabel: string;
-  partyLabelPlural: string;
-  // Rota da lista e da página da parte.
-  basePath: string;
   placeholder: string;
 };
 
@@ -29,15 +26,11 @@ export const DOCUMENTS: Record<DocumentType, DocumentInfo> = {
   cnpj: {
     label: "CNPJ",
     partyLabel: "Empresa",
-    partyLabelPlural: "Empresas",
-    basePath: "/empresas",
     placeholder: "00.000.000/0000-00",
   },
   cpf: {
     label: "CPF",
     partyLabel: "Pessoa física",
-    partyLabelPlural: "Pessoas físicas",
-    basePath: "/pessoas",
     placeholder: "000.000.000-00",
   },
 };

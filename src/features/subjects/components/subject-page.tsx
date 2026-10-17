@@ -52,7 +52,7 @@ import { QUERY_MODES } from "@/features/queries/modes";
 import {
   QueryResult,
   RequestIdCell,
-} from "@/features/queries/components/queries-page";
+} from "@/features/queries/components/query-cells";
 import type { QueryView } from "@/features/queries/types";
 import { SupportOnly } from "@/features/settings/support-view";
 import { TrackingsTable } from "@/features/trackings/components/trackings-table";
@@ -117,8 +117,14 @@ export function SubjectPage({
   queries: QueryView[];
 }) {
   const router = useRouter();
-  const { parties, trackings, alerts, markAlertRead, dataSource } =
-    useDemoStore();
+  const {
+    parties,
+    trackings,
+    alerts,
+    markAlertRead,
+    markAllAlertsRead,
+    dataSource,
+  } = useDemoStore();
   const [selected, setSelected] = useState<Lawsuit | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [deleting, startDelete] = useTransition();
@@ -236,6 +242,26 @@ export function SubjectPage({
             <CardDescription>
               Avisos dos monitoramentos deste assunto, os não lidos primeiro.
             </CardDescription>
+            {ownAlerts.some((a) => !a.readAt) && (
+              <CardAction>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    for (const tracking of ownTrackings) {
+                      const error = await markAllAlertsRead(tracking.id);
+                      if (error) {
+                        toast.error(error);
+                        return;
+                      }
+                    }
+                  }}
+                >
+                  <CheckIcon data-icon="inline-start" />
+                  Marcar todos como lidos
+                </Button>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col divide-y">
@@ -583,6 +609,7 @@ export function SubjectPage({
       <LawsuitSheet
         lawsuit={selected}
         onOpenChange={(open) => !open && setSelected(null)}
+        readOnly
       />
 
       <Dialog open={confirming} onOpenChange={setConfirming}>

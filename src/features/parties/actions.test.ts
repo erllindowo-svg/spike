@@ -4,7 +4,7 @@ import type { Party } from "@/db/models";
 import { saveSyncQuery } from "@/features/queries/db";
 import { entityCnpjBody } from "@/lib/judit/__fixtures__/lawsuits";
 
-import { addPartyAction, refreshRegistrationDataAction } from "./actions";
+import { addPartyAction } from "./actions";
 import { ensureParty, getPartyByDocument, updatePartyRegistration } from "./db";
 
 // The actions run with the real JUDIT client (guard, schema, errors) and a
@@ -161,30 +161,16 @@ describe("addPartyAction", () => {
   });
 });
 
-describe("refreshRegistrationDataAction", () => {
-  it("only refreshes parties saved in the app", async () => {
-    vi.mocked(getPartyByDocument).mockResolvedValue(null);
-
-    expect(
-      await refreshRegistrationDataAction({
-        documentType: "cnpj",
-        document: TEST_CNPJ,
-      }),
-    ).toMatchObject({
-      ok: false,
-      reason: "invalid",
-    });
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
+describe("addPartyAction with a failed lookup", () => {
   it("records a JUDIT error in the history and reports it", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mockFetch({ error: { name: "INTERNAL", message: "boom" } }, 500);
 
     expect(
-      await refreshRegistrationDataAction({
+      await addPartyAction({
         documentType: "cnpj",
         document: TEST_CNPJ,
+        lookup: true,
       }),
     ).toMatchObject({
       ok: false,
@@ -193,7 +179,8 @@ describe("refreshRegistrationDataAction", () => {
     expect(saveSyncQuery).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: "registration_data",
-        partyId: "company-1",
+        // Looked up before saving: there is no party yet.
+        partyId: null,
         outcome: "failed",
         errorKind: "http",
       }),

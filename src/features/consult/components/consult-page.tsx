@@ -97,6 +97,12 @@ export function ConsultPage() {
     features.find((f) => f.id === featureId) ?? features[0] ?? null;
   const tracking =
     target && feature ? trackingFor(feature.id, target.type) : null;
+  // Os dados fictícios só têm empresas, pessoas e processos (D7).
+  const demoUnavailable =
+    dataSource !== "db" &&
+    !!target &&
+    target.type !== "cnj" &&
+    !isDocumentType(target.type);
   const party =
     target && isDocumentType(target.type)
       ? parties.find(
@@ -272,7 +278,7 @@ export function ConsultPage() {
             )}
 
             <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={run} disabled={running}>
+              <Button onClick={run} disabled={running || demoUnavailable}>
                 {running ? (
                   <Spinner data-icon="inline-start" />
                 ) : (
@@ -281,7 +287,11 @@ export function ConsultPage() {
                 Consultar
               </Button>
               {tracking && (
-                <Button variant="outline" onClick={() => monitor(true)}>
+                <Button
+                  variant="outline"
+                  onClick={() => monitor(true)}
+                  disabled={demoUnavailable}
+                >
                   <RadarIcon data-icon="inline-start" />
                   Monitorar
                 </Button>
@@ -296,6 +306,12 @@ export function ConsultPage() {
                 <ExternalLinkIcon className="size-3" aria-hidden />
               </a>
             </div>
+            {demoUnavailable && (
+              <p className="text-sm text-warning">
+                Indisponível na demonstração: os dados fictícios só têm
+                empresas, pessoas e processos.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               {tracking
                 ? `Consultar: uma resposta agora, cobrada uma vez. Monitorar (${lowerFirst(tracking.label)}): ${lowerFirst(tracking.follows)} Cobrado a cada execução, até ser pausado.`
