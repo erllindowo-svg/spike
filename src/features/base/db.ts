@@ -18,6 +18,8 @@ import {
   type StoredWarrantDoc,
 } from "@/db/collections";
 import { isDuplicateKeyError } from "@/db/errors";
+import type { Subject as SearchSubject } from "@/features/search/entries";
+import { refreshSearchEntries } from "@/features/search/refresh";
 import type {
   Finding,
   LawsuitStats,
@@ -153,6 +155,22 @@ export async function saveBatch(
       { $set: { aiSummary: batch.aiSummary } },
     );
   }
+  // A busca: o assunto e cada processo ou cadastro que ele trouxe.
+  await refreshSearchEntries([
+    subject,
+    ...batch.records.flatMap((record): SearchSubject[] =>
+      record.kind === "lawsuit"
+        ? [{ searchType: "cnj" as const, searchKey: record.fields.cnj }]
+        : record.kind === "registration"
+          ? [
+              {
+                searchType: record.fields.documentType,
+                searchKey: record.fields.document,
+              },
+            ]
+          : [],
+    ),
+  ]);
   return summary;
 }
 
@@ -163,13 +181,15 @@ export async function saveStats(
   fetchedAt: Date = new Date(),
 ): Promise<"saved" | "kept"> {
   const { lawsuitStats } = collections(await getDb());
-  return upsertNewer(
+  const result = await upsertNewer(
     lawsuitStats,
     LAWSUIT_STATS_KEY_INDEX,
     { ...subject, mode: stats.mode },
     { total: stats.total, groups: stats.groups },
     { juditData: stats.juditData, source, fetchedAt },
   );
+  await refreshSearchEntries([subject]);
+  return result;
 }
 
 // A gravação na base não pode desfazer o que a pessoa já recebeu: a

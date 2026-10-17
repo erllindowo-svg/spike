@@ -343,3 +343,27 @@ export type Finding = {
   firstFoundAt: Date;
   lastFoundAt: Date;
 };
+
+// --- Busca (círculo 3B, opção B) --------------------------------------------
+//
+// Uma entrada por coisa que se pode achar na barra de pesquisa e no Acervo:
+// cada assunto (CPF, CNPJ, OAB, nome, RJI) e cada processo guardado (como
+// assunto "cnj"). É um dado DERIVADO das outras coleções: pode ser apagado e
+// reconstruído (src/features/search/entries.ts). Também dá o nome e o resumo
+// curto que a página Consultar mostra para um identificador conhecido.
+export type SearchEntry = {
+  id: string;
+  searchType: SearchType;
+  searchKey: string;
+  // Nome da parte, do cadastro ou o próprio nome pesquisado.
+  name: string | null;
+  // Uma linha de contexto: situação cadastral, ou tribunal e área do
+  // processo.
+  detail: string | null;
+  // Processos guardados que este assunto encontrou.
+  lawsuits: number;
+  // Palavras pesquisáveis, em minúsculas e sem acento (terms.ts).
+  terms: string[];
+  // A atividade mais recente: consulta, dado recebido ou monitoramento.
+  lastSeenAt: Date;
+};

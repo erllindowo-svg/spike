@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import { collections, toModel, type JuditRequestDoc } from "@/db/collections";
 import type { JuditRequest, SyncQuery } from "@/db/models";
 import { LIST_LIMITS } from "@/lib/list-limits";
+import { refreshSearchEntries } from "@/features/search/refresh";
 
 // Persistência dos ponteiros de consultas assíncronas (coleção
 // `judit_requests`). Só o `request_id` e os dados para acompanhá-lo: os
@@ -55,6 +56,7 @@ export async function saveJuditRequest(
     lastCheckedAt: null,
   };
   await juditRequests.insertOne(doc);
+  await refreshSearchEntries([input]);
   return toJuditRequest(doc);
 }
 
@@ -161,6 +163,7 @@ export async function saveSyncQuery(input: NewSyncQuery): Promise<SyncQuery> {
   const { syncQueries } = collections(await getDb());
   const doc = { _id: randomUUID(), ...input, createdAt: new Date() };
   await syncQueries.insertOne(doc);
+  await refreshSearchEntries([input]);
   return toModel(doc);
 }
 

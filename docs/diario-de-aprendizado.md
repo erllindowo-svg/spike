@@ -1604,6 +1604,16 @@ Nove commits na `feat/product-review`: reconhecimento pela digitação, catálog
 
 Página 2 renomeada para Acervo (`/acervo`, com redirecionamento de `/informacoes`); alternância do topo só com ícones, a ativa com o nome. Selo "Agora" verde e "Depois" azul. Saíram os avisos de "base legal". A barra de pesquisa estilo Google ficou para discussão.
 
+### 2026-10-17 / Círculo 3B: a conversa sobre a barra de pesquisa e onde o banco roda
+
+**Resumo técnico**
+
+Diálogo antes do código (resumo do agente). O usuário pediu uma barra "como a do Google": uma só, que procura dentro do que já foi consultado ("ERL" acha "Erllan") e oferece "Fazer nova consulta". O agente mostrou que a busca de hoje é um filtro no navegador sobre uma lista limitada (200 consultas) e comparou três jeitos de buscar no MongoDB: Atlas Search (`$search`, o melhor, mas só existe no Atlas), termos próprios com índice comum (opção B, funciona em qualquer MongoDB) e `$text` (só palavras inteiras).
+
+A dúvida seguinte foi de base: "o app precisa de Mongo?". Ficou registrado que há três lugares onde os dados moram: memória (demonstração, sem banco), o cluster no Atlas (modo banco, o `pnpm dev` de hoje) e um MongoDB temporário que o `pnpm test` liga e apaga (o `mongod` baixado em `~/.cache/mongodb-binaries`; não há MongoDB instalado no sistema). O motor é o mesmo nos três; o Atlas só acrescenta serviços, como o Atlas Search. Conferido no código: nada usa recurso exclusivo do Atlas, e a URI aceita `mongodb://` e `mongodb+srv://`. Se o Atlas sumisse, bastaria outro MongoDB e trocar o `MONGODB_URI` (os dados se perderiam, e os monitoramentos continuariam cobrando na JUDIT).
+
+Decisões: opção B agora, numa coleção `search_entries` (derivada, reconstruível), usada pela barra, pelo filtro do Acervo e pela página Consultar personalizada; Atlas Search como extra ligado por variável no círculo 4. A página Consultar ganha o bloco "Já capturado" abaixo das ações, porque ele serve de referência e não deve interromper o fluxo.
+
 ---
 
 ## Perguntas e respostas

@@ -4,6 +4,8 @@ import { getDb } from "@/db";
 import { collections } from "@/db/collections";
 import { deleteSubjectRecords, type Subject } from "@/features/base/db";
 import { OPEN_QUERY_WINDOW_MS } from "@/features/queries/db";
+import type { Subject as SearchSubject } from "@/features/search/entries";
+import { refreshSearchEntries } from "@/features/search/refresh";
 
 // "Apagar este assunto" (círculo 3, fatia 6): tira do banco o que o app
 // guardou sobre um identificador. Duas travas, porque o que está em
@@ -42,6 +44,9 @@ export async function deleteSubject(
   });
   if (open > 0) return { ok: false, reason: "open_query" };
 
+  // O que este assunto encontrou: as entradas da busca desses itens são
+  // recalculadas no fim (somem se o item saiu do banco).
+  const found = await db.findings.find(subject).toArray();
   const removedRecords = await deleteSubjectRecords(subject);
   const [sync, async] = await Promise.all([
     db.syncQueries.deleteMany(subject),
@@ -57,6 +62,24 @@ export async function deleteSubject(
       document: subject.searchKey,
     });
   }
+
+  await refreshSearchEntries([
+    subject,
+    ...found.flatMap((f): SearchSubject[] => {
+      if (f.kind === "lawsuit") {
+        return [
+          { searchType: "cnj" as const, searchKey: f.itemKey.split(":")[0] },
+        ];
+      }
+      if (f.kind === "registration") {
+        const [documentType, document] = f.itemKey.split(":");
+        return [
+          { searchType: documentType as "cpf" | "cnpj", searchKey: document },
+        ];
+      }
+      return [];
+    }),
+  ]);
 
   return {
     ok: true,

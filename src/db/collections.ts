@@ -6,6 +6,7 @@ import type {
   LawsuitStats,
   Party,
   JuditRequest,
+  SearchEntry,
   StoredLawsuit,
   StoredRegistration,
   StoredWarrant,
@@ -54,6 +55,7 @@ export type StoredRegistrationDoc = Doc<StoredRegistration>;
 export type StoredWarrantDoc = Doc<StoredWarrant>;
 export type LawsuitStatsDoc = Doc<LawsuitStats>;
 export type FindingDoc = Doc<Finding>;
+export type SearchEntryDoc = Doc<SearchEntry>;
 
 export function collections(db: Db) {
   return {
@@ -69,6 +71,8 @@ export function collections(db: Db) {
     warrants: db.collection<StoredWarrantDoc>("warrants"),
     lawsuitStats: db.collection<LawsuitStatsDoc>("lawsuit_stats"),
     findings: db.collection<FindingDoc>("findings"),
+    // Busca (círculo 3B): derivada das coleções acima.
+    searchEntries: db.collection<SearchEntryDoc>("search_entries"),
   };
 }
 
@@ -101,6 +105,7 @@ export const REGISTRATIONS_KEY_INDEX = "registrations_document_unique";
 export const WARRANTS_KEY_INDEX = "warrants_key_unique";
 export const LAWSUIT_STATS_KEY_INDEX = "lawsuit_stats_search_mode_unique";
 export const FINDINGS_KEY_INDEX = "findings_subject_item_unique";
+export const SEARCH_ENTRIES_KEY_INDEX = "search_entries_subject_unique";
 
 // Índices e regras de unicidade. O MongoDB não tem migrations como o SQL:
 // createIndex é idempotente (não faz nada se o índice já existe igual), então
@@ -119,6 +124,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
     warrants,
     lawsuitStats,
     findings,
+    searchEntries,
   } = collections(db);
 
   await Promise.all([
@@ -242,5 +248,19 @@ export async function ensureIndexes(db: Db): Promise<void> {
     ),
     // Quem encontrou este item (o processo visto de outro assunto).
     findings.createIndex({ kind: 1, itemKey: 1 }, { name: "findings_item" }),
+
+    // Busca: uma entrada por assunto, e o índice das palavras. Num campo
+    // que é uma lista, o MongoDB indexa cada palavra (índice "multikey"), e
+    // uma expressão que fixa o começo (/^erl/) usa o índice em vez de ler a
+    // coleção inteira.
+    searchEntries.createIndex(
+      { searchType: 1, searchKey: 1 },
+      { name: SEARCH_ENTRIES_KEY_INDEX, unique: true },
+    ),
+    searchEntries.createIndex({ terms: 1 }, { name: "search_entries_terms" }),
+    searchEntries.createIndex(
+      { lastSeenAt: -1 },
+      { name: "search_entries_last_seen_at" },
+    ),
   ]);
 }

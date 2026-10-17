@@ -21,6 +21,7 @@ import { isDocumentType } from "@/features/parties/documents";
 import { cpfSchema } from "@/features/parties/cpf";
 import { cnjSchema } from "@/features/processes/cnj";
 import { trackingModeFor } from "@/features/queries/modes";
+import { refreshSearchEntries } from "@/features/search/refresh";
 
 // Persistência de monitoramentos no MongoDB.
 //
@@ -171,6 +172,7 @@ export async function reserveTracking(
   const { trackings } = collections(await getDb());
   try {
     await trackings.insertOne(doc);
+    await refreshSearchEntries([{ searchType, searchKey }]);
     return { ok: true, tracking: toTracking(doc) };
   } catch (error) {
     // A regra de duplicidade é do banco (índice único parcial em

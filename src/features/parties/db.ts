@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import { collections, PARTIES_DOCUMENT_INDEX, toModel } from "@/db/collections";
 import { isDuplicateKeyError } from "@/db/errors";
 import type { DocumentType, Party } from "@/db/models";
+import { refreshSearchEntries } from "@/features/search/refresh";
 
 import { documentSchema, normalizeDocument } from "./documents";
 
@@ -64,7 +65,10 @@ export async function ensureParty(
       },
       { upsert: true, returnDocument: "after" },
     );
-    if (doc) return toModel(doc);
+    if (doc) {
+      await refreshSearchEntries([{ searchType: type, searchKey: normalized }]);
+      return toModel(doc);
+    }
   } catch (error) {
     // Dois upserts simultâneos podem tentar inserir juntos; o índice único
     // recusa o segundo, e a parte criada pelo primeiro é lida abaixo.
@@ -93,8 +97,15 @@ export async function updatePartyRegistration(
     set.registrationStatus = data.registrationStatus;
   }
   if (Object.keys(set).length === 0) return;
-  await parties.updateOne(
+  const doc = await parties.findOneAndUpdate(
     { _id: id },
     { $set: { ...set, updatedAt: new Date() } },
+    { returnDocument: "after" },
   );
+  // O nome novo passa a ser achado pela barra de pesquisa.
+  if (doc) {
+    await refreshSearchEntries([
+      { searchType: doc.documentType, searchKey: doc.document },
+    ]);
+  }
 }
