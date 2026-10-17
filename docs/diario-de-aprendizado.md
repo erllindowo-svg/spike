@@ -415,6 +415,24 @@ A coleção `companies` virou `parties`, com o tipo do documento (CNPJ ou CPF), 
 - Correção: nenhuma por enquanto. É candidata ao círculo 3: indicar há quanto tempo a consulta está na fila, ou verificar ao abrir o histórico.
 - Lição de suporte: o ticket seria "minha consulta está na fila há um dia". Antes de escalar para a JUDIT, ler o status direto na fonte (rota de dev ou vista de suporte). O nosso registro é uma foto da última verificação, não o estado atual.
 
+**L1. A ficha do assunto não mostra processos depois de uma consulta que trouxe processos.** _Previsto em 2026-10-17 (círculo 3, fatia 5)._
+
+- Sinal: a página Consultar mostrou a lista, mas a ficha em Minhas informações diz "Nenhum processo guardado". No terminal: `[base] falha ao gravar na base própria (datalake_sync, request_id …)`.
+- Camada: banco (base própria) ou aplicação.
+- Hipóteses: (1) o MongoDB recusou ou caiu no meio da gravação (a consulta já tinha sido cobrada, então o erro só vai para o log); (2) os índices novos não foram criados porque o `pnpm dev` não foi reiniciado; (3) a consulta foi de contagem ou resumo, que guardam números (`lawsuit_stats`), não processos.
+- Teste que separou: procurar `[base]` no log; no Atlas, conferir `lawsuits` e `findings` com o identificador e os índices `lawsuits_cnj_instance_unique` e `findings_subject_item_unique`.
+- Correção: repetir a consulta (a regra "o mais novo substitui" não duplica nada).
+- Lição de suporte: "paguei e não ficou salvo" tem duas metades. A resposta veio (a tela mostrou); a cópia local falhou. O `request_id` do log permite reler o resultado na JUDIT sem cobrar de novo, quando o fluxo é assíncrono.
+
+**L2. Monitoramento criado "sem webhook" mesmo com o túnel ligado.** _Previsto em 2026-10-17 (círculo 3, fatia 8)._
+
+- Sinal: a mensagem de criação diz "Sem endereço público para o webhook" ou "Webhook configurado pela metade … A reserva continua pendente".
+- Camada: ambiente.
+- Hipóteses: (1) `JUDIT_WEBHOOK_PUBLIC_ORIGIN` vazia ou o servidor não foi reiniciado depois de preenchê-la; (2) origem preenchida e `JUDIT_WEBHOOK_TOKEN` vazio (pela metade: nada é enviado); (3) origem com `http://` (a JUDIT exige https).
+- Teste que separou: `pnpm env:check` mostra as duas variáveis; o card "Recebimento de webhooks" em Configurações diz a situação.
+- Correção: preencher as duas, reiniciar e enviar a reserva de novo.
+- Lição de suporte: um monitoramento criado sem `callback_url` não ganha uma depois sozinho; os resultados ficam em "Ver resultados". Quem abre o ticket "não recebo alertas" precisa ter a forma de entrega conferida antes de qualquer outra coisa (`delivery` do monitoramento).
+
 ### Modelo para novos casos
 
 ```
@@ -1574,6 +1592,12 @@ O usuário pôs `JUDIT_ALLOWLIST=disabled` no `.env.local`; `pnpm env:check` con
 
 Nove fatias em `docs/etapa-7-escopo.md`: reconhecimento de identificadores, catálogo ampliado, navegação no topo, Consultar nova, base própria, Minhas informações, barra unificada, webhook nos monitoramentos, limpeza e demonstração. Relatório de progresso atualizado com o prompt de retomada.
 
+### 2026-10-17 / Círculo 3 implementado (nove fatias)
+
+**Resumo técnico**
+
+Nove commits na `feat/product-review`: reconhecimento pela digitação, catálogo com perguntas, navegação no topo, Consultar em "/", base própria (D1), Minhas informações com ficha, barra unificada, webhook nos monitoramentos e limpeza com demonstração. 356 testes, lint, typecheck e build. Detalhes em `docs/etapa-7-escopo.md`.
+
 ---
 
 ## Perguntas e respostas
@@ -2078,3 +2102,9 @@ Não. Ela só decide o que a tela desenha, e a preferência fica no navegador (`
 
 **Por que a consulta de dados cadastrais é feita antes de salvar a empresa, e não depois?** _(círculo 1, 2026-10-16)_
 Para que uma recusa não deixe lixo. Se a allowlist barra o CNPJ ou a JUDIT responde com erro, nada é salvo, e a pessoa escolhe "Salvar sem consultar". Se fosse salvar primeiro, uma consulta recusada deixaria uma empresa sem dados na lista. O preço: a consulta fica registrada em `sync_queries` sem `companyId`, por isso a página Consultas liga a consulta à empresa pelo CNPJ.
+
+**Por que a base própria grava o item inteiro da JUDIT (`juditData`) além dos campos normalizados?** _(círculo 3, 2026-10-17)_
+Porque "gravar tudo" e "normalizado" puxam para lados diferentes. Os campos normalizados (CNJ, tribunal, situação, datas) são o que o app usa para listar, filtrar e mostrar; eles têm o nosso formato e o nosso significado. O item inteiro garante que nada se perde: um campo que a tela ainda não usa (partes, andamentos, endereços) continua no banco, e uma tela nova pode lê-lo sem consultar e pagar de novo. O custo é mais dado pessoal guardado, por isso existe "Apagar este assunto".
+
+**Como a regra "o mais novo substitui" impede que um dado velho passe por cima de um novo, mesmo com duas gravações ao mesmo tempo?** _(círculo 3, 2026-10-17)_
+O `updateOne` com `upsert` procura o registro pela chave **e** com `fetchedAt` menor ou igual ao da gravação. Se o registro existente for mais novo, a busca não acha nada e o MongoDB tenta inserir um registro novo com a mesma chave; o índice único recusa, e o código trata essa recusa como "mantido". A decisão fica numa operação só do banco, então duas requisições simultâneas não conseguem ler, comparar e escrever em ordens trocadas.
